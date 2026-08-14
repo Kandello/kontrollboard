@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <title>Vorabprüfung</title>
+  <style>
+    :root {
+      --grund:        #faf9f5;
+      --flaeche:      #ffffff;
+      --text:         #2c2a26;
+      --text-leise:   #6f6a61;
+      --linie:        #e4e0d8;
+      --akzent:       #0088b0;
+      --gut:          #1e7a4c;
+      --schlecht:     #b3261e;
+      --offen:        #8a6d1f;
+      --serif:        Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+      --sans:         -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --abstand:      16px;
+      --radius:       10px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: var(--abstand);
+      background: var(--grund);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 16px;
+      line-height: 1.5;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    h1, h2 { font-family: var(--serif); font-weight: 600; }
+    h1 { font-size: 26px; margin: 0 0 4px; }
+    h2 { font-size: 19px; margin: 0 0 8px; }
+
+    .hinweis {
+      color: var(--text-leise);
+      font-size: 14px;
+      margin: 0 0 24px;
+      max-width: 60ch;
+    }
+
+    .karte {
+      background: var(--flaeche);
+      border: 1px solid var(--linie);
+      border-radius: var(--radius);
+      padding: var(--abstand);
+      margin-bottom: var(--abstand);
+      max-width: 760px;
+    }
+
+    .kopf {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 6px;
+    }
+
+    .nummer {
+      font-family: var(--serif);
+      font-size: 13px;
+      color: var(--text-leise);
+      border: 1px solid var(--linie);
+      border-radius: 999px;
+      padding: 1px 9px;
+      white-space: nowrap;
+    }
+
+    .frage { color: var(--text-leise); font-size: 14px; margin: 0 0 14px; }
+
+    button {
+      font-family: var(--sans);
+      font-size: 15px;
+      min-height: 44px;
+      padding: 10px 18px;
+      margin: 0 8px 8px 0;
+      background: var(--flaeche);
+      color: var(--akzent);
+      border: 1px solid var(--akzent);
+      border-radius: 8px;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+    button:active { background: #f0f8fb; }
+    button.wichtig { background: var(--akzent); color: #fff; }
+
+    .ergebnis {
+      margin-top: 12px;
+      padding: 11px 13px;
+      border-radius: 8px;
+      border: 1px solid var(--linie);
+      background: var(--grund);
+      font-size: 14px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .ergebnis.gut      { border-color: var(--gut);      background: #f1f8f4; }
+    .ergebnis.schlecht { border-color: var(--schlecht); background: #fdf3f2; }
+    .ergebnis.offen    { border-color: var(--offen);    background: #fbf7ea; }
+
+    .marke { font-weight: 600; }
+    .marke.gut      { color: var(--gut); }
+    .marke.schlecht { color: var(--schlecht); }
+    .marke.offen    { color: var(--offen); }
+
+    code, .technisch {
+      font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+      font-size: 12.5px;
+      word-break: break-all;
+    }
+
+    /* --- Prüfung 5: sticky im eigenen Scroll-Container --------------------- */
+    .scrollbereich {
+      height: 220px;
+      overflow: auto;
+      border: 1px solid var(--linie);
+      border-radius: 8px;
+      background: var(--flaeche);
+      -webkit-overflow-scrolling: touch;
+    }
+    .scrollbereich table { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; }
+    .scrollbereich th, .scrollbereich td {
+      padding: 9px 14px;
+      border-bottom: 1px solid var(--linie);
+      text-align: left;
+      font-size: 14px;
+      white-space: nowrap;
+      background: var(--flaeche);
+    }
+    .scrollbereich thead th {
+      position: -webkit-sticky; position: sticky; top: 0; z-index: 2;
+      background: #f2efe8;
+      border-bottom: 1px solid var(--linie);
+    }
+    .scrollbereich .haftlinks {
+      position: -webkit-sticky; position: sticky; left: 0; z-index: 1;
+      background: #f7f5f0;
+      border-right: 1px solid var(--linie);
+    }
+    .scrollbereich thead th.haftlinks { z-index: 3; background: #ece8df; }
+
+    .umgebung { font-size: 13px; color: var(--text-leise); }
+    .umgebung div { margin-bottom: 5px; }
+
+    textarea {
+      width: 100%;
+      min-height: 220px;
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      font-size: 12.5px;
+      padding: 11px;
+      border: 1px solid var(--linie);
+      border-radius: 8px;
+      background: var(--grund);
+      color: var(--text);
+    }
+
+    ol.anleitung { margin: 0 0 14px; padding-left: 22px; font-size: 14px; }
+    ol.anleitung li { margin-bottom: 5px; }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { animation: none !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Vorabprüfung</h1>
+  <p class="hinweis">
+    Fünf technische Fragen, die vor dem Bau der Kommandozentrale beantwortet sein müssen.
+    Dieses Skript speichert nichts, liest keine Tabelle und verarbeitet keine Schülerdaten.
+    Nach der Messung kann es gelöscht werden.
+  </p>
+
+  <!-- ===================================================================== -->
+  <div class="karte">
+    <div class="kopf"><span class="nummer">Umgebung</span><h2>Wo läuft diese Seite?</h2></div>
+    <p class="frage">
+      Die wichtigste Einzelangabe für Prüfung&nbsp;1. Der lokale Speicher eines Browsers hängt
+      immer an genau einer Adresse. Ändert sich die Adresse bei einer neuen Bereitstellung,
+      ist der Speicher weg — ohne dass irgendetwas kaputt wäre.
+    </p>
+    <div class="umgebung" id="umgebung"></div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <div class="karte">
+    <div class="kopf"><span class="nummer">Prüfung 1</span><h2>Überdauert der lokale Speicher?</h2></div>
+    <p class="frage">
+      Grundannahme der gesamten Zuordnungslogik: Die Übersetzung Kürzel&nbsp;→&nbsp;Name liegt
+      im Browser. Überlebt sie eine neue Bereitstellung und einen Browser-Neustart?
+    </p>
+
+    <ol class="anleitung">
+      <li>Auf <strong>„Marke setzen"</strong> tippen.</li>
+      <li>Seite neu laden. Erwartung: Marke wird gefunden. <em>(Grundfunktion)</em></li>
+      <li>Browser vollständig schließen und neu öffnen, Seite aufrufen. <em>(Neustart)</em></li>
+      <li>Im Apps-Script-Editor <strong>Bereitstellen → Bereitstellungen verwalten → neue Version</strong>,
+          dann Seite erneut aufrufen. <em>(Der eigentliche Ernstfall)</em></li>
+      <li>Auf dem iPad zusätzlich: Seite über <strong>Teilen → Zum Home-Bildschirm</strong> ablegen,
+          von dort starten und die Schritte 1–3 wiederholen.</li>
+    </ol>
+
+    <button class="wichtig" id="btnMarkeSetzen">Marke setzen</button>
+    <button id="btnMarkeLoeschen">Marke löschen</button>
+    <div class="ergebnis" id="erg1">wird geprüft …</div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <div class="karte">
+    <div class="kopf"><span class="nummer">Prüfung 2</span><h2>Funktioniert der komfortable Dateizugriff?</h2></div>
+    <p class="frage">
+      Gemeint ist <code>showOpenFilePicker</code> — der Weg, bei dem die App die Zuordnungsdatei
+      beim nächsten Start selbst wiederfindet und ohne Dialog zurückschreibt. Erwartung:
+      funktioniert hier nicht, weil die Oberfläche in einem fremdstämmigen Rahmen läuft.
+      Das ist kein Beinbruch, es entscheidet nur, welcher Weg gebaut wird.
+    </p>
+    <button id="btnPicker">Dateidialog versuchen</button>
+    <div class="ergebnis" id="erg2">noch nicht geprüft — Knopf antippen</div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <div class="karte">
+    <div class="kopf"><span class="nummer">Prüfung 3</span><h2>Lässt sich eine Datei herunterladen?</h2></div>
+    <p class="frage">
+      Der Rückfallweg zum Sichern der Zuordnungsdatei. Erzeugt eine winzige Testdatei
+      <code>vorabpruefung.csv</code> mit erfundenem Inhalt — keine echten Daten.
+    </p>
+    <button id="btnDownload">Testdatei herunterladen</button>
+    <div class="ergebnis" id="erg3">noch nicht geprüft — Knopf antippen, dann unten angeben, ob die Datei ankam</div>
+    <button id="btn3ja">Datei kam an</button>
+    <button id="btn3nein">Datei kam nicht an</button>
+  </div>
+
+  <!-- ===================================================================== -->
+  <div class="karte">
+    <div class="kopf"><span class="nummer">Prüfung 4</span><h2>Öffnet sich ein Fenster für die Druckansicht?</h2></div>
+    <p class="frage">
+      Nötig, falls Notenübersichten oder Kontrollboards später gedruckt werden sollen.
+      Es öffnet sich ein neues Fenster mit einem kurzen Testtext.
+    </p>
+    <button id="btnFenster">Fenster öffnen</button>
+    <div class="ergebnis" id="erg4">noch nicht geprüft — Knopf antippen, dann unten angeben, ob das Fenster erschien</div>
+    <button id="btn4ja">Fenster erschien</button>
+    <button id="btn4nein">Fenster erschien nicht</button>
+  </div>
+
+  <!-- ===================================================================== -->
+  <div class="karte">
+    <div class="kopf"><span class="nummer">Prüfung 5</span><h2>Bleiben Kopfzeile und Namensspalte stehen?</h2></div>
+    <p class="frage">
+      Entscheidend für die Kontrollboards: Beim Blättern nach unten muss die Kopfzeile oben
+      stehen bleiben, beim Blättern nach rechts die linke Spalte am Rand. <strong>Bitte in
+      beide Richtungen scrollen</strong> — besonders auf dem iPad mit dem Finger.
+    </p>
+
+    <div class="scrollbereich" id="scrollbereich">
+      <table>
+        <thead>
+          <tr>
+            <th class="haftlinks">Nr.</th>
+            <th>Spalte A</th><th>Spalte B</th><th>Spalte C</th>
+            <th>Spalte D</th><th>Spalte E</th><th>Spalte F</th>
+            <th>Spalte G</th><th>Spalte H</th>
+          </tr>
+        </thead>
+        <tbody id="stickyKoerper"></tbody>
+      </table>
+    </div>
+
+    <div class="ergebnis" id="erg5">noch nicht bewertet — bitte scrollen und unten angeben</div>
+    <button id="btn5ja">Beides bleibt stehen</button>
+    <button id="btn5teil">Nur die Kopfzeile bleibt stehen</button>
+    <button id="btn5nein">Nichts bleibt stehen</button>
+  </div>
+
+  <!-- ===================================================================== -->
+  <div class="karte">
+    <div class="kopf"><span class="nummer">Abschluss</span><h2>Bericht</h2></div>
+    <p class="frage">
+      Erzeugt eine Zusammenfassung aller Messwerte. Bitte den Text kopieren und
+      zurückmelden — je Gerät einmal. Er enthält ausschließlich technische Angaben.
+    </p>
+    <button class="wichtig" id="btnBericht">Bericht erzeugen</button>
+    <button id="btnKopieren">In Zwischenablage kopieren</button>
+    <div id="kopierStatus" class="ergebnis" style="display:none"></div>
+    <textarea id="bericht" readonly placeholder="Auf „Bericht erzeugen" tippen …"></textarea>
+  </div>
+
+<script>
+(function () {
+  'use strict';
+
+  var SCHLUESSEL = 'vorabpruefung_marke';
+  var SITZUNG    = 'vorabpruefung_zaehler';
+
+  // Ergebnisse, die der Bericht am Ende einsammelt.
+  var befund = {
+    p1: 'nicht geprüft',
+    p2: 'nicht geprüft',
+    p3: 'nicht geprüft',
+    p4: 'nicht geprüft',
+    p5: 'nicht geprüft'
+  };
+
+  // --- Gekapselter Speicherzugriff; Safari wirft im privaten Modus. --------
+  function lies(schluessel) {
+    try { return window.localStorage.getItem(schluessel); }
+    catch (e) { return { fehler: e.name + ': ' + e.message }; }
+  }
+  function schreib(schluessel, wert) {
+    try { window.localStorage.setItem(schluessel, wert); return true; }
+    catch (e) { return e.name + ': ' + e.message; }
+  }
+  function entferne(schluessel) {
+    try { window.localStorage.removeItem(schluessel); return true; }
+    catch (e) { return e.name + ': ' + e.message; }
+  }
+
+  function el(id) { return document.getElementById(id); }
+
+  function zeige(id, text, art) {
+    var k = el(id);
+    k.textContent = text;
+    k.className = 'ergebnis' + (art ? ' ' + art : '');
+  }
+
+  function jetzt() {
+    var d = new Date();
+    function z(n) { return (n < 10 ? '0' : '') + n; }
+    return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()) +
+           ' ' + z(d.getHours()) + ':' + z(d.getMinutes()) + ':' + z(d.getSeconds());
+  }
+
+  // === Umgebung ==========================================================
+  var herkunft = '(nicht lesbar)';
+  try { herkunft = window.location.origin; } catch (e) {}
+
+  var imRahmen = false;
+  try { imRahmen = (window.self !== window.top); } catch (e) { imRahmen = true; }
+
+  var speicherVerfuegbar = true;
+  var speicherFehler = '';
+  try {
+    window.localStorage.setItem('vorabpruefung_probe', '1');
+    window.localStorage.removeItem('vorabpruefung_probe');
+  } catch (e) {
+    speicherVerfuegbar = false;
+    speicherFehler = e.name + ': ' + e.message;
+  }
+
+  (function zeigeUmgebung() {
+    var zeilen = [
+      ['Adresse dieser Seite', herkunft],
+      ['Läuft in einem Rahmen', imRahmen ? 'ja (erwartet)' : 'nein'],
+      ['Lokaler Speicher nutzbar', speicherVerfuegbar ? 'ja' : 'NEIN — ' + speicherFehler],
+      ['showOpenFilePicker vorhanden', (typeof window.showOpenFilePicker === 'function') ? 'ja (sagt aber nichts über die Nutzbarkeit)' : 'nein'],
+      ['Bildschirmbreite', window.innerWidth + ' px'],
+      ['Zeitzone laut Browser', (function () {
+        try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) { return 'unbekannt'; }
+      })()],
+      ['Browserkennung', navigator.userAgent]
+    ];
+    var html = '';
+    for (var i = 0; i < zeilen.length; i++) {
+      html += '<div><strong>' + zeilen[i][0] + ':</strong> <span class="technisch">' +
+              String(zeilen[i][1]).replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</span></div>';
+    }
+    el('umgebung').innerHTML = html;
+  })();
+
+  // === Prüfung 1: lokaler Speicher =======================================
+  function pruefeMarke() {
+    if (!speicherVerfuegbar) {
+      befund.p1 = 'FEHLGESCHLAGEN — lokaler Speicher gar nicht nutzbar (' + speicherFehler + ')';
+      zeige('erg1', 'Der lokale Speicher ist auf diesem Gerät nicht nutzbar.\n' + speicherFehler,
+            'schlecht');
+      return;
+    }
+
+    var roh = lies(SCHLUESSEL);
+    if (roh && roh.fehler) {
+      befund.p1 = 'FEHLGESCHLAGEN — ' + roh.fehler;
+      zeige('erg1', 'Lesefehler: ' + roh.fehler, 'schlecht');
+      return;
+    }
+
+    // Sitzungszähler: zeigt, ob Speichern innerhalb einer Sitzung überhaupt greift.
+    var zaehler = parseInt(lies(SITZUNG), 10);
+    zaehler = (isNaN(zaehler) ? 0 : zaehler) + 1;
+    schreib(SITZUNG, String(zaehler));
+
+    if (!roh) {
+      befund.p1 = 'keine Marke gefunden (Aufruf Nr. ' + zaehler + ')';
+      zeige('erg1',
+        'Keine Marke gefunden.\n\n' +
+        'Beim allerersten Aufruf ist das richtig so — bitte „Marke setzen" antippen.\n' +
+        'Erscheint diese Meldung dagegen NACH einer neuen Bereitstellung, ist das das ' +
+        'entscheidende Ergebnis: der lokale Speicher überdauert sie nicht.\n\n' +
+        'Seitenaufrufe auf dieser Adresse bisher: ' + zaehler,
+        'offen');
+      return;
+    }
+
+    var daten;
+    try { daten = JSON.parse(roh); }
+    catch (e) {
+      befund.p1 = 'Marke unlesbar';
+      zeige('erg1', 'Die Marke ist vorhanden, aber unlesbar: ' + roh, 'schlecht');
+      return;
+    }
+
+    var gleicheAdresse = (daten.herkunft === herkunft);
+    var text =
+      'Marke gefunden.\n\n' +
+      'gesetzt am:       ' + daten.zeit + '\n' +
+      'gesetzt auf:      ' + daten.herkunft + '\n' +
+      'aktuelle Adresse: ' + herkunft + '\n' +
+      'Seitenaufrufe:    ' + zaehler + '\n\n';
+
+    if (gleicheAdresse) {
+      text += 'Die Adresse ist unverändert. Der lokale Speicher hat überdauert.\n' +
+              'Bitte jetzt eine neue Version bereitstellen und erneut aufrufen — ' +
+              'erst das ist der eigentliche Ernstfall.';
+      befund.p1 = 'Marke überdauert, Adresse unverändert (gesetzt ' + daten.zeit + ', Aufruf Nr. ' + zaehler + ')';
+      zeige('erg1', text, 'gut');
+    } else {
+      text += 'ACHTUNG: Die Adresse hat sich geändert — und die Marke ist trotzdem da. ' +
+              'Das wäre ungewöhnlich. Bitte genau so zurückmelden.';
+      befund.p1 = 'Marke überdauert TROTZ geänderter Adresse (' + daten.herkunft + ' → ' + herkunft + ')';
+      zeige('erg1', text, 'offen');
+    }
+  }
+
+  el('btnMarkeSetzen').addEventListener('click', function () {
+    var ergebnis = schreib(SCHLUESSEL, JSON.stringify({ zeit: jetzt(), herkunft: herkunft }));
+    if (ergebnis === true) {
+      zeige('erg1', 'Marke gesetzt am ' + jetzt() + '.\n\n' +
+                    'Jetzt bitte der Reihe nach: neu laden, Browser neu starten, ' +
+                    'neue Version bereitstellen — und nach jedem Schritt wieder hierher.', 'gut');
+      befund.p1 = 'Marke soeben gesetzt, noch nicht nachgeprüft';
+    } else {
+      zeige('erg1', 'Marke konnte nicht gesetzt werden: ' + ergebnis, 'schlecht');
+      befund.p1 = 'FEHLGESCHLAGEN beim Setzen — ' + ergebnis;
+    }
+  });
+
+  el('btnMarkeLoeschen').addEventListener('click', function () {
+    entferne(SCHLUESSEL);
+    entferne(SITZUNG);
+    zeige('erg1', 'Marke und Zähler gelöscht. Die Prüfung beginnt von vorn.', 'offen');
+    befund.p1 = 'zurückgesetzt';
+  });
+
+  // === Prüfung 2: Dateidialog ============================================
+  el('btnPicker').addEventListener('click', function () {
+    if (typeof window.showOpenFilePicker !== 'function') {
+      befund.p2 = 'nicht vorhanden — Weg 2 (Dateiauswahl) nötig';
+      zeige('erg2',
+        'showOpenFilePicker ist in diesem Browser gar nicht vorhanden.\n' +
+        'Erwartetes Ergebnis auf dem iPad. Die App nutzt den Dateiauswahl-Weg.',
+        'offen');
+      return;
+    }
+    try {
+      var ergebnis = window.showOpenFilePicker({ multiple: false });
+      if (ergebnis && typeof ergebnis.then === 'function') {
+        ergebnis.then(function () {
+          befund.p2 = 'FUNKTIONIERT — komfortabler Dateizugriff verfügbar';
+          zeige('erg2', 'Der Dateidialog hat funktioniert. Der komfortable Weg ist verfügbar.', 'gut');
+        }).catch(function (e) {
+          if (e && e.name === 'AbortError') {
+            befund.p2 = 'Dialog erschien, wurde aber abgebrochen — bitte wiederholen und eine Datei wählen';
+            zeige('erg2', 'Der Dialog ist erschienen, wurde aber abgebrochen.\n' +
+                          'Das heißt: der Weg funktioniert grundsätzlich. Bitte noch einmal ' +
+                          'antippen und eine beliebige Datei auswählen.', 'offen');
+          } else {
+            befund.p2 = 'BLOCKIERT — ' + (e && e.name) + ': ' + (e && e.message);
+            zeige('erg2', 'Der Dialog wurde blockiert.\n\n' + (e && e.name) + ': ' + (e && e.message) +
+                          '\n\nErwartetes Ergebnis im Apps-Script-Rahmen. Die App nutzt den ' +
+                          'Dateiauswahl-Weg.', 'offen');
+          }
+        });
+      }
+    } catch (e) {
+      befund.p2 = 'BLOCKIERT (sofort) — ' + e.name + ': ' + e.message;
+      zeige('erg2', 'Der Aufruf wurde sofort abgewiesen.\n\n' + e.name + ': ' + e.message +
+                    '\n\nErwartetes Ergebnis. Die App nutzt den Dateiauswahl-Weg.', 'offen');
+    }
+  });
+
+  // === Prüfung 3: Download ===============================================
+  el('btnDownload').addEventListener('click', function () {
+    try {
+      var inhalt = '﻿schluessel;spalte_a;spalte_b\r\nTEST-01;wert;wert\r\n';
+      var blob = new Blob([inhalt], { type: 'text/csv;charset=utf-8' });
+      var url  = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'vorabpruefung.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+      zeige('erg3', 'Download ausgelöst — es gab keinen Fehler.\n\n' +
+                    'Bitte prüfen, ob „vorabpruefung.csv" tatsächlich angekommen ist, ' +
+                    'und unten angeben.', 'offen');
+      befund.p3 = 'ausgelöst, Ankunft noch nicht bestätigt';
+    } catch (e) {
+      zeige('erg3', 'Fehler: ' + e.name + ': ' + e.message, 'schlecht');
+      befund.p3 = 'FEHLGESCHLAGEN — ' + e.name + ': ' + e.message;
+    }
+  });
+  el('btn3ja').addEventListener('click', function () {
+    befund.p3 = 'FUNKTIONIERT — Datei kam an';
+    zeige('erg3', 'Notiert: Die Datei kam an.', 'gut');
+  });
+  el('btn3nein').addEventListener('click', function () {
+    befund.p3 = 'FEHLGESCHLAGEN — Datei kam nicht an';
+    zeige('erg3', 'Notiert: Die Datei kam nicht an.', 'schlecht');
+  });
+
+  // === Prüfung 4: Fenster ================================================
+  el('btnFenster').addEventListener('click', function () {
+    try {
+      var html = '<!DOCTYPE html><html lang="de"><head><meta charset="utf-8">' +
+                 '<title>Druckansicht</title></head><body style="font-family:Georgia,serif;padding:40px">' +
+                 '<h1>Druckansicht</h1><p>Wenn Sie diesen Text sehen, funktioniert die Druckansicht.</p>' +
+                 '</body></html>';
+      var blob = new Blob([html], { type: 'text/html' });
+      var url  = URL.createObjectURL(blob);
+      var fenster = window.open(url, '_blank');
+      if (!fenster) {
+        zeige('erg4', 'Das Fenster wurde blockiert (kein Fenster-Objekt zurückgegeben).\n' +
+                      'Möglicherweise ein Popup-Blocker. Bitte unten trotzdem angeben, ' +
+                      'was Sie beobachtet haben.', 'schlecht');
+        befund.p4 = 'BLOCKIERT — kein Fenster geöffnet';
+      } else {
+        zeige('erg4', 'Fenster ausgelöst — es gab keinen Fehler.\n\n' +
+                      'Bitte prüfen, ob es tatsächlich erschien, und unten angeben.', 'offen');
+        befund.p4 = 'ausgelöst, Erscheinen noch nicht bestätigt';
+      }
+      setTimeout(function () { URL.revokeObjectURL(url); }, 20000);
+    } catch (e) {
+      zeige('erg4', 'Fehler: ' + e.name + ': ' + e.message, 'schlecht');
+      befund.p4 = 'FEHLGESCHLAGEN — ' + e.name + ': ' + e.message;
+    }
+  });
+  el('btn4ja').addEventListener('click', function () {
+    befund.p4 = 'FUNKTIONIERT — Fenster erschien';
+    zeige('erg4', 'Notiert: Das Fenster erschien.', 'gut');
+  });
+  el('btn4nein').addEventListener('click', function () {
+    befund.p4 = 'FEHLGESCHLAGEN — Fenster erschien nicht';
+    zeige('erg4', 'Notiert: Das Fenster erschien nicht.', 'schlecht');
+  });
+
+  // === Prüfung 5: sticky =================================================
+  (function baueTabelle() {
+    var koerper = el('stickyKoerper');
+    var html = '';
+    for (var i = 1; i <= 25; i++) {
+      html += '<tr><td class="haftlinks">' + i + '</td>';
+      for (var s = 0; s < 8; s++) {
+        html += '<td>Zeile ' + i + ' · Feld ' + String.fromCharCode(65 + s) + '</td>';
+      }
+      html += '</tr>';
+    }
+    koerper.innerHTML = html;
+  })();
+
+  // Zusätzlich maschinell prüfen, ob der Browser sticky überhaupt kennt.
+  var stickyBekannt = (function () {
+    try {
+      var p = document.createElement('div');
+      p.style.position = 'sticky';
+      if (p.style.position === 'sticky') return true;
+      p.style.position = '-webkit-sticky';
+      return p.style.position === '-webkit-sticky';
+    } catch (e) { return false; }
+  })();
+
+  el('btn5ja').addEventListener('click', function () {
+    befund.p5 = 'FUNKTIONIERT — Kopfzeile und linke Spalte bleiben stehen';
+    zeige('erg5', 'Notiert: Beides bleibt stehen.', 'gut');
+  });
+  el('btn5teil').addEventListener('click', function () {
+    befund.p5 = 'TEILWEISE — nur die Kopfzeile bleibt stehen, die linke Spalte nicht';
+    zeige('erg5', 'Notiert: Nur die Kopfzeile bleibt stehen.', 'offen');
+  });
+  el('btn5nein').addEventListener('click', function () {
+    befund.p5 = 'FEHLGESCHLAGEN — nichts bleibt stehen';
+    zeige('erg5', 'Notiert: Nichts bleibt stehen.', 'schlecht');
+  });
+
+  // === Bericht ===========================================================
+  function erzeugeBericht() {
+    var z = [];
+    z.push('VORABPRUEFUNG — BERICHT');
+    z.push('erzeugt: ' + jetzt());
+    z.push('');
+    z.push('UMGEBUNG');
+    z.push('  Adresse:            ' + herkunft);
+    z.push('  Im Rahmen:          ' + (imRahmen ? 'ja' : 'nein'));
+    z.push('  Speicher nutzbar:   ' + (speicherVerfuegbar ? 'ja' : 'NEIN — ' + speicherFehler));
+    z.push('  sticky bekannt:     ' + (stickyBekannt ? 'ja' : 'nein'));
+    z.push('  Zeitzone:           ' + (function () {
+      try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) { return 'unbekannt'; }
+    })());
+    z.push('  Breite:             ' + window.innerWidth + ' px');
+    z.push('  Browser:            ' + navigator.userAgent);
+    z.push('');
+    z.push('ERGEBNISSE');
+    z.push('  1 lokaler Speicher: ' + befund.p1);
+    z.push('  2 Dateidialog:      ' + befund.p2);
+    z.push('  3 Download:         ' + befund.p3);
+    z.push('  4 Fenster:          ' + befund.p4);
+    z.push('  5 haftende Spalten: ' + befund.p5);
+    z.push('');
+    z.push('GERAET (bitte von Hand ergaenzen): ');
+    z.push('SCHRITT (neu geladen / Browser neu gestartet / neu bereitgestellt): ');
+    return z.join('\n');
+  }
+
+  el('btnBericht').addEventListener('click', function () {
+    el('bericht').value = erzeugeBericht();
+  });
+
+  el('btnKopieren').addEventListener('click', function () {
+    var feld = el('bericht');
+    if (!feld.value) feld.value = erzeugeBericht();
+    var status = el('kopierStatus');
+    status.style.display = 'block';
+
+    function erfolg() {
+      status.textContent = 'Kopiert. Bitte zurückmelden.';
+      status.className = 'ergebnis gut';
+    }
+    function misserfolg() {
+      status.textContent = 'Automatisches Kopieren nicht möglich — im Rahmen oft gesperrt. ' +
+                           'Bitte den Text unten von Hand markieren und kopieren.';
+      status.className = 'ergebnis offen';
+    }
+
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(feld.value).then(erfolg).catch(function () {
+          feld.select(); misserfolg();
+        });
+      } else {
+        feld.select();
+        var ok = false;
+        try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+        if (ok) { erfolg(); } else { misserfolg(); }
+      }
+    } catch (e) {
+      feld.select();
+      misserfolg();
+    }
+  });
+
+  // === Start =============================================================
+  pruefeMarke();
+})();
+</script>
+
+</body>
+</html>
