@@ -1,0 +1,36 @@
+# ---------------------------------------------------------------------------
+# Datenschutz: Dateien mit Klarnamen gehoeren NIEMALS ins Repository.
+# ---------------------------------------------------------------------------
+
+# Die lokale Zuordnungsliste (Kuerzel -> Nachname, Vorname, Geschlecht).
+# Sie ist der einzige Weg zurueck von Kuerzeln zu Namen und bleibt
+# ausschliesslich auf den Endgeraeten.
+zuordnung.csv
+zuordnung*.csv
+*zuordnung*.csv
+
+# Die Entwurfsdatei aus dem Design-Werkzeug enthaelt saemtliche
+# Schuelernamen und die Namen der Klassenlehrkraefte im Klartext.
+entwurf*
+Entwurf*
+kontrollboard-entwurf*
+*-entwurf.html
+
+# Sicherungskopien und Exporte, die Namen enthalten koennen
+*.backup.csv
+export*.csv
+sicherung*.csv
+
+# ---------------------------------------------------------------------------
+# Werkzeuge und Betriebssystem
+# ---------------------------------------------------------------------------
+.clasp.json
+.clasprc.json
+node_modules/
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
+.vscode/
+.idea/
