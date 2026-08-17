@@ -1,0 +1,11 @@
+{
+  "name": "Kommandozentrale Deutsch",
+  "short_name": "Deutsch",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#faf9f5",
+  "theme_color": "#faf9f5",
+  "lang": "de"
+}

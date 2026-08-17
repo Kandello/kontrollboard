@@ -1,0 +1,721 @@
+{
+ "stand": "2026-08-17T14:18:16",
+ "fach": "DE",
+ "meta": {
+  "zuordnung_version": "",
+  "halbjahresgrenze": "01-31",
+  "schuljahresbeginn": "2026-09-01",
+  "ferienmodus": "FALSE",
+  "link_weekly": "https://example.org/weekly",
+  "link_peak": "https://example.org/peak",
+  "schema_version": "1"
+ },
+ "klassen": [
+  {
+   "klasse": "3L",
+   "bezeichnung": "3L",
+   "reihenfolge": 1
+  },
+  {
+   "klasse": "3M",
+   "bezeichnung": "3M",
+   "reihenfolge": 2
+  },
+  {
+   "klasse": "3OB",
+   "bezeichnung": "3OB",
+   "reihenfolge": 3
+  }
+ ],
+ "schueler": [
+  {
+   "kuerzel": "3L-01",
+   "klasse": "3L",
+   "listennummer": 1,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3L-11",
+   "klasse": "3L",
+   "listennummer": 2,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3L-09",
+   "klasse": "3L",
+   "listennummer": 3,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3L-10",
+   "klasse": "3L",
+   "listennummer": 4,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3L-04",
+   "klasse": "3L",
+   "listennummer": 5,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3L-03",
+   "klasse": "3L",
+   "listennummer": 6,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3L-05",
+   "klasse": "3L",
+   "listennummer": 7,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3L-13",
+   "klasse": "3L",
+   "listennummer": 8,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3L-14",
+   "klasse": "3L",
+   "listennummer": 9,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3L-23",
+   "klasse": "3L",
+   "listennummer": 10,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3L-07",
+   "klasse": "3L",
+   "listennummer": 11,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3L-22",
+   "klasse": "3L",
+   "listennummer": 12,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3L-08",
+   "klasse": "3L",
+   "listennummer": 13,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3L-16",
+   "klasse": "3L",
+   "listennummer": 14,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3L-06",
+   "klasse": "3L",
+   "listennummer": 15,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3L-20",
+   "klasse": "3L",
+   "listennummer": 16,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3L-21",
+   "klasse": "3L",
+   "listennummer": 17,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3L-17",
+   "klasse": "3L",
+   "listennummer": 18,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3L-18",
+   "klasse": "3L",
+   "listennummer": 19,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3L-02",
+   "klasse": "3L",
+   "listennummer": 20,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3L-15",
+   "klasse": "3L",
+   "listennummer": 21,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3L-12",
+   "klasse": "3L",
+   "listennummer": 22,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3L-19",
+   "klasse": "3L",
+   "listennummer": 23,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3M-05",
+   "klasse": "3M",
+   "listennummer": 1,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3M-23",
+   "klasse": "3M",
+   "listennummer": 2,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3M-03",
+   "klasse": "3M",
+   "listennummer": 3,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3M-18",
+   "klasse": "3M",
+   "listennummer": 4,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3M-02",
+   "klasse": "3M",
+   "listennummer": 5,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3M-04",
+   "klasse": "3M",
+   "listennummer": 6,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3M-11",
+   "klasse": "3M",
+   "listennummer": 7,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3M-21",
+   "klasse": "3M",
+   "listennummer": 8,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3M-12",
+   "klasse": "3M",
+   "listennummer": 9,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3M-09",
+   "klasse": "3M",
+   "listennummer": 10,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3M-15",
+   "klasse": "3M",
+   "listennummer": 11,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3M-17",
+   "klasse": "3M",
+   "listennummer": 12,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3M-19",
+   "klasse": "3M",
+   "listennummer": 13,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3M-13",
+   "klasse": "3M",
+   "listennummer": 14,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3M-10",
+   "klasse": "3M",
+   "listennummer": 15,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3M-08",
+   "klasse": "3M",
+   "listennummer": 16,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3M-20",
+   "klasse": "3M",
+   "listennummer": 17,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3M-07",
+   "klasse": "3M",
+   "listennummer": 18,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3M-16",
+   "klasse": "3M",
+   "listennummer": 19,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3M-14",
+   "klasse": "3M",
+   "listennummer": 20,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3M-22",
+   "klasse": "3M",
+   "listennummer": 21,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3M-01",
+   "klasse": "3M",
+   "listennummer": 22,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3M-06",
+   "klasse": "3M",
+   "listennummer": 23,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3OB-11",
+   "klasse": "3OB",
+   "listennummer": 1,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3OB-12",
+   "klasse": "3OB",
+   "listennummer": 2,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3OB-07",
+   "klasse": "3OB",
+   "listennummer": 3,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3OB-06",
+   "klasse": "3OB",
+   "listennummer": 4,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3OB-17",
+   "klasse": "3OB",
+   "listennummer": 5,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3OB-04",
+   "klasse": "3OB",
+   "listennummer": 6,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3OB-05",
+   "klasse": "3OB",
+   "listennummer": 7,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3OB-21",
+   "klasse": "3OB",
+   "listennummer": 8,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3OB-18",
+   "klasse": "3OB",
+   "listennummer": 9,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3OB-03",
+   "klasse": "3OB",
+   "listennummer": 10,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3OB-10",
+   "klasse": "3OB",
+   "listennummer": 11,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3OB-08",
+   "klasse": "3OB",
+   "listennummer": 12,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3OB-20",
+   "klasse": "3OB",
+   "listennummer": 13,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3OB-22",
+   "klasse": "3OB",
+   "listennummer": 14,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3OB-01",
+   "klasse": "3OB",
+   "listennummer": 15,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3OB-14",
+   "klasse": "3OB",
+   "listennummer": 16,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3OB-16",
+   "klasse": "3OB",
+   "listennummer": 17,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3OB-09",
+   "klasse": "3OB",
+   "listennummer": 18,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3OB-13",
+   "klasse": "3OB",
+   "listennummer": 19,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3OB-19",
+   "klasse": "3OB",
+   "listennummer": 20,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3OB-15",
+   "klasse": "3OB",
+   "listennummer": 21,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3OB-23",
+   "klasse": "3OB",
+   "listennummer": 22,
+   "aktiv": true
+  },
+  {
+   "kuerzel": "3OB-02",
+   "klasse": "3OB",
+   "listennummer": 23,
+   "aktiv": true
+  }
+ ],
+ "stundenplan": [
+  {
+   "wochentag": 1,
+   "stunde": 1,
+   "von": "09:00",
+   "bis": "09:45",
+   "klasse": "3L",
+   "art": "LESEN",
+   "zusatz": "+4H"
+  },
+  {
+   "wochentag": 1,
+   "stunde": 2,
+   "von": "09:45",
+   "bis": "10:30",
+   "klasse": "3L",
+   "art": "DEUTSCH",
+   "zusatz": ""
+  },
+  {
+   "wochentag": 1,
+   "stunde": 4,
+   "von": "11:30",
+   "bis": "12:15",
+   "klasse": "3M",
+   "art": "DEUTSCH",
+   "zusatz": ""
+  },
+  {
+   "wochentag": 1,
+   "stunde": 5,
+   "von": "12:15",
+   "bis": "13:00",
+   "klasse": "1A",
+   "art": "FUF",
+   "zusatz": ""
+  },
+  {
+   "wochentag": 1,
+   "stunde": null,
+   "von": "13:30",
+   "bis": "14:00",
+   "klasse": "",
+   "art": "DIENST",
+   "zusatz": "Pausenaufsicht"
+  },
+  {
+   "wochentag": 1,
+   "stunde": 6,
+   "von": "14:00",
+   "bis": "14:45",
+   "klasse": "3OB",
+   "art": "DEUTSCH",
+   "zusatz": ""
+  },
+  {
+   "wochentag": 2,
+   "stunde": 1,
+   "von": "09:00",
+   "bis": "09:45",
+   "klasse": "3OB",
+   "art": "DEUTSCH",
+   "zusatz": ""
+  },
+  {
+   "wochentag": 2,
+   "stunde": 2,
+   "von": "09:45",
+   "bis": "10:30",
+   "klasse": "3OB",
+   "art": "LESEN",
+   "zusatz": "+4M"
+  },
+  {
+   "wochentag": 2,
+   "stunde": 4,
+   "von": "11:30",
+   "bis": "12:15",
+   "klasse": "3L",
+   "art": "DEUTSCH",
+   "zusatz": ""
+  },
+  {
+   "wochentag": 2,
+   "stunde": 6,
+   "von": "14:00",
+   "bis": "14:45",
+   "klasse": "3M",
+   "art": "DEUTSCH",
+   "zusatz": ""
+  },
+  {
+   "wochentag": 3,
+   "stunde": 1,
+   "von": "09:00",
+   "bis": "09:45",
+   "klasse": "3M",
+   "art": "DEUTSCH",
+   "zusatz": ""
+  },
+  {
+   "wochentag": 3,
+   "stunde": 2,
+   "von": "09:45",
+   "bis": "10:30",
+   "klasse": "3OB",
+   "art": "DEUTSCH",
+   "zusatz": ""
+  },
+  {
+   "wochentag": 3,
+   "stunde": 4,
+   "von": "11:30",
+   "bis": "12:15",
+   "klasse": "3L",
+   "art": "DEUTSCH",
+   "zusatz": ""
+  },
+  {
+   "wochentag": 4,
+   "stunde": 1,
+   "von": "09:00",
+   "bis": "09:45",
+   "klasse": "3M",
+   "art": "LESEN",
+   "zusatz": "+4K"
+  },
+  {
+   "wochentag": 4,
+   "stunde": 2,
+   "von": "09:45",
+   "bis": "10:30",
+   "klasse": "3M",
+   "art": "DEUTSCH",
+   "zusatz": ""
+  },
+  {
+   "wochentag": 4,
+   "stunde": 4,
+   "von": "11:30",
+   "bis": "12:15",
+   "klasse": "3OB",
+   "art": "DEUTSCH",
+   "zusatz": ""
+  },
+  {
+   "wochentag": 4,
+   "stunde": 5,
+   "von": "12:15",
+   "bis": "13:00",
+   "klasse": "3L",
+   "art": "DEUTSCH",
+   "zusatz": ""
+  },
+  {
+   "wochentag": 4,
+   "stunde": 6,
+   "von": "14:00",
+   "bis": "14:45",
+   "klasse": "1S",
+   "art": "FUF",
+   "zusatz": ""
+  },
+  {
+   "wochentag": 5,
+   "stunde": 2,
+   "von": "09:45",
+   "bis": "10:30",
+   "klasse": "3OB",
+   "art": "DEUTSCH",
+   "zusatz": ""
+  },
+  {
+   "wochentag": 5,
+   "stunde": 4,
+   "von": "11:30",
+   "bis": "12:15",
+   "klasse": "1A",
+   "art": "FUF",
+   "zusatz": ""
+  },
+  {
+   "wochentag": 5,
+   "stunde": 5,
+   "von": "12:15",
+   "bis": "13:00",
+   "klasse": "3L",
+   "art": "DEUTSCH",
+   "zusatz": ""
+  },
+  {
+   "wochentag": 5,
+   "stunde": 6,
+   "von": "14:00",
+   "bis": "14:45",
+   "klasse": "3M",
+   "art": "DEUTSCH",
+   "zusatz": ""
+  }
+ ],
+ "kategorien": [
+  {
+   "id": "ASSESS",
+   "bezeichnung": "Assessment",
+   "gruppe": "ASSESS",
+   "reihenfolge": 1
+  },
+  {
+   "id": "QUIZ",
+   "bezeichnung": "Quiz",
+   "gruppe": "QUIZ",
+   "reihenfolge": 2
+  },
+  {
+   "id": "PART",
+   "bezeichnung": "Participation",
+   "gruppe": "PP",
+   "reihenfolge": 3
+  },
+  {
+   "id": "PRES",
+   "bezeichnung": "Presentation",
+   "gruppe": "PP",
+   "reihenfolge": 4
+  }
+ ],
+ "gruppengewichte": [
+  {
+   "gruppe": "ASSESS",
+   "gewicht": 0.5
+  },
+  {
+   "gruppe": "QUIZ",
+   "gewicht": 0.3
+  },
+  {
+   "gruppe": "PP",
+   "gewicht": 0.2
+  }
+ ],
+ "notenschluessel": [
+  {
+   "note": 1,
+   "min_prozent": 92
+  },
+  {
+   "note": 2,
+   "min_prozent": 80
+  },
+  {
+   "note": 3,
+   "min_prozent": 67
+  },
+  {
+   "note": 4,
+   "min_prozent": 50
+  },
+  {
+   "note": 5,
+   "min_prozent": 23
+  },
+  {
+   "note": 6,
+   "min_prozent": 0
+  }
+ ],
+ "erhebungen": [],
+ "boards": [],
+ "boardSpalten": [],
+ "boardWerte": [],
+ "einheiten": [],
+ "teilthemen": [],
+ "einheitFortschritt": [],
+ "wochenstatus": [],
+ "warnungen": []
+}

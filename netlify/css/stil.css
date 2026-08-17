@@ -1,0 +1,224 @@
+/* ---------------------------------------------------------------------------
+   Gestaltungswerte an einer Stelle (Abschnitt 16).
+   Farben, Abstaende und Schriftgroessen werden nirgends sonst festgelegt.
+--------------------------------------------------------------------------- */
+:root {
+  --grund:        #faf9f5;
+  --flaeche:      #ffffff;
+  --flaeche-leis: #f4f2ec;
+  --text:         #2c2a26;
+  --text-leise:   #6f6a61;
+  --text-sehrleis:#98928a;
+  --linie:        #e4e0d8;
+  --linie-stark:  #d3cec3;
+  --akzent:       #0088b0;
+  --akzent-leis:  #eaf6fa;
+  --gut:          #1e7a4c;
+  --gut-leis:     #eef7f1;
+  --warn:         #8a6d1f;
+  --warn-leis:    #fbf7ea;
+  --schlecht:     #b3261e;
+  --schlecht-leis:#fdf3f2;
+
+  --serif: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+  --sans:  -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+
+  --s1: 4px;  --s2: 8px;  --s3: 12px; --s4: 16px;
+  --s5: 24px; --s6: 32px; --s7: 48px;
+
+  --t-klein:  13px;
+  --t-normal: 16px;
+  --t-gross:  19px;
+  --t-titel:  26px;
+  --t-riesig: 34px;
+
+  --radius:      10px;
+  --radius-gross:14px;
+  --tippziel:    44px;
+}
+
+* { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--grund);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: var(--t-normal);
+  line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+h1, h2, h3 { font-family: var(--serif); font-weight: 600; margin: 0; }
+h1 { font-size: var(--t-titel); }
+h2 { font-size: var(--t-gross); }
+h3 { font-size: var(--t-normal); }
+
+/* --- Grundgeruest --------------------------------------------------------- */
+.huelle { max-width: 1100px; margin: 0 auto; padding: 0 var(--s4) var(--s7); }
+
+.kopfleiste {
+  position: sticky; top: 0; z-index: 20;
+  background: var(--grund);
+  border-bottom: 1px solid var(--linie);
+}
+.kopfleiste-inhalt {
+  max-width: 1100px; margin: 0 auto;
+  padding: var(--s2) var(--s4);
+  display: flex; align-items: center; gap: var(--s3);
+  min-height: 56px;
+}
+
+.pfad {
+  display: flex; align-items: center; gap: var(--s2);
+  flex: 1; min-width: 0;
+  font-size: var(--t-klein); color: var(--text-leise);
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}
+.pfad a { color: var(--akzent); text-decoration: none; }
+.pfad a:hover { text-decoration: underline; }
+.pfad .trenner { color: var(--text-sehrleis); }
+
+/* --- Schaltflaechen ------------------------------------------------------- */
+button, .knopf {
+  font-family: var(--sans); font-size: var(--t-normal);
+  min-height: var(--tippziel);
+  padding: var(--s2) var(--s4);
+  background: var(--flaeche); color: var(--akzent);
+  border: 1px solid var(--linie-stark); border-radius: var(--radius);
+  cursor: pointer; text-decoration: none;
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--s2);
+}
+button:hover, .knopf:hover { border-color: var(--akzent); }
+button:disabled { opacity: .5; cursor: default; }
+button.wichtig { background: var(--akzent); color: #fff; border-color: var(--akzent); }
+button.leise { color: var(--text-leise); }
+button.gefahr { color: var(--schlecht); border-color: var(--linie-stark); }
+button.klein { min-height: 34px; padding: var(--s1) var(--s3); font-size: var(--t-klein); }
+
+/* --- Karten und Flaechen -------------------------------------------------- */
+.karte {
+  background: var(--flaeche);
+  border: 1px solid var(--linie);
+  border-radius: var(--radius-gross);
+  padding: var(--s4);
+  margin-bottom: var(--s4);
+}
+
+.leiste {
+  display: flex; align-items: center; gap: var(--s3);
+  flex-wrap: wrap; margin-bottom: var(--s4);
+}
+.schub { margin-left: auto; }
+
+/* --- Klassenknoepfe (Ebene 1) --------------------------------------------- */
+.klassenraster {
+  display: grid; gap: var(--s4);
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+.klassenknopf {
+  display: block; text-align: left; text-decoration: none;
+  background: var(--flaeche); color: var(--text);
+  border: 1px solid var(--linie); border-radius: var(--radius-gross);
+  padding: var(--s5) var(--s4) var(--s4);
+  min-height: 120px;
+}
+.klassenknopf:hover { border-color: var(--akzent); }
+.klassenknopf .name { font-family: var(--serif); font-size: var(--t-riesig); display: block; }
+.klassenknopf .zusatz { font-size: var(--t-klein); color: var(--text-leise); }
+
+.balken { height: 6px; background: var(--flaeche-leis); border-radius: 3px; margin-top: var(--s3); overflow: hidden; }
+.balken > i { display: block; height: 100%; background: var(--akzent); border-radius: 3px; }
+
+/* --- Werkzeugeinstiege (Ebene 2) ------------------------------------------ */
+.werkzeuge { display: grid; gap: var(--s3); grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.werkzeug {
+  display: block; text-decoration: none; color: var(--text);
+  background: var(--flaeche); border: 1px solid var(--linie);
+  border-radius: var(--radius-gross); padding: var(--s4);
+  min-height: 92px;
+}
+.werkzeug:hover { border-color: var(--akzent); }
+.werkzeug .titel { font-family: var(--serif); font-size: var(--t-gross); display: block; }
+.werkzeug .beschreibung { font-size: var(--t-klein); color: var(--text-leise); margin-top: var(--s1); }
+
+/* --- Hinweise ------------------------------------------------------------- */
+.hinweis {
+  border: 1px solid var(--linie); border-radius: var(--radius);
+  padding: var(--s3) var(--s4); margin-bottom: var(--s4);
+  display: flex; gap: var(--s3); align-items: flex-start;
+  font-size: 14px;
+}
+.hinweis.warn     { border-color: var(--warn);     background: var(--warn-leis); }
+.hinweis.gut      { border-color: var(--gut);      background: var(--gut-leis); }
+.hinweis.schlecht { border-color: var(--schlecht); background: var(--schlecht-leis); }
+.hinweis .text { flex: 1; }
+.hinweis .zeichen { font-size: var(--t-gross); line-height: 1.2; }
+.hinweis h3 { margin-bottom: var(--s1); }
+
+/* --- Formularfelder ------------------------------------------------------- */
+label { display: block; font-size: var(--t-klein); color: var(--text-leise); margin-bottom: var(--s1); }
+input[type="text"], input[type="url"], input[type="password"], select, textarea {
+  width: 100%; font-family: var(--sans); font-size: var(--t-normal);
+  min-height: var(--tippziel); padding: var(--s2) var(--s3);
+  background: var(--flaeche); color: var(--text);
+  border: 1px solid var(--linie-stark); border-radius: var(--radius);
+}
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--akzent); outline-offset: -1px; }
+.feld { margin-bottom: var(--s4); }
+.feldhilfe { font-size: var(--t-klein); color: var(--text-leise); margin-top: var(--s1); }
+
+/* --- Tabellen ------------------------------------------------------------- */
+.tabellenrahmen {
+  border: 1px solid var(--linie); border-radius: var(--radius);
+  overflow: auto; background: var(--flaeche);
+  max-height: 70vh; -webkit-overflow-scrolling: touch;
+}
+table.liste { border-collapse: separate; border-spacing: 0; width: 100%; }
+table.liste th, table.liste td {
+  padding: var(--s2) var(--s3); text-align: left;
+  border-bottom: 1px solid var(--linie); background: var(--flaeche);
+  font-size: 15px;
+}
+table.liste thead th {
+  position: sticky; top: 0; z-index: 2;
+  background: var(--flaeche-leis); font-family: var(--serif); font-weight: 600;
+  font-size: var(--t-klein); color: var(--text-leise);
+}
+table.liste tr.inaktiv td { color: var(--text-sehrleis); }
+table.liste td.nummer { width: 46px; color: var(--text-leise); font-variant-numeric: tabular-nums; }
+table.liste td.kuerzel { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: var(--t-klein); color: var(--text-leise); }
+
+/* --- Namensdarstellung ---------------------------------------------------- */
+.nurkuerzel { color: var(--text-sehrleis); font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 14px; }
+
+/* --- Zustaende ------------------------------------------------------------ */
+.laedt { display: flex; align-items: center; gap: var(--s3); color: var(--text-leise); padding: var(--s6) 0; }
+.punkt {
+  width: 10px; height: 10px; border-radius: 50%; background: var(--akzent);
+  animation: pulsieren 1.1s ease-in-out infinite;
+}
+@keyframes pulsieren { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
+
+.leer { color: var(--text-leise); text-align: center; padding: var(--s6) var(--s4); }
+
+.abschnitt-titel {
+  font-family: var(--serif); font-size: var(--t-klein); text-transform: uppercase;
+  letter-spacing: .08em; color: var(--text-leise);
+  margin: var(--s6) 0 var(--s3);
+}
+
+.schalter { display: inline-flex; align-items: center; gap: var(--s2); font-size: var(--t-klein); color: var(--text-leise); cursor: pointer; }
+.schalter input { width: 20px; height: 20px; accent-color: var(--akzent); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+}
+
+@media (max-width: 600px) {
+  .kopfleiste-inhalt { flex-wrap: wrap; }
+  .huelle { padding-left: var(--s3); padding-right: var(--s3); }
+}
