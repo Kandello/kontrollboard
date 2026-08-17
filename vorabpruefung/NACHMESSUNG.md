@@ -30,8 +30,14 @@ Neu sind zwei Prüfungen und eine Zeile im Umgebungsblock:
 
 ## A. iPad — der wichtige Teil
 
-Bitte **zweimal** durchführen: einmal im normalen Safari, einmal als Home-Bildschirm-App.
-Der Vergleich ist der eigentliche Zweck.
+**Bitte ausdrücklich in Safari**, dem vorinstallierten Browser — nicht in Firefox oder
+einem anderen nachinstallierten Browser. Der Grund: Nur für Safari sieht der spätere
+Einrichtungsweg (`DEPLOY.md`, Punkt 10) den Home-Bildschirm-Eintrag vor, der laut Apple
+vom siebentägigen Löschen ausgenommen ist. Ein Befund aus einem anderen Browser beantwortet
+die eigentliche Frage nicht, so aufschlussreich er sonst sein mag.
+
+Bitte **zweimal** durchführen: einmal im normalen Safari-Tab, einmal als
+Home-Bildschirm-App. Der Vergleich der beiden ist der eigentliche Zweck.
 
 ### Durchgang 1 — normaler Safari-Tab
 
@@ -60,15 +66,16 @@ Der Vergleich ist der eigentliche Zweck.
 
 ---
 
-## B. Dienst-PC — kurz, eine offene Frage
+## B. Dienst-PC — nur noch Nachtrag
 
-Beim ersten Bericht war das Feld „SCHRITT" leer, deshalb weiß ich nicht, ob Firefox
-zwischendurch wirklich **ganz geschlossen** war.
+Die eigentliche Frage ist beantwortet: Schließen über das X beendet Firefox unter Windows
+im Regelfall vollständig, und die Marke hat das in der ersten Runde bereits überstanden.
+Hier geht es nur noch darum, die beiden neuen Prüfungen 6 und 7 einmal mitlaufen zu lassen.
 
 1. URL öffnen, **„Marke setzen"**, **Prüfung 7** antippen.
-2. Firefox **vollständig beenden** — alle Fenster schließen, nicht nur den Tab.
-3. Firefox neu starten, URL aufrufen.
-4. **Bericht erzeugen** und bei „SCHRITT" eintragen, was Sie getan haben.
+2. Firefox über das X schließen, neu öffnen, URL erneut aufrufen.
+3. **Bericht erzeugen**, bei „SCHRITT" *wie beim ersten Mal, ueber das X geschlossen*
+   eintragen.
 
 ---
 
