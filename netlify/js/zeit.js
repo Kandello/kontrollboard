@@ -24,12 +24,12 @@ export function heute(jetzt = new Date()) {
   return { jahr, monat, tag };
 }
 
-/** Uhrzeit in Berlin als { stunde, minute, minuten }. */
+/** Uhrzeit in Berlin als { stunde, minute, sekunde, minuten }. */
 export function uhrzeit(jetzt = new Date()) {
-  const [stunde, minute] = new Intl.DateTimeFormat('de-DE', {
-    timeZone: ZONE, hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+  const [stunde, minute, sekunde] = new Intl.DateTimeFormat('de-DE', {
+    timeZone: ZONE, hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23'
   }).format(jetzt).split(':').map(Number);
-  return { stunde, minute, minuten: stunde * 60 + minute };
+  return { stunde, minute, sekunde, minuten: stunde * 60 + minute };
 }
 
 /** '2026-08-17' aus einem Tagesobjekt. */

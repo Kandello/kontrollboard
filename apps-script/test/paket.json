@@ -1,5 +1,5 @@
 {
- "stand": "2026-08-17T14:18:16",
+ "stand": "2026-08-17T15:58:41",
  "fach": "DE",
  "meta": {
   "zuordnung_version": "",
@@ -14,17 +14,20 @@
   {
    "klasse": "3L",
    "bezeichnung": "3L",
-   "reihenfolge": 1
+   "reihenfolge": 1,
+   "farbe": ""
   },
   {
    "klasse": "3M",
    "bezeichnung": "3M",
-   "reihenfolge": 2
+   "reihenfolge": 2,
+   "farbe": ""
   },
   {
    "klasse": "3OB",
    "bezeichnung": "3OB",
-   "reihenfolge": 3
+   "reihenfolge": 3,
+   "farbe": ""
   }
  ],
  "schueler": [
@@ -716,6 +719,22 @@
  "einheiten": [],
  "teilthemen": [],
  "einheitFortschritt": [],
- "wochenstatus": [],
+ "wochenstatus": [
+  {
+   "kw": "2026-W34",
+   "aufgabe": "WEEKLY",
+   "erledigt_am": "2026-08-17"
+  },
+  {
+   "kw": "2026-W35",
+   "aufgabe": "WEEKLY",
+   "erledigt_am": "2026-08-17"
+  },
+  {
+   "kw": "2026-W36",
+   "aufgabe": "PEAK",
+   "erledigt_am": "2026-08-17"
+  }
+ ],
  "warnungen": []
 }

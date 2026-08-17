@@ -218,7 +218,10 @@ function ladeAlles() {
         return {
           klasse: alsText_(z.klasse),
           bezeichnung: alsText_(z.bezeichnung) || alsText_(z.klasse),
-          reihenfolge: alsZahl_(z.reihenfolge) || 0
+          reihenfolge: alsZahl_(z.reihenfolge) || 0,
+          // Frei waehlbare Farbe, z. B. '#4aa8d8'. Bleibt sie leer, waehlt
+          // die Oberflaeche anhand der Reihenfolge aus einer Palette.
+          farbe: alsText_(z.farbe)
         };
       })
       .sort(function (a, b) { return a.reihenfolge - b.reihenfolge; }),

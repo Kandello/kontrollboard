@@ -11,7 +11,8 @@
  */
 
 import { e, karte } from '../ui.js';
-import { name as anzeigeName, klassenlehrkraft, sortiereNachListe } from '../zuordnung.js';
+import { name as anzeigeName, klassenlehrkraftEintrag, sortiereNachListe } from '../zuordnung.js';
+import { lehrkraftVerweis } from './start.js';
 import { gehe } from '../router.js';
 
 const WERKZEUGE = [
@@ -35,17 +36,23 @@ export function zeichneKlasse(ziel, { daten, verbergen, klasse, werkzeug }) {
     return;
   }
 
-  const lehrkraft = verbergen ? null : klassenlehrkraft(klasse);
+  const lehrkraft = verbergen ? null : klassenlehrkraftEintrag(klasse);
   const kinder = sortiereNachListe(daten.schueler.filter((s) => s.klasse === klasse));
   const aktive = kinder.filter((s) => s.aktiv);
 
   // --- Kopfzeile mit Klassenumschalter ------------------------------------
   ziel.appendChild(e('div', { klasse: 'leiste' }, [
-    e('div', {}, [
-      e('h1', { text: eintrag.bezeichnung }),
-      e('div', { klasse: 'feldhilfe' , text:
-        aktive.length + (aktive.length === 1 ? ' aktives Kind' : ' aktive Kinder') +
-        (lehrkraft ? ' · Klassenlehrkraft: ' + lehrkraft : '') })
+    e('div', { klasse: farbklasseFuer(eintrag, daten),
+               style: eintrag.farbe ? `--klassenfarbe:${eintrag.farbe}` : null }, [
+      e('h1', {}, [
+        e('span', { klasse: 'klassenfarbe-punkt', 'aria-hidden': 'true' }),
+        eintrag.bezeichnung
+      ]),
+      e('div', { klasse: 'feldhilfe' }, [
+        aktive.length + (aktive.length === 1 ? ' aktives Kind' : ' aktive Kinder'),
+        lehrkraft ? ' · Klassenlehrkraft: ' : null,
+        lehrkraft ? lehrkraftVerweis(lehrkraft) : null
+      ])
     ]),
     e('div', { klasse: 'schub' }, [
       e('label', { for: 'klassenwechsel', text: 'Klasse wechseln' }),
@@ -122,4 +129,11 @@ function schuelerliste(kinder, verbergen) {
       koerper
     ])
   ]);
+}
+
+/** Farbklasse der Klasse, passend zur Startseite. */
+function farbklasseFuer(eintrag, daten) {
+  if (eintrag.farbe) return '';
+  const i = daten.klassen.findIndex((k) => k.klasse === eintrag.klasse);
+  return 'k-farbe-' + (((eintrag.reihenfolge || i + 1) - 1) % 5 + 1);
 }

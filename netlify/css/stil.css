@@ -3,16 +3,17 @@
    Farben, Abstaende und Schriftgroessen werden nirgends sonst festgelegt.
 --------------------------------------------------------------------------- */
 :root {
-  --grund:        #faf9f5;
+  --grund:        #eef3f8;
+  --grund-tief:   #dde8f2;
   --flaeche:      #ffffff;
-  --flaeche-leis: #f4f2ec;
+  --flaeche-leis: #eff4f9;
   --text:         #2c2a26;
   --text-leise:   #6f6a61;
   --text-sehrleis:#98928a;
-  --linie:        #e4e0d8;
-  --linie-stark:  #d3cec3;
+  --linie:        #dbe3ec;
+  --linie-stark:  #c3cedb;
   --akzent:       #0088b0;
-  --akzent-leis:  #eaf6fa;
+  --akzent-leis:  #e4f2f8;
   --gut:          #1e7a4c;
   --gut-leis:     #eef7f1;
   --warn:         #8a6d1f;
@@ -43,7 +44,10 @@ html, body { height: 100%; }
 
 body {
   margin: 0;
-  background: var(--grund);
+  /* Zurueckhaltender Verlauf: oben etwas heller, unten leicht kuehler.
+     fixed, damit er beim Scrollen ruhig stehen bleibt. */
+  background: linear-gradient(170deg, #f4f8fc 0%, var(--grund) 45%, var(--grund-tief) 100%);
+  background-attachment: fixed;
   color: var(--text);
   font-family: var(--sans);
   font-size: var(--t-normal);
@@ -62,7 +66,9 @@ h3 { font-size: var(--t-normal); }
 
 .kopfleiste {
   position: sticky; top: 0; z-index: 20;
-  background: var(--grund);
+  background: rgba(244, 248, 252, .92);
+  backdrop-filter: saturate(140%) blur(8px);
+  -webkit-backdrop-filter: saturate(140%) blur(8px);
   border-bottom: 1px solid var(--linie);
 }
 .kopfleiste-inhalt {
@@ -120,15 +126,28 @@ button.klein { min-height: 34px; padding: var(--s1) var(--s3); font-size: var(--
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
 }
 .klassenknopf {
-  display: block; text-align: left; text-decoration: none;
+  display: block; text-align: center; text-decoration: none;
   background: var(--flaeche); color: var(--text);
   border: 1px solid var(--linie); border-radius: var(--radius-gross);
-  padding: var(--s5) var(--s4) var(--s4);
-  min-height: 120px;
+  border-top: 3px solid var(--klassenfarbe, var(--linie-stark));
+  padding: var(--s3) var(--s3) var(--s2);
+  min-height: 0;
 }
-.klassenknopf:hover { border-color: var(--akzent); }
-.klassenknopf .name { font-family: var(--serif); font-size: var(--t-riesig); display: block; }
-.klassenknopf .zusatz { font-size: var(--t-klein); color: var(--text-leise); }
+.klassenknopf:hover { border-color: var(--akzent); border-top-color: var(--klassenfarbe, var(--akzent)); }
+.klassenknopf .name {
+  font-family: var(--serif); font-size: 27px; display: block; line-height: 1.15;
+  color: var(--klassenfarbe-text, var(--text));
+}
+.klassenknopf .zusatz { font-size: var(--t-klein); color: var(--text-leise); display: block; }
+.klassenknopf .balken { margin-top: var(--s2); }
+.klassenknopf .balken > i { background: var(--klassenfarbe, var(--akzent)); }
+
+/* Klassenfarbe auch im Tagesplan und in der Kopfzeile der Klassenseite. */
+.klassenfarbe-punkt {
+  display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+  background: var(--klassenfarbe, var(--linie-stark)); margin-right: 6px;
+  vertical-align: middle; flex: none;
+}
 
 .balken { height: 6px; background: var(--flaeche-leis); border-radius: 3px; margin-top: var(--s3); overflow: hidden; }
 .balken > i { display: block; height: 100%; background: var(--akzent); border-radius: 3px; }
@@ -224,9 +243,16 @@ table.liste td.kuerzel { font-family: ui-monospace, Menlo, Consolas, monospace; 
 }
 
 /* --- Startseite: Uhr ------------------------------------------------------ */
-.uhr { display: flex; align-items: center; gap: var(--s4); }
-.uhr-zeit { font-family: var(--serif); font-size: 44px; line-height: 1.05; font-variant-numeric: tabular-nums; }
-.uhr-tag  { color: var(--text-leise); font-size: 15px; margin-top: 2px; }
+.uhr {
+  display: flex; flex-direction: column; align-items: center;
+  gap: var(--s2); padding: var(--s4) var(--s4) var(--s3); text-align: center;
+}
+.uhr-zeit {
+  font-family: var(--serif); font-size: 46px; line-height: 1.05;
+  font-variant-numeric: tabular-nums; letter-spacing: .01em;
+}
+.uhr-zeit .sekunden { font-size: .55em; color: var(--text-leise); margin-left: 2px; }
+.uhr-tag { color: var(--text-leise); font-size: 15px; }
 
 /* --- Startseite: Tagesplan ------------------------------------------------ */
 ul.tagesplan { list-style: none; margin: 0; padding: 0; }
@@ -234,17 +260,20 @@ ul.tagesplan li { border-top: 1px solid var(--linie); }
 ul.tagesplan li:first-child { border-top: 0; }
 
 .tagesplan .eintrag {
-  display: flex; align-items: center; gap: var(--s4);
-  padding: var(--s3) var(--s2); min-height: var(--tippziel);
+  display: flex; align-items: center; gap: var(--s3);
+  padding: var(--s2) var(--s2); min-height: var(--tippziel);
   color: var(--text); text-decoration: none;
 }
 .tagesplan a.eintrag.anklickbar:hover { background: var(--akzent-leis); border-radius: 8px; }
 .tagesplan .zeit {
   font-variant-numeric: tabular-nums; color: var(--text-leise);
-  font-size: 15px; white-space: nowrap; min-width: 108px;
+  font-size: 14px; white-space: nowrap; min-width: 96px;
 }
-.tagesplan .was { display: flex; flex-direction: column; flex: 1; min-width: 0; }
-.tagesplan .bezeichnung { font-family: var(--serif); font-size: 18px; }
+.tagesplan .was {
+  display: flex; align-items: baseline; gap: var(--s2);
+  flex: 1; min-width: 0; flex-wrap: wrap;
+}
+.tagesplan .bezeichnung { font-family: var(--serif); font-size: 17px; line-height: 1.2; }
 .tagesplan .art { font-size: var(--t-klein); color: var(--text-leise); }
 .tagesplan a.eintrag .bezeichnung { color: var(--akzent); }
 
@@ -286,39 +315,48 @@ ul.tagesplan li:first-child { border-top: 0; }
 .kachel-titel  { grid-area: titel; font-family: var(--serif); font-size: var(--t-gross); }
 .kachel-stand  { grid-area: stand; font-size: 15px; }
 .kachel-kopf .feldhilfe { grid-area: hilfe; margin: 0; }
-.kachel-zeichen {
-  grid-area: zeichen; font-size: 40px; line-height: 1;
-  width: 56px; text-align: center;
-}
-.kachel-zeichen.offen  { color: var(--schlecht); }
-.kachel-zeichen.gut    { color: var(--gut); }
-.kachel-zeichen.ruhend { color: var(--text-sehrleis); }
 
 .kachel-bereich { padding: 0 var(--s4) var(--s4); }
 .kachel-bereich[hidden] { display: none; }
 
-/* Schwebendes Hinweiszeichen — nur an den Tagen, an denen die Frist naht. */
-.schwebend {
-  position: absolute; top: -14px; right: -8px;
-  width: 34px; height: 34px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--schlecht); color: #fff; font-size: 17px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, .18);
-  animation: schweben 2.6s ease-in-out infinite;
-}
-@keyframes schweben {
-  0%, 100% { transform: translateY(0); }
-  50%      { transform: translateY(-5px); }
-}
-
 .ferienleiste { align-items: center; }
-
-@media (prefers-reduced-motion: reduce) {
-  .schwebend { animation: none; }
-}
 
 @media (max-width: 520px) {
   .tagesplan .eintrag { flex-wrap: wrap; gap: var(--s2); }
   .tagesplan .zeit { min-width: 0; }
   .uhr-zeit { font-size: 38px; }
 }
+
+/* --- Klassenfarben --------------------------------------------------------
+   Kommen aus der Spalte `farbe` im Blatt Klassen. Fehlt sie, greift eine
+   Reihenfolge-Palette, die den Farben des bisherigen Stundenplans folgt:
+   erste Klasse hellblau, zweite orange, dritte grün. Nichts davon steht
+   fest im Code — die Tabelle hat immer das letzte Wort.
+-------------------------------------------------------------------------- */
+.k-farbe-1 { --klassenfarbe: #4aa8d8; --klassenfarbe-text: #1d6b93; }
+.k-farbe-2 { --klassenfarbe: #e08a2e; --klassenfarbe-text: #9a5606; }
+.k-farbe-3 { --klassenfarbe: #4f9d5d; --klassenfarbe-text: #2c6a37; }
+.k-farbe-4 { --klassenfarbe: #8a6fbf; --klassenfarbe-text: #5b4489; }
+.k-farbe-5 { --klassenfarbe: #c8607f; --klassenfarbe-text: #90344f; }
+
+/* --- Wochenkacheln: ohne Zeichen, Farbe trägt nicht allein -----------------
+   Statt eines großen X markiert ein kräftiger Streifen am linken Rand die
+   offene Aufgabe; das Wort „offen"/„erledigt" bleibt der eigentliche
+   Bedeutungsträger.
+-------------------------------------------------------------------------- */
+.kachel { border-left: 4px solid var(--linie-stark); }
+.kachel.offen    { border-color: var(--linie); border-left-color: var(--schlecht); background: #fdf6f5; }
+.kachel.erledigt { border-color: var(--linie); border-left-color: var(--gut); }
+.kachel.ruhend   { border-color: var(--linie); border-left-color: var(--linie-stark); }
+
+.kachel-kopf {
+  grid-template-columns: 1fr;
+  grid-template-areas: 'titel' 'stand' 'hilfe';
+  min-height: 0; padding: var(--s3) var(--s4);
+}
+.kachel.offen .kachel-stand { color: var(--schlecht); font-weight: 600; }
+.kachel.erledigt .kachel-stand { color: var(--gut); }
+
+/* --- E-Mail-Verweis der Klassenlehrkraft ---------------------------------- */
+a.lehrkraft { color: inherit; text-decoration: none; border-bottom: 1px dotted var(--linie-stark); }
+a.lehrkraft:hover { color: var(--akzent); border-bottom-color: var(--akzent); }

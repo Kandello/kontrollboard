@@ -7,7 +7,7 @@
  */
 
 import { e, karte, setzeMeldung, hinweis } from '../ui.js';
-import { klassenlehrkraft } from '../zuordnung.js';
+import { klassenlehrkraftEintrag } from '../zuordnung.js';
 import { sende, leereDaten, ladeDaten } from '../server.js';
 import {
   heute, uhrzeit, wochentag, wochentagName, istWochenende,
@@ -18,13 +18,16 @@ import {
 const KLICKBAR = ['DEUTSCH', 'LESEN'];
 
 /**
- * An welchen Wochentagen das schwebende Hinweiszeichen erscheint.
  * PEAK muss Mittwochfrueh bei den Klassenlehrkraeften liegen, Frist ist
  * also Dienstagabend. Die Weekly Note ergibt vor Freitag keinen Sinn.
+ *
+ * Eine offene Aufgabe bleibt die ganze Woche ueber rot markiert, bis sie
+ * abgehakt wird — ohne Zeichen und ohne Animation. Zwei Signale fuer
+ * dieselbe Aussage stumpfen nur ab.
  */
-const ERINNERUNG = {
-  PEAK:   { tage: [1, 2], titel: 'PEAK',        frist: 'Frist: Dienstagabend' },
-  WEEKLY: { tage: [5],    titel: 'Weekly Note', frist: 'Frist: Freitag' }
+const AUFGABEN = {
+  PEAK:   { titel: 'PEAK',        frist: 'Frist: Dienstagabend' },
+  WEEKLY: { titel: 'Weekly Note', frist: 'Frist: Freitag' }
 };
 
 let uhrGeber = null;
@@ -67,22 +70,24 @@ export function raeumeStartAuf() {
 // --- Uhr -------------------------------------------------------------------
 
 function uhrWidget(tag, ferien) {
-  const zeitZeile = e('div', { klasse: 'uhr-zeit' });
+  const stundeMinute = e('span');
+  const sekunde = e('span', { klasse: 'sekunden' });
+  const zeitZeile = e('div', { klasse: 'uhr-zeit' }, [stundeMinute, sekunde]);
   const tagZeile = e('div', { klasse: 'uhr-tag' });
 
   function stellen() {
     const u = uhrzeit();
-    zeitZeile.textContent =
+    stundeMinute.textContent =
       `${String(u.stunde).padStart(2, '0')}:${String(u.minute).padStart(2, '0')}`;
+    sekunde.textContent = ':' + String(u.sekunde).padStart(2, '0');
     const t = heute();
     tagZeile.textContent = `${wochentagName(wochentag(t))}, ${alsDeutsch(t)}`;
   }
   stellen();
-  // Im Minutentakt statt sekuendlich — das spart auf dem iPad Akku.
-  uhrGeber = setInterval(stellen, 20000);
+  uhrGeber = setInterval(stellen, 1000);
 
   return e('div', { klasse: 'karte uhr' }, [
-    e('div', {}, [zeitZeile, tagZeile]),
+    zeitZeile, tagZeile,
     ferien ? e('span', { klasse: 'marke ruhend', text: 'Ferienmodus' }) : null
   ]);
 }
@@ -131,8 +136,13 @@ function tagesplan(daten, tag) {
     const inhalt = [
       e('span', { klasse: 'zeit', text: `${s.von}–${s.bis}` }),
       e('span', { klasse: 'was' }, [
-        e('span', { klasse: 'bezeichnung',
-                    text: klasse ? klasse.bezeichnung : (s.klasse || bezeichneArt(s)) }),
+        e('span', {
+          klasse: 'bezeichnung ' + (klasse ? farbklasse(klasse, i) : ''),
+          style: klasse && klasse.farbe ? `--klassenfarbe:${klasse.farbe}` : null
+        }, [
+          klasse ? e('span', { klasse: 'klassenfarbe-punkt', 'aria-hidden': 'true' }) : null,
+          klasse ? klasse.bezeichnung : (s.klasse || bezeichneArt(s))
+        ]),
         e('span', { klasse: 'art', text: artText(s) })
       ]),
       laufend === i ? e('span', { klasse: 'marke laufend', text: 'läuft' })
@@ -169,12 +179,11 @@ function artText(s) {
 // --- Wochenaufgaben --------------------------------------------------------
 
 function wochenkachel(aufgabe, daten, kw, tag, ferien, neuZeichnen) {
-  const einstellung = ERINNERUNG[aufgabe];
+  const einstellung = AUFGABEN[aufgabe];
   const eintrag = daten.wochenstatus.find((w) => w.kw === kw && w.aufgabe === aufgabe);
   const erledigt = Boolean(eintrag);
 
   const link = aufgabe === 'PEAK' ? daten.meta.link_peak : daten.meta.link_weekly;
-  const zeigeErinnerung = !ferien && !erledigt && einstellung.tage.includes(wochentag(tag));
 
   // Aufklappbarer Bereich: ein versehentliches Antippen darf nichts ausloesen.
   const bereich = e('div', { klasse: 'kachel-bereich', hidden: true });
@@ -219,10 +228,6 @@ function wochenkachel(aufgabe, daten, kw, tag, ferien, neuZeichnen) {
     } }
   }, [
     e('span', { klasse: 'kachel-titel', text: einstellung.titel }),
-    ferien
-      ? e('span', { klasse: 'kachel-zeichen ruhend', 'aria-hidden': 'true', text: '–' })
-      : e('span', { klasse: 'kachel-zeichen ' + (erledigt ? 'gut' : 'offen'),
-                    'aria-hidden': 'true', text: erledigt ? '✓' : '✕' }),
     e('span', { klasse: 'kachel-stand',
                 text: ferien ? 'pausiert' : (erledigt ? 'erledigt' : 'offen') }),
     e('span', { klasse: 'feldhilfe',
@@ -232,15 +237,8 @@ function wochenkachel(aufgabe, daten, kw, tag, ferien, neuZeichnen) {
   ]);
 
   return e('div', {
-    klasse: 'kachel' + (ferien ? ' ruhend' : (erledigt ? ' erledigt' : ' offen')) +
-            (zeigeErinnerung ? ' erinnert' : '')
-  }, [
-    zeigeErinnerung
-      ? e('span', { klasse: 'schwebend', 'aria-hidden': 'true', text: '✕' })
-      : null,
-    kopf,
-    bereich
-  ]);
+    klasse: 'kachel' + (ferien ? ' ruhend' : (erledigt ? ' erledigt' : ' offen'))
+  }, [kopf, bereich]);
 }
 
 function zerlegeIso(iso) {
@@ -294,24 +292,57 @@ function klassenknoepfe(daten, verbergen) {
     return raster;
   }
 
-  daten.klassen.forEach((k) => {
+  daten.klassen.forEach((k, i) => {
     const anzahl = daten.schueler.filter((s) => s.klasse === k.klasse && s.aktiv).length;
-    const lehrkraft = verbergen ? null : klassenlehrkraft(k.klasse);
+    const lehrkraft = verbergen ? null : klassenlehrkraftEintrag(k.klasse);
 
-    raster.appendChild(e('a', {
-      klasse: 'klassenknopf',
-      href: '#/klasse/' + encodeURIComponent(k.klasse),
-      'aria-label': 'Klasse ' + k.bezeichnung + ' öffnen'
+    // Der Kachelinhalt ist ein Link auf die Klassenseite. Der Verweis auf
+    // die E-Mail-Adresse muss deshalb daneben stehen, nicht darin —
+    // verschachtelte Links sind nicht zulaessig.
+    raster.appendChild(e('div', {
+      klasse: 'klassenknopf ' + farbklasse(k, i),
+      style: k.farbe ? `--klassenfarbe:${k.farbe}` : null
     }, [
-      e('span', { klasse: 'name', text: k.bezeichnung }),
-      e('span', { klasse: 'zusatz', text: anzahl + (anzahl === 1 ? ' Kind' : ' Kinder') +
-                                          (lehrkraft ? ' · ' + lehrkraft : '') }),
+      e('a', {
+        href: '#/klasse/' + encodeURIComponent(k.klasse),
+        style: 'text-decoration:none;color:inherit;display:block',
+        'aria-label': 'Klasse ' + k.bezeichnung + ' öffnen'
+      }, [
+        e('span', { klasse: 'name', text: k.bezeichnung }),
+        e('span', { klasse: 'zusatz', text: anzahl + (anzahl === 1 ? ' Kind' : ' Kinder') })
+      ]),
+      lehrkraft ? e('span', { klasse: 'zusatz' }, [lehrkraftVerweis(lehrkraft)]) : null,
       // Textloser Fortschrittsbalken; Wert folgt mit den Einheiten (Schritt 9).
       e('div', { klasse: 'balken', role: 'presentation' }, [e('i', { style: 'width:0%' })])
     ]));
   });
 
   return raster;
+}
+
+/**
+ * Name der Klassenlehrkraft, bei hinterlegter Adresse als mailto-Verweis.
+ * Name und Adresse stammen aus der lokalen Zuordnungsdatei und verlassen
+ * das Geraet nicht.
+ */
+export function lehrkraftVerweis(lehrkraft) {
+  if (!lehrkraft) return null;
+  if (!lehrkraft.email) return e('span', { text: lehrkraft.name });
+  return e('a', {
+    klasse: 'lehrkraft',
+    href: 'mailto:' + encodeURIComponent(lehrkraft.email).replace(/%40/g, '@'),
+    title: 'E-Mail an ' + lehrkraft.name,
+    text: lehrkraft.name
+  });
+}
+
+/**
+ * Farbe der Klasse. Steht im Blatt Klassen nichts, greift eine Palette
+ * nach Reihenfolge — nichts davon ist an eine bestimmte Klasse gebunden.
+ */
+function farbklasse(k, i) {
+  if (k.farbe) return '';
+  return 'k-farbe-' + (((k.reihenfolge || i + 1) - 1) % 5 + 1);
 }
 
 function istWahr(wert) {

@@ -112,9 +112,10 @@ pruefe('Download heisst zuordnung.csv', dl.suggestedFilename() === 'zuordnung.cs
 const strom = await dl.createReadStream();
 let raus = ''; for await (const c of strom) raus += c;
 pruefe('Export hat BOM', raus.charCodeAt(0) === 0xFEFF);
-pruefe('Export enthaelt Kopfzeile', raus.includes('schluessel;nachname;vorname;geschlecht;version'));
+pruefe('Export enthaelt Kopfzeile', raus.includes('schluessel;nachname;vorname;geschlecht;email;version'));
 pruefe('Export enthaelt Klassenzeile zuerst', raus.split('\r\n')[1].startsWith('KLASSE-3L'));
 pruefe('Export enthaelt 3L-01', raus.includes('3L-01;Alpha;Ben;m;'));
+pruefe('Export hat eine leere E-Mail-Spalte', /3L-01;Alpha;Ben;m;;\d{4}-/.test(raus));
 
 // Unbekannte Route
 await p.goto(B + '#/quatsch/tief'); await p.waitForTimeout(500);

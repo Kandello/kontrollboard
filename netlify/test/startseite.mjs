@@ -69,7 +69,8 @@ console.log('=== Montag 09:20, laufende Stunde ===');
 {
   const { p, ctx } = await oeffne('2026-08-17T07:20:00Z');
 
-  pruefe('Uhr zeigt Berliner Zeit', await p.locator('.uhr-zeit').innerText(), '09:20');
+  pruefe('Uhr zeigt Berliner Zeit mit Sekunden',
+    /^09:20:\d{2}$/.test((await p.locator('.uhr-zeit').innerText()).replace(/\s/g, '')), true);
   pruefe('Datum und Wochentag', await p.locator('.uhr-tag').innerText(), 'Montag, 17.08.2026');
 
   const zeilen = await p.locator('ul.tagesplan li').count();
@@ -137,11 +138,14 @@ console.log('\n=== Wochenaufgaben am Montag ===');
   const weekly = p.locator('.kachel').nth(1);
 
   pruefe('PEAK offen', (await peak.innerText()).includes('offen'), true);
-  pruefe('PEAK zeigt ein X', await peak.locator('.kachel-zeichen').innerText(), '✕');
   pruefe('PEAK nennt die Frist', (await peak.innerText()).includes('Dienstagabend'), true);
 
-  pruefe('PEAK erinnert am Montag', await peak.locator('.schwebend').count(), 1);
-  pruefe('Weekly erinnert am Montag nicht', await weekly.locator('.schwebend').count(), 0);
+  // Kein Zeichen, keine Animation: die Markierung traegt der Rand, die
+  // Aussage das Wort „offen".
+  pruefe('kein grosses Zeichen mehr', await peak.locator('.kachel-zeichen').count(), 0);
+  pruefe('kein schwebendes Symbol', await p.locator('.schwebend').count(), 0);
+  pruefe('offene Kachel ist als offen gezeichnet',
+    (await peak.getAttribute('class')).includes('offen'), true);
 
   // Ein versehentliches Antippen darf nichts ausloesen.
   pruefe('Bereich ist zunächst zu', await peak.locator('.kachel-bereich').isHidden(), true);
@@ -154,8 +158,8 @@ console.log('\n=== Wochenaufgaben am Montag ===');
   await p.waitForTimeout(900);
   const peakNeu = p.locator('.kachel').first();
   pruefe('nach dem Knopf erledigt', (await peakNeu.innerText()).includes('erledigt'), true);
-  pruefe('grüner Haken', await peakNeu.locator('.kachel-zeichen').innerText(), '✓');
-  pruefe('Erinnerungszeichen verschwindet', await peakNeu.locator('.schwebend').count(), 0);
+  pruefe('Kachel wird als erledigt gezeichnet',
+    (await peakNeu.getAttribute('class')).includes('erledigt'), true);
   pruefe('Datum wird genannt', /\d{2}\.\d{2}\.\d{4}/.test(await peakNeu.innerText()), true);
   pruefe('Weekly bleibt offen', (await p.locator('.kachel').nth(1).innerText()).includes('offen'), true);
 
@@ -178,10 +182,8 @@ console.log('\n=== Freitag ===');
   await setzeStatus('2026-W34', 'PEAK', false);
   const { p, ctx } = await oeffne('2026-08-21T07:20:00Z');
   pruefe('Freitag erkannt', (await p.locator('.uhr-tag').innerText()).startsWith('Freitag'), true);
-  pruefe('PEAK erinnert freitags nicht',
-    await p.locator('.kachel').first().locator('.schwebend').count(), 0);
-  pruefe('Weekly erinnert freitags',
-    await p.locator('.kachel').nth(1).locator('.schwebend').count(), 1);
+  pruefe('offene Aufgaben bleiben ganzwöchig markiert',
+    (await p.locator('.kachel.offen').count()) >= 1, true);
   pruefe('vier Stunden am Freitag', await p.locator('ul.tagesplan li').count(), 4);
   await ctx.close();
 }
@@ -192,7 +194,7 @@ console.log('\n=== Freitag ===');
 console.log('\n=== Mittwoch, ruhige Kacheln ===');
 {
   const { p, ctx } = await oeffne('2026-08-19T07:20:00Z');
-  pruefe('kein Erinnerungszeichen', await p.locator('.schwebend').count(), 0);
+  pruefe('nirgends ein schwebendes Symbol', await p.locator('.schwebend').count(), 0);
   pruefe('drei Stunden am Mittwoch', await p.locator('ul.tagesplan li').count(), 3);
   await ctx.close();
 }
@@ -221,7 +223,6 @@ console.log('\n=== Ferienmodus ===');
   pruefe('Tagesplan ausgeblendet', await p.locator('ul.tagesplan').count(), 0);
   pruefe('Kacheln pausiert',
     (await p.locator('.kachel').first().innerText()).includes('pausiert'), true);
-  pruefe('keine Erinnerungszeichen', await p.locator('.schwebend').count(), 0);
   pruefe('Kachel neutral gezeichnet',
     (await p.locator('.kachel').first().getAttribute('class')).includes('ruhend'), true);
   pruefe('Ferienmarke an der Uhr', await p.locator('.uhr .marke').count(), 1);

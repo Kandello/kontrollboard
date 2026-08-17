@@ -8,7 +8,7 @@
 
 /** Spaltenkoepfe je Blatt. Reihenfolge ist verbindlich. */
 var SCHEMA = {
-  Klassen:            ['klasse', 'bezeichnung', 'reihenfolge', 'aktiv'],
+  Klassen:            ['klasse', 'bezeichnung', 'reihenfolge', 'aktiv', 'farbe'],
   Schueler:           ['kuerzel', 'klasse', 'listennummer', 'aktiv', 'fach'],
   Stundenplan:        ['wochentag', 'stunde', 'von', 'bis', 'klasse', 'art', 'zusatz', 'aktiv'],
   Kategorien:         ['id', 'bezeichnung', 'gruppe', 'reihenfolge', 'aktiv'],
@@ -85,9 +85,9 @@ var VORBELEGUNG = {
     [5, 6, '14:00', '14:45', '3M',  'DEUTSCH', '',    true]
   ],
   Klassen: [
-    ['3L',  '3L',  1, true],
-    ['3M',  '3M',  2, true],
-    ['3OB', '3OB', 3, true]
+    ['3L',  '3L',  1, true, ''],
+    ['3M',  '3M',  2, true, ''],
+    ['3OB', '3OB', 3, true, '']
   ],
   Meta: [
     ['zuordnung_version', ''],

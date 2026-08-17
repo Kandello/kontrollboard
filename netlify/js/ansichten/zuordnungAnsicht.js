@@ -102,7 +102,7 @@ export function zeichneZuordnung(ziel, { daten, neuZeichnen }) {
     const inhalt = [];
 
     // Klassenlehrkraft — bleibt ebenfalls lokal.
-    const lk = zuordnung.eintrag('KLASSE-' + k.klasse) || { nachname: '', vorname: '' };
+    const lk = zuordnung.eintrag('KLASSE-' + k.klasse) || { nachname: '', vorname: '', email: '' };
     inhalt.push(e('div', { klasse: 'leiste', style: 'align-items:flex-end' }, [
       e('div', { style: 'flex:1;min-width:140px' }, [
         e('label', { text: 'Klassenlehrkraft — Nachname' }),
@@ -116,6 +116,16 @@ export function zeichneZuordnung(ziel, { daten, neuZeichnen }) {
         e('input', {
           type: 'text', value: lk.vorname, autocomplete: 'off',
           auf: { input: (ev) => { zuordnung.setzeEintrag('KLASSE-' + k.klasse, { vorname: ev.target.value }); markiereGeaendert(); } }
+        })
+      ]),
+      // Die Adresse ist wie der Name ein personenbezogenes Datum und bleibt
+      // deshalb hier, nicht in der Tabelle und nicht im Programmcode.
+      e('div', { style: 'flex:1.4;min-width:200px' }, [
+        e('label', { text: 'E-Mail (macht den Namen anklickbar)' }),
+        e('input', {
+          type: 'email', value: lk.email || '', autocomplete: 'off',
+          autocapitalize: 'off', spellcheck: false, placeholder: 'name@schule.de',
+          auf: { input: (ev) => { zuordnung.setzeEintrag('KLASSE-' + k.klasse, { email: ev.target.value.trim() }); markiereGeaendert(); } }
         })
       ])
     ]));

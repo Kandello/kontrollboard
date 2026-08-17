@@ -85,6 +85,9 @@ console.log('\n=== Zeitzone: Geraet steht anderswo ===');
   const zeitpunkt = new Date('2026-08-17T22:30:00Z');
   pruefe('Berliner Kalendertag', heute(zeitpunkt), { jahr: 2026, monat: 8, tag: 18 });
   pruefe('Berliner Uhrzeit', uhrzeit(zeitpunkt).stunde, 0);
+  pruefe('Minute', uhrzeit(zeitpunkt).minute, 30);
+  pruefe('Sekunde', uhrzeit(new Date('2026-08-17T22:30:07Z')).sekunde, 7);
+  pruefe('Minuten seit Mitternacht', uhrzeit(zeitpunkt).minuten, 30);
   // 22:30 UTC am Sonntag ist in Berlin bereits Montag 00:30 — neue Woche.
   // In UTC gerechnet waere es noch Sonntag und damit die Vorwoche.
   const nachMitternacht = new Date('2026-08-23T22:30:00Z');

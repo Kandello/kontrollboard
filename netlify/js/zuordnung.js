@@ -15,7 +15,7 @@ const SCHLUESSEL = 'zuordnung';
 const KUERZEL_MUSTER = /^[0-9][A-Za-z]{1,3}-[0-9]{2}$/;
 const KLASSEN_PRAEFIX = 'KLASSE-';
 
-/** { eintraege: { schluessel: {nachname, vorname, geschlecht} }, version: ISO } */
+/** { eintraege: { schluessel: {nachname, vorname, geschlecht, email} }, version: ISO } */
 let zustand = lies(SCHLUESSEL, { eintraege: {}, version: '' });
 
 export function istGeladen() {
@@ -43,6 +43,21 @@ export function klassenlehrkraft(klasse) {
   const e = zustand.eintraege[KLASSEN_PRAEFIX + klasse];
   if (!e) return null;
   return vollerName(e);
+}
+
+/**
+ * Name und E-Mail der Klassenlehrkraft, fuer einen anklickbaren Verweis.
+ *
+ * Die Adresse steht wie der Name ausschliesslich in der lokalen
+ * Zuordnungsdatei — sie ist ein personenbezogenes Datum und gehoert
+ * ebenso wenig in die Tabelle oder in den Programmcode.
+ */
+export function klassenlehrkraftEintrag(klasse) {
+  const e = zustand.eintraege[KLASSEN_PRAEFIX + klasse];
+  if (!e) return null;
+  const n = vollerName(e);
+  if (!n) return null;
+  return { name: n, email: (e.email || '').trim() };
 }
 
 function vollerName(e) {
@@ -117,7 +132,8 @@ export function leseCsv(text) {
     eintraege[schluessel] = {
       nachname: satz.nachname || '',
       vorname: satz.vorname || '',
-      geschlecht: satz.geschlecht || ''
+      geschlecht: satz.geschlecht || '',
+      email: satz.email || ''
     };
     if (satz.version && satz.version > version) version = satz.version;
     gelesen++;
@@ -144,7 +160,7 @@ export function uebernimm(eintraege, version) {
 
 /** Einzelnen Eintrag aendern; wirkt sofort, ohne Dateizugriff. */
 export function setzeEintrag(schluessel, felder) {
-  const vorhanden = zustand.eintraege[schluessel] || { nachname: '', vorname: '', geschlecht: '' };
+  const vorhanden = zustand.eintraege[schluessel] || { nachname: '', vorname: '', geschlecht: '', email: '' };
   zustand.eintraege[schluessel] = { ...vorhanden, ...felder };
 }
 
@@ -172,7 +188,7 @@ function neuerZeitstempel() {
 
 /** Erzeugt die CSV zur Sicherung: UTF-8 mit BOM, semikolongetrennt, CRLF. */
 export function schreibeCsv() {
-  const zeilen = ['schluessel;nachname;vorname;geschlecht;version'];
+  const zeilen = ['schluessel;nachname;vorname;geschlecht;email;version'];
   const v = zustand.version || neuerZeitstempel();
 
   const schluessel = Object.keys(zustand.eintraege).sort((a, b) => {
@@ -183,7 +199,7 @@ export function schreibeCsv() {
 
   schluessel.forEach((s) => {
     const e = zustand.eintraege[s];
-    zeilen.push([s, e.nachname, e.vorname, e.geschlecht, v].map(feld).join(';'));
+    zeilen.push([s, e.nachname, e.vorname, e.geschlecht, e.email || '', v].map(feld).join(';'));
   });
 
   return '﻿' + zeilen.join('\r\n') + '\r\n';
