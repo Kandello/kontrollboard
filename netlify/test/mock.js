@@ -20,6 +20,13 @@ http.createServer((req, res) => {
           Object.assign(PAKET.meta, b.werte || {});
           return res.writeHead(200, cors).end(JSON.stringify({ ok:true, ergebnis:{ gespeichert:Object.keys(b.werte||{}).length } }));
         }
+        if (b.aktion === 'wochenstatus') {
+          const kw = String(b.kw || ''), auf = String(b.aufgabe || '').toUpperCase();
+          if (!/^\d{4}-W\d{2}$/.test(kw)) return res.writeHead(200, cors).end(JSON.stringify({ ok:false, fehler:'Ungültige Kalenderwoche.' }));
+          PAKET.wochenstatus = PAKET.wochenstatus.filter(w => !(w.kw === kw && w.aufgabe === auf));
+          if (b.erledigt) PAKET.wochenstatus.push({ kw, aufgabe: auf, erledigt_am: new Date().toISOString().slice(0,10) });
+          return res.writeHead(200, cors).end(JSON.stringify({ ok:true, ergebnis:{ kw, aufgabe:auf, erledigt:!!b.erledigt } }));
+        }
         return res.writeHead(200, cors).end(JSON.stringify({ ok:false, fehler:'Unbekannte Aktion.' }));
       });
       return;

@@ -7,7 +7,7 @@ import { lies, schreib, istVerfuegbar } from './speicher.js';
 import { registriere, starte, gehe, pfadEintraege } from './router.js';
 import { istEingerichtet, ladeDaten, holeDaten } from './server.js';
 import * as zuordnung from './zuordnung.js';
-import { zeichneStart } from './ansichten/start.js';
+import { zeichneStart, raeumeStartAuf } from './ansichten/start.js';
 import { zeichneKlasse } from './ansichten/klasse.js';
 import { zeichneEinstellungen } from './ansichten/einstellungen.js';
 import { zeichneZuordnung } from './ansichten/zuordnungAnsicht.js';
@@ -154,6 +154,8 @@ function schliessbar(kennung, element) {
 let aktuelleAnsicht = null;
 
 function zeichneAlles() {
+  // Der Minutentakt der Uhr wuerde sonst auf abgeloesten Knoten weiterlaufen.
+  raeumeStartAuf();
   zeichneKopf();
   leere(inhalt);
   banner().forEach((b) => inhalt.appendChild(b));

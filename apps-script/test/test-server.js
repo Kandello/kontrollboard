@@ -250,5 +250,45 @@ console.log('\n=== Zusammengesetzte Schluessel kollidieren nicht ===');
   pruefe('die andere Zeile bleibt', holeBlatt_('Wochenstatus').getLastRow() - 1, 1);
 }
 
+console.log('\n=== Wochenstatus ===');
+{
+  holeBlatt_('Wochenstatus').d = [SCHEMA.Wochenstatus.slice()];
+
+  setzeWochenstatus('2026-W34', 'PEAK', true);
+  let w = ladeAlles().wochenstatus;
+  pruefe('PEAK gesetzt', w.length, 1);
+  pruefe('Aufgabe gross geschrieben', w[0].aufgabe, 'PEAK');
+  pruefe('Datum als Text', /^\d{4}-\d{2}-\d{2}$/.test(w[0].erledigt_am), true);
+
+  setzeWochenstatus('2026-W34', 'weekly', true);
+  pruefe('WEEKLY zusaetzlich', ladeAlles().wochenstatus.length, 2);
+
+  setzeWochenstatus('2026-W34', 'PEAK', true);
+  pruefe('zweimal setzen erzeugt keine Dublette', ladeAlles().wochenstatus.length, 2);
+
+  setzeWochenstatus('2026-W34', 'PEAK', false);
+  w = ladeAlles().wochenstatus;
+  pruefe('PEAK zurueckgenommen', w.length, 1);
+  pruefe('WEEKLY bleibt', w[0].aufgabe, 'WEEKLY');
+
+  setzeWochenstatus('2026-W35', 'WEEKLY', true);
+  pruefe('andere Woche eigener Eintrag', ladeAlles().wochenstatus.length, 2);
+
+  let m = '';
+  try { setzeWochenstatus('Woche 34', 'PEAK', true); } catch (e) { m = e.message; }
+  pruefe('unsinnige Kalenderwoche abgewiesen', /Ungültige Kalenderwoche/.test(m), true);
+
+  m = '';
+  try { setzeWochenstatus('2026-W34', 'IRGENDWAS', true); } catch (e) { m = e.message; }
+  pruefe('unbekannte Aufgabe abgewiesen', /Unbekannte Wochenaufgabe/.test(m), true);
+  pruefe('nach beiden Fehlern unveraendert', ladeAlles().wochenstatus.length, 2);
+
+  const t = holeToken_();
+  const p = JSON.parse(doPost({ postData: { contents: JSON.stringify(
+    { token: t, aktion: 'wochenstatus', kw: '2026-W36', aufgabe: 'PEAK', erledigt: true }) } }).text);
+  pruefe('ueber doPost erreichbar', p.ok, true);
+  pruefe('doPost hat geschrieben', ladeAlles().wochenstatus.length, 3);
+}
+
 console.log(fehler === 0 ? '\nALLE TESTS BESTANDEN' : `\n${fehler} TEST(S) FEHLGESCHLAGEN`);
 process.exit(fehler === 0 ? 0 : 1);

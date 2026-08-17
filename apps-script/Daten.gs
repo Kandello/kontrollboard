@@ -376,3 +376,37 @@ function setzeMeta(paare) {
     return { gespeichert: saetze.length };
   });
 }
+
+/**
+ * Setzt oder entfernt einen Eintrag im Blatt Wochenstatus.
+ *
+ * Fehlt der Eintrag, gilt die Aufgabe als offen. Dadurch setzt sich der
+ * Status zum Wochenwechsel von selbst zurueck, ohne Zeitausloeser.
+ *
+ * Die Kalenderwoche wird im Browser nach ISO-8601 und Europe/Berlin
+ * bestimmt und hier nur noch auf ihre Form geprueft — die Skript-Zeitzone
+ * spielt also keine Rolle.
+ */
+function setzeWochenstatus(kw, aufgabe, erledigt) {
+  var kennung = String(kw || '').trim();
+  if (!/^\d{4}-W\d{2}$/.test(kennung)) {
+    throw new Error('Ungültige Kalenderwoche.');
+  }
+  var welche = String(aufgabe || '').trim().toUpperCase();
+  if (welche !== 'WEEKLY' && welche !== 'PEAK') {
+    throw new Error('Unbekannte Wochenaufgabe.');
+  }
+
+  return mitSperre_(function () {
+    if (erledigt) {
+      schreibeNachSchluessel_('Wochenstatus', [{
+        kw: kennung,
+        aufgabe: welche,
+        erledigt_am: Utilities.formatDate(new Date(), 'Europe/Berlin', 'yyyy-MM-dd')
+      }], ['kw', 'aufgabe']);
+    } else {
+      loescheNachSchluessel_('Wochenstatus', ['kw', 'aufgabe'], [[kennung, welche]]);
+    }
+    return { kw: kennung, aufgabe: welche, erledigt: Boolean(erledigt) };
+  });
+}

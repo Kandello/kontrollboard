@@ -91,6 +91,10 @@ function doPost(e) {
       case 'meta':
         return antwort_({ ok: true, ergebnis: setzeMeta(rumpf.werte || {}) });
 
+      case 'wochenstatus':
+        return antwort_({ ok: true, ergebnis:
+          setzeWochenstatus(rumpf.kw, rumpf.aufgabe, rumpf.erledigt) });
+
       case 'schuelerImport':
         return antwort_({ ok: true, ergebnis: importSchuelerAusText(rumpf.csv || '') });
 

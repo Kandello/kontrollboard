@@ -1,37 +1,297 @@
 /**
- * ansichten/start.js — Ebene 1.
+ * ansichten/start.js — Ebene 1, der morgendliche Tagesüberblick.
  *
- * Stand Schritt 2: Geruest mit den Klassenknoepfen. Uhr, Tagesplan,
- * Kacheln und das Einheiten-Widget folgen in Schritt 3; die Plaetze sind
- * bereits vorgesehen, damit die Anordnung sichtbar ist.
+ * Uhr, Tagesplan, die beiden Wochenaufgaben, Ferienmodus und die
+ * Klassenknoepfe. Das Widget zur laufenden Unterrichtseinheit folgt mit
+ * den Einheiten (Schritt 9); sein Platz ist vorgesehen.
  */
 
-import { e, karte } from '../ui.js';
+import { e, karte, setzeMeldung, hinweis } from '../ui.js';
 import { klassenlehrkraft } from '../zuordnung.js';
+import { sende, leereDaten, ladeDaten } from '../server.js';
+import {
+  heute, uhrzeit, wochentag, wochentagName, istWochenende,
+  kwKennung, alsMinuten, alsDeutsch
+} from '../zeit.js';
 
-export function zeichneStart(ziel, { daten, verbergen }) {
-  const stueck = document.createDocumentFragment();
+/** Arten, die auf die Klassenseite fuehren. */
+const KLICKBAR = ['DEUTSCH', 'LESEN'];
 
-  stueck.appendChild(e('h1', { text: 'Kommandozentrale Deutsch', style: 'margin-bottom:4px' }));
-  stueck.appendChild(e('div', {
-    klasse: 'feldhilfe',
-    style: 'margin-bottom:24px',
-    text: 'Tagesüberblick, Leistungstracker, Kontrollboards und Unterrichtseinheiten.'
-  }));
+/**
+ * An welchen Wochentagen das schwebende Hinweiszeichen erscheint.
+ * PEAK muss Mittwochfrueh bei den Klassenlehrkraeften liegen, Frist ist
+ * also Dienstagabend. Die Weekly Note ergibt vor Freitag keinen Sinn.
+ */
+const ERINNERUNG = {
+  PEAK:   { tage: [1, 2], titel: 'PEAK',        frist: 'Frist: Dienstagabend' },
+  WEEKLY: { tage: [5],    titel: 'Weekly Note', frist: 'Frist: Freitag' }
+};
 
-  // Platzhalter fuer Schritt 3, damit die Anordnung erkennbar bleibt.
-  stueck.appendChild(karte(null, [
-    e('div', { klasse: 'leer', style: 'padding:24px 16px' }, [
-      e('div', { text: 'Uhr, Tagesplan und die Kacheln für PEAK und Weekly Note folgen im nächsten Schritt.' })
+let uhrGeber = null;
+
+export function zeichneStart(ziel, { daten, verbergen, neuZeichnen }) {
+  if (uhrGeber) { clearInterval(uhrGeber); uhrGeber = null; }
+
+  const ferien = istWahr(daten.meta.ferienmodus);
+  const tag = heute();
+  const kw = kwKennung(tag);
+
+  ziel.appendChild(uhrWidget(tag, ferien));
+
+  if (!ferien) {
+    ziel.appendChild(tagesplan(daten, tag));
+  }
+
+  ziel.appendChild(e('div', { klasse: 'kachelreihe' }, [
+    wochenkachel('PEAK', daten, kw, tag, ferien, neuZeichnen),
+    wochenkachel('WEEKLY', daten, kw, tag, ferien, neuZeichnen)
+  ]));
+
+  ziel.appendChild(ferienschalter(ferien, neuZeichnen));
+
+  // Platz fuer das Widget der laufenden Einheit (Schritt 9).
+  ziel.appendChild(karte('Aktuelle Unterrichtseinheit', [
+    e('div', { klasse: 'leer', style: 'padding:20px 16px' }, [
+      e('div', { text: 'Wird mit den Unterrichtseinheiten gebaut.' })
     ])
   ]));
 
-  stueck.appendChild(e('div', { klasse: 'abschnitt-titel', text: 'Klassen' }));
+  ziel.appendChild(e('div', { klasse: 'abschnitt-titel', text: 'Klassen' }));
+  ziel.appendChild(klassenknoepfe(daten, verbergen));
+}
 
+export function raeumeStartAuf() {
+  if (uhrGeber) { clearInterval(uhrGeber); uhrGeber = null; }
+}
+
+// --- Uhr -------------------------------------------------------------------
+
+function uhrWidget(tag, ferien) {
+  const zeitZeile = e('div', { klasse: 'uhr-zeit' });
+  const tagZeile = e('div', { klasse: 'uhr-tag' });
+
+  function stellen() {
+    const u = uhrzeit();
+    zeitZeile.textContent =
+      `${String(u.stunde).padStart(2, '0')}:${String(u.minute).padStart(2, '0')}`;
+    const t = heute();
+    tagZeile.textContent = `${wochentagName(wochentag(t))}, ${alsDeutsch(t)}`;
+  }
+  stellen();
+  // Im Minutentakt statt sekuendlich — das spart auf dem iPad Akku.
+  uhrGeber = setInterval(stellen, 20000);
+
+  return e('div', { klasse: 'karte uhr' }, [
+    e('div', {}, [zeitZeile, tagZeile]),
+    ferien ? e('span', { klasse: 'marke ruhend', text: 'Ferienmodus' }) : null
+  ]);
+}
+
+// --- Tagesplan -------------------------------------------------------------
+
+function tagesplan(daten, tag) {
+  const wt = wochentag(tag);
+
+  if (istWochenende(tag)) {
+    return karte('Tagesplan', [
+      e('div', { klasse: 'leer', style: 'padding:24px 16px',
+                 text: wt === 6 ? 'Samstag — heute kein Unterricht.' : 'Sonntag — heute kein Unterricht.' })
+    ]);
+  }
+
+  const stunden = daten.stundenplan
+    .filter((s) => Number(s.wochentag) === wt)
+    .slice()
+    .sort((a, b) => (alsMinuten(a.von) ?? 0) - (alsMinuten(b.von) ?? 0));
+
+  if (!stunden.length) {
+    return karte('Tagesplan', [
+      e('div', { klasse: 'leer', style: 'padding:24px 16px',
+                 text: 'Für heute steht nichts im Stundenplan.' })
+    ]);
+  }
+
+  const jetzt = uhrzeit().minuten;
+  const laufend = stunden.findIndex((s) => {
+    const von = alsMinuten(s.von);
+    const bis = alsMinuten(s.bis);
+    return von !== null && bis !== null && jetzt >= von && jetzt < bis;
+  });
+  const naechste = laufend === -1
+    ? stunden.findIndex((s) => (alsMinuten(s.von) ?? 0) > jetzt)
+    : -1;
+
+  const liste = e('ul', { klasse: 'tagesplan' }, stunden.map((s, i) => {
+    // Anklickbar nur, wenn die Klasse auch wirklich im Blatt Klassen steht.
+    // 1A und 1S aus den FuF-Stunden stehen dort nicht — ein Tippen darauf
+    // fuehrte sonst ins Leere.
+    const klasse = daten.klassen.find((k) => k.klasse === s.klasse);
+    const anklickbar = KLICKBAR.includes(s.art) && Boolean(klasse);
+
+    const inhalt = [
+      e('span', { klasse: 'zeit', text: `${s.von}–${s.bis}` }),
+      e('span', { klasse: 'was' }, [
+        e('span', { klasse: 'bezeichnung',
+                    text: klasse ? klasse.bezeichnung : (s.klasse || bezeichneArt(s)) }),
+        e('span', { klasse: 'art', text: artText(s) })
+      ]),
+      laufend === i ? e('span', { klasse: 'marke laufend', text: 'läuft' })
+                    : (naechste === i ? e('span', { klasse: 'marke naechste', text: 'als Nächstes' }) : null)
+    ];
+
+    const zeile = anklickbar
+      ? e('a', { klasse: 'eintrag anklickbar', href: '#/klasse/' + encodeURIComponent(s.klasse),
+                 'aria-label': `${klasse.bezeichnung} öffnen, ${s.von} bis ${s.bis}` }, inhalt)
+      : e('div', { klasse: 'eintrag' }, inhalt);
+
+    return e('li', {
+      klasse: laufend === i ? 'ist-laufend' : (naechste === i ? 'ist-naechste' : '')
+    }, [zeile]);
+  }));
+
+  return karte('Tagesplan', [liste]);
+}
+
+function bezeichneArt(s) {
+  return s.art === 'DIENST' ? 'Dienst' : (s.art === 'FUF' ? 'FuF' : s.art);
+}
+
+function artText(s) {
+  const namen = { DEUTSCH: 'Deutsch', LESEN: 'Lesen', FUF: 'FuF', DIENST: 'Dienst' };
+  const grund = namen[s.art] || s.art;
+  // Bei LESEN nennt zusatz die vierte Klasse, aus der Gastkinder kommen.
+  // Reine Anzeigeinformation — diese Kinder werden nicht getrackt.
+  if (s.art === 'LESEN' && s.zusatz) return `${grund} · ${s.zusatz}`;
+  if (s.zusatz) return `${grund} · ${s.zusatz}`;
+  return grund;
+}
+
+// --- Wochenaufgaben --------------------------------------------------------
+
+function wochenkachel(aufgabe, daten, kw, tag, ferien, neuZeichnen) {
+  const einstellung = ERINNERUNG[aufgabe];
+  const eintrag = daten.wochenstatus.find((w) => w.kw === kw && w.aufgabe === aufgabe);
+  const erledigt = Boolean(eintrag);
+
+  const link = aufgabe === 'PEAK' ? daten.meta.link_peak : daten.meta.link_weekly;
+  const zeigeErinnerung = !ferien && !erledigt && einstellung.tage.includes(wochentag(tag));
+
+  // Aufklappbarer Bereich: ein versehentliches Antippen darf nichts ausloesen.
+  const bereich = e('div', { klasse: 'kachel-bereich', hidden: true });
+  const knopf = e('button', {
+    klasse: erledigt ? '' : 'wichtig',
+    text: erledigt ? 'Doch noch offen' : 'Als erledigt markieren'
+  });
+
+  knopf.addEventListener('click', async () => {
+    knopf.disabled = true;
+    try {
+      await sende('wochenstatus', { kw, aufgabe, erledigt: !erledigt });
+      leereDaten();
+      await ladeDaten({ neu: true });
+      setzeMeldung(hinweis({
+        art: 'gut', zeichen: '✓',
+        text: erledigt
+          ? `${einstellung.titel} wieder als offen markiert.`
+          : `${einstellung.titel} für diese Woche als erledigt vermerkt.`
+      }));
+      neuZeichnen();
+    } catch (fehler) {
+      knopf.disabled = false;
+      bereich.appendChild(hinweis({ art: 'schlecht', zeichen: '×', text: fehler.message }));
+    }
+  });
+
+  bereich.appendChild(e('div', { klasse: 'leiste', style: 'margin:0' }, [
+    knopf,
+    link ? e('a', { klasse: 'knopf', href: link, target: '_blank', rel: 'noopener noreferrer',
+                    text: 'Dokument öffnen' })
+         : e('span', { klasse: 'feldhilfe', text: 'Kein Link hinterlegt (Einstellungen).' })
+  ]));
+
+  const kopf = e('button', {
+    klasse: 'kachel-kopf',
+    'aria-expanded': 'false',
+    auf: { click: () => {
+      const zu = bereich.hidden;
+      bereich.hidden = !zu;
+      kopf.setAttribute('aria-expanded', String(zu));
+    } }
+  }, [
+    e('span', { klasse: 'kachel-titel', text: einstellung.titel }),
+    ferien
+      ? e('span', { klasse: 'kachel-zeichen ruhend', 'aria-hidden': 'true', text: '–' })
+      : e('span', { klasse: 'kachel-zeichen ' + (erledigt ? 'gut' : 'offen'),
+                    'aria-hidden': 'true', text: erledigt ? '✓' : '✕' }),
+    e('span', { klasse: 'kachel-stand',
+                text: ferien ? 'pausiert' : (erledigt ? 'erledigt' : 'offen') }),
+    e('span', { klasse: 'feldhilfe',
+                text: ferien ? '' : (erledigt && eintrag.erledigt_am
+                  ? 'am ' + alsDeutsch(zerlegeIso(eintrag.erledigt_am))
+                  : einstellung.frist) })
+  ]);
+
+  return e('div', {
+    klasse: 'kachel' + (ferien ? ' ruhend' : (erledigt ? ' erledigt' : ' offen')) +
+            (zeigeErinnerung ? ' erinnert' : '')
+  }, [
+    zeigeErinnerung
+      ? e('span', { klasse: 'schwebend', 'aria-hidden': 'true', text: '✕' })
+      : null,
+    kopf,
+    bereich
+  ]);
+}
+
+function zerlegeIso(iso) {
+  const [jahr, monat, tag] = String(iso).slice(0, 10).split('-').map(Number);
+  return { jahr, monat, tag };
+}
+
+// --- Ferienmodus -----------------------------------------------------------
+
+function ferienschalter(ferien, neuZeichnen) {
+  const knopf = e('button', {
+    klasse: ferien ? 'wichtig' : '',
+    text: ferien ? 'Ferienmodus beenden' : 'Ferienmodus einschalten'
+  });
+
+  knopf.addEventListener('click', async () => {
+    knopf.disabled = true;
+    try {
+      await sende('meta', { werte: { ferienmodus: ferien ? 'FALSE' : 'TRUE' } });
+      leereDaten();
+      await ladeDaten({ neu: true });
+      setzeMeldung(hinweis({
+        art: 'gut', zeichen: '✓',
+        text: ferien
+          ? 'Ferienmodus beendet. Tagesplan und Wochenaufgaben sind wieder aktiv.'
+          : 'Ferienmodus eingeschaltet. Er bleibt bis zum manuellen Zurückstellen aktiv.'
+      }));
+      neuZeichnen();
+    } catch (fehler) {
+      knopf.disabled = false;
+      alert(fehler.message);
+    }
+  });
+
+  return e('div', { klasse: 'leiste ferienleiste' }, [
+    e('span', { klasse: 'feldhilfe', text: ferien
+      ? 'Keine Woche wird als versäumt gewertet.'
+      : 'Blendet Tagesplan und Wochenaufgaben aus.' }),
+    e('span', { klasse: 'schub' }, [knopf])
+  ]);
+}
+
+// --- Klassen ---------------------------------------------------------------
+
+function klassenknoepfe(daten, verbergen) {
   const raster = e('div', { klasse: 'klassenraster' });
 
   if (!daten.klassen.length) {
-    raster.appendChild(e('div', { klasse: 'leer', text: 'Im Blatt „Klassen" ist noch keine aktive Klasse eingetragen.' }));
+    raster.appendChild(e('div', { klasse: 'leer',
+      text: 'Im Blatt „Klassen" ist noch keine aktive Klasse eingetragen.' }));
+    return raster;
   }
 
   daten.klassen.forEach((k) => {
@@ -51,6 +311,10 @@ export function zeichneStart(ziel, { daten, verbergen }) {
     ]));
   });
 
-  stueck.appendChild(raster);
-  ziel.appendChild(stueck);
+  return raster;
+}
+
+function istWahr(wert) {
+  const t = String(wert || '').trim().toLowerCase();
+  return t === 'true' || t === 'wahr' || t === '1' || t === 'ja';
 }
