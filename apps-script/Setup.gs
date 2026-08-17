@@ -209,6 +209,13 @@ function importSchuelerAusText(csvText) {
     throw new Error('Import abgebrochen, nichts geschrieben.\n' + fehler.join('\n'));
   }
   if (!eintraege.length) {
+    // Haeufigste Ursache: der Text kam ohne Zeilenumbrueche an, weil er durch
+    // ein einzeiliges Eingabefeld gelaufen ist.
+    if (zeilen.filter(function (z) { return z.trim(); }).length <= 1) {
+      throw new Error('Der eingefügte Text enthält keine Zeilenumbrüche — es kam alles ' +
+                      'als eine einzige Zeile an. Bitte das Dialogfenster mit dem großen ' +
+                      'Textfeld verwenden, nicht ein einzeiliges Eingabefeld.');
+    }
     throw new Error('Es wurden keine verwertbaren Zeilen gefunden.');
   }
 
@@ -325,22 +332,70 @@ function menueSetup() {
   SpreadsheetApp.getUi().alert('Einrichtung abgeschlossen', text, SpreadsheetApp.getUi().ButtonSet.OK);
 }
 
+/**
+ * Oeffnet ein Dialogfenster mit mehrzeiligem Textfeld.
+ *
+ * Ein einfaches ui.prompt() taugt hier nicht: dessen Eingabefeld ist
+ * einzeilig und entfernt beim Einfuegen saemtliche Zeilenumbrueche, womit
+ * die ganze Datei als eine einzige Zeile ankommt.
+ */
 function menueImport() {
-  var ui = SpreadsheetApp.getUi();
-  var antwort = ui.prompt(
-    'Schülerliste einlesen',
-    'Inhalt von schueler-import.csv hier einfügen (Kopfzeile mit einschließen):',
-    ui.ButtonSet.OK_CANCEL);
-  if (antwort.getSelectedButton() !== ui.Button.OK) return;
-  try {
-    var e = importSchuelerAusText(antwort.getResponseText());
-    ui.alert('Import erfolgreich',
-             e.neu + ' neu angelegt, ' + e.aktualisiert + ' aktualisiert (' + e.gesamt + ' Zeilen).',
-             ui.ButtonSet.OK);
-  } catch (fehler) {
-    ui.alert('Import fehlgeschlagen', fehler.message, ui.ButtonSet.OK);
-  }
+  var html = HtmlService.createHtmlOutput(IMPORT_DIALOG)
+    .setWidth(600)
+    .setHeight(460);
+  SpreadsheetApp.getUi().showModalDialog(html, 'Schülerliste einlesen');
 }
+
+/** Vom Dialogfenster aufgerufen. */
+function importVomDialog(csvText) {
+  return importSchuelerAusText(csvText);
+}
+
+var IMPORT_DIALOG =
+'<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><base target="_top"><style>' +
+'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;' +
+'font-size:14px;color:#2c2a26;background:#faf9f5;margin:0;padding:16px;}' +
+'p{color:#6f6a61;margin:0 0 12px;}' +
+'textarea{width:100%;height:250px;font-family:ui-monospace,Menlo,Consolas,monospace;' +
+'font-size:12px;padding:10px;border:1px solid #d3cec3;border-radius:8px;' +
+'background:#fff;color:#2c2a26;resize:vertical;}' +
+'textarea:focus{outline:2px solid #0088b0;outline-offset:-1px;}' +
+'button{font-size:15px;min-height:40px;padding:8px 18px;margin:12px 8px 0 0;' +
+'background:#0088b0;color:#fff;border:1px solid #0088b0;border-radius:8px;cursor:pointer;}' +
+'button.leise{background:#fff;color:#6f6a61;border-color:#d3cec3;}' +
+'button:disabled{opacity:.5;cursor:default;}' +
+'#status{margin-top:12px;padding:10px 12px;border-radius:8px;border:1px solid #e4e0d8;' +
+'background:#f4f2ec;white-space:pre-wrap;display:none;}' +
+'#status.gut{border-color:#1e7a4c;background:#eef7f1;}' +
+'#status.schlecht{border-color:#b3261e;background:#fdf3f2;}' +
+'</style></head><body>' +
+'<p>Inhalt von <b>schueler-import.csv</b> hier einfügen — mit Kopfzeile. ' +
+'Die Datei enthält nur Kürzel, keine Namen.</p>' +
+'<textarea id="feld" placeholder="kuerzel;klasse;listennummer;aktiv;fach&#10;3L-01;3L;1;TRUE;DE&#10;..."></textarea>' +
+'<div><button id="los">Einlesen</button>' +
+'<button class="leise" id="zu">Schließen</button></div>' +
+'<div id="status"></div>' +
+'<script>' +
+'var feld=document.getElementById("feld");' +
+'var los=document.getElementById("los");' +
+'var status=document.getElementById("status");' +
+'function zeige(t,a){status.textContent=t;status.className=a||"";status.style.display="block";}' +
+'los.addEventListener("click",function(){' +
+'var text=feld.value;' +
+'if(!text.trim()){zeige("Bitte zuerst den Dateiinhalt einfügen.","schlecht");return;}' +
+'var zeilen=text.split(/\\r\\n|\\r|\\n/).filter(function(z){return z.trim();});' +
+'if(zeilen.length<2){zeige("Der Text hat nur "+zeilen.length+" Zeile(n). Beim Einfügen sind ' +
+'offenbar die Zeilenumbrüche verloren gegangen — bitte direkt aus dem Editor/Notepad kopieren.","schlecht");return;}' +
+'los.disabled=true;zeige("Wird eingelesen … ("+zeilen.length+" Zeilen erkannt)");' +
+'google.script.run.withSuccessHandler(function(e){' +
+'los.disabled=false;' +
+'zeige(e.neu+" neu angelegt, "+e.aktualisiert+" aktualisiert ("+e.gesamt+" Zeilen).","gut");' +
+'}).withFailureHandler(function(f){' +
+'los.disabled=false;zeige(f.message,"schlecht");' +
+'}).importVomDialog(text);' +
+'});' +
+'document.getElementById("zu").addEventListener("click",function(){google.script.host.close();});' +
+'<\/script></body></html>';
 
 function menuePruefung() {
   var w = pruefeKonfiguration();

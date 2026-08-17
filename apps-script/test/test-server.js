@@ -174,5 +174,14 @@ const roh = JSON.stringify(ladeAlles());
 pruefe('keine Buchstabenfolge ausserhalb Kuerzelmuster in schueler',
   ladeAlles().schueler.every(s => /^[0-9][A-Za-z]{1,3}-[0-9]{2}$/.test(s.kuerzel)), true);
 
+console.log('\n=== Einzeiliger Paste wird erkannt ===');
+{
+  const einzeilig = fs.readFileSync('/home/user/kontrollboard/schueler-import.csv', 'utf8').replace(/\r?\n/g, '');
+  let meldung = '';
+  try { importSchuelerAusText(einzeilig); } catch (e) { meldung = e.message; }
+  pruefe('bricht ab und nennt die Ursache', /keine Zeilenumbr/.test(meldung), true);
+  pruefe('Blatt unveraendert bei 69', holeBlatt_('Schueler').getLastRow() - 1, 69);
+}
+
 console.log(fehler === 0 ? '\nALLE TESTS BESTANDEN' : `\n${fehler} TEST(S) FEHLGESCHLAGEN`);
 process.exit(fehler === 0 ? 0 : 1);
