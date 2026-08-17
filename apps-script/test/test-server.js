@@ -228,5 +228,27 @@ console.log('\n=== Import ohne Dialog (Blatt "Import") ===');
   pruefe('leeres Blatt meldet Ursache', /ist leer/.test(m), true);
 }
 
+console.log('\n=== Zusammengesetzte Schluessel kollidieren nicht ===');
+{
+  // Ohne echtes Trennzeichen ergaeben ['ab','c'] und ['a','bc'] denselben
+  // Schluessel und die zweite Zeile ueberschriebe die erste.
+  holeBlatt_('Wochenstatus').d = [SCHEMA.Wochenstatus.slice()];
+  schreibeNachSchluessel_('Wochenstatus', [
+    { kw: '2026-W3', aufgabe: '4PEAK', erledigt_am: '2026-08-17' },
+    { kw: '2026-W34', aufgabe: 'PEAK', erledigt_am: '2026-08-18' }
+  ], ['kw', 'aufgabe']);
+  pruefe('beide Zeilen erhalten', holeBlatt_('Wochenstatus').getLastRow() - 1, 2);
+
+  // Erneutes Schreiben desselben Schluessels aktualisiert statt anzuhaengen.
+  const r = schreibeNachSchluessel_('Wochenstatus',
+    [{ kw: '2026-W34', aufgabe: 'PEAK', erledigt_am: '2026-08-19' }], ['kw', 'aufgabe']);
+  pruefe('gleicher Schluessel wird aktualisiert', [r.aktualisiert, r.neu], [1, 0]);
+  pruefe('weiterhin 2 Zeilen', holeBlatt_('Wochenstatus').getLastRow() - 1, 2);
+
+  const entfernt = loescheNachSchluessel_('Wochenstatus', ['kw', 'aufgabe'], [['2026-W34', 'PEAK']]);
+  pruefe('gezielt geloescht', entfernt, 1);
+  pruefe('die andere Zeile bleibt', holeBlatt_('Wochenstatus').getLastRow() - 1, 1);
+}
+
 console.log(fehler === 0 ? '\nALLE TESTS BESTANDEN' : `\n${fehler} TEST(S) FEHLGESCHLAGEN`);
 process.exit(fehler === 0 ? 0 : 1);
