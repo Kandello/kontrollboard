@@ -3,8 +3,8 @@
    Farben, Abstaende und Schriftgroessen werden nirgends sonst festgelegt.
 --------------------------------------------------------------------------- */
 :root {
-  --grund:        #eef3f8;
-  --grund-tief:   #dde8f2;
+  --grund:        #c9d9ea;
+  --grund-tief:   #a6bfd9;
   --flaeche:      #ffffff;
   --flaeche-leis: #eff4f9;
   --text:         #2c2a26;
@@ -46,7 +46,7 @@ body {
   margin: 0;
   /* Zurueckhaltender Verlauf: oben etwas heller, unten leicht kuehler.
      fixed, damit er beim Scrollen ruhig stehen bleibt. */
-  background: linear-gradient(170deg, #f4f8fc 0%, var(--grund) 45%, var(--grund-tief) 100%);
+  background: linear-gradient(170deg, #dbe6f2 0%, var(--grund) 45%, var(--grund-tief) 100%);
   background-attachment: fixed;
   color: var(--text);
   font-family: var(--sans);
@@ -66,7 +66,7 @@ h3 { font-size: var(--t-normal); }
 
 .kopfleiste {
   position: sticky; top: 0; z-index: 20;
-  background: rgba(244, 248, 252, .92);
+  background: rgba(219, 230, 242, .92);
   backdrop-filter: saturate(140%) blur(8px);
   -webkit-backdrop-filter: saturate(140%) blur(8px);
   border-bottom: 1px solid var(--linie);

@@ -133,6 +133,14 @@ function tagesplan(daten, tag) {
     const klasse = daten.klassen.find((k) => k.klasse === s.klasse);
     const anklickbar = KLICKBAR.includes(s.art) && Boolean(klasse);
 
+    // Deutsch/Lesen/FuF nennen im fetten Slot bereits die Klasse; der
+    // Art-Slot ergaenzt "Deutsch" bzw. "Lesen · +4H", ohne sich zu
+    // wiederholen. Dienst-Eintraege haben keine Klasse — dort steht die Art
+    // selbst im fetten Slot, und der zweite Slot zeigt nur noch den Zusatz,
+    // damit "Break Duty" nicht zweimal in derselben Zeile auftaucht.
+    const hatEigeneKlasse = Boolean(klasse || s.klasse);
+    const artSpanText = hatEigeneKlasse ? artText(s) : (s.zusatz || null);
+
     const inhalt = [
       e('span', { klasse: 'zeit', text: `${s.von}–${s.bis}` }),
       e('span', { klasse: 'was' }, [
@@ -143,7 +151,7 @@ function tagesplan(daten, tag) {
           klasse ? e('span', { klasse: 'klassenfarbe-punkt', 'aria-hidden': 'true' }) : null,
           klasse ? klasse.bezeichnung : (s.klasse || bezeichneArt(s))
         ]),
-        e('span', { klasse: 'art', text: artText(s) })
+        artSpanText ? e('span', { klasse: 'art', text: artSpanText }) : null
       ]),
       laufend === i ? e('span', { klasse: 'marke laufend', text: 'läuft' })
                     : (naechste === i ? e('span', { klasse: 'marke naechste', text: 'als Nächstes' }) : null)
@@ -163,11 +171,11 @@ function tagesplan(daten, tag) {
 }
 
 function bezeichneArt(s) {
-  return s.art === 'DIENST' ? 'Dienst' : (s.art === 'FUF' ? 'FuF' : s.art);
+  return s.art === 'DIENST' ? 'Break Duty' : (s.art === 'FUF' ? 'FuF' : s.art);
 }
 
 function artText(s) {
-  const namen = { DEUTSCH: 'Deutsch', LESEN: 'Lesen', FUF: 'FuF', DIENST: 'Dienst' };
+  const namen = { DEUTSCH: 'Deutsch', LESEN: 'Lesen', FUF: 'FuF', DIENST: 'Break Duty' };
   const grund = namen[s.art] || s.art;
   // Bei LESEN nennt zusatz die vierte Klasse, aus der Gastkinder kommen.
   // Reine Anzeigeinformation — diese Kinder werden nicht getrackt.
