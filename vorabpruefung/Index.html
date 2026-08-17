@@ -281,6 +281,31 @@
 
   <!-- ===================================================================== -->
   <div class="karte">
+    <div class="kopf"><span class="nummer">Prüfung 6</span><h2>Verhält sich der Speicher wie ein Sitzungsspeicher?</h2></div>
+    <p class="frage">
+      Läuft automatisch, kein Knopf nötig. Neben der dauerhaften Marke wird eine zweite
+      gesetzt, die planmäßig nur bis zum Schließen des Browsers hält. Verschwinden beide
+      gemeinsam, ist die Ursache geklärt: Der Browser stuft die Seite als fremde
+      eingebettete Seite ein und behandelt ihren Speicher nur noch als Sitzungsspeicher.
+    </p>
+    <div class="ergebnis" id="erg6">wird geprüft …</div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <div class="karte">
+    <div class="kopf"><span class="nummer">Prüfung 7</span><h2>Lässt sich dauerhafter Speicher anfordern?</h2></div>
+    <p class="frage">
+      Falls Prüfung 6 den Verdacht bestätigt, gibt es genau einen vorgesehenen Ausweg:
+      Die eingebettete Seite darf dauerhaften Speicher <em>anfordern</em>. Ob der Browser
+      das gewährt, prüft dieser Knopf. Es kann eine Rückfrage des Browsers erscheinen —
+      bitte zustimmen.
+    </p>
+    <button id="btnSpeicherzugriff">Dauerhaften Speicher anfordern</button>
+    <div class="ergebnis" id="erg7">noch nicht geprüft — Knopf antippen</div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <div class="karte">
     <div class="kopf"><span class="nummer">Abschluss</span><h2>Bericht</h2></div>
     <p class="frage">
       Erzeugt eine Zusammenfassung aller Messwerte. Bitte den Text kopieren und
@@ -298,6 +323,7 @@
 
   var SCHLUESSEL = 'vorabpruefung_marke';
   var SITZUNG    = 'vorabpruefung_zaehler';
+  var SITZMARKE  = 'vorabpruefung_sitzungsmarke';
 
   // Ergebnisse, die der Bericht am Ende einsammelt.
   var befund = {
@@ -305,7 +331,9 @@
     p2: 'nicht geprüft',
     p3: 'nicht geprüft',
     p4: 'nicht geprüft',
-    p5: 'nicht geprüft'
+    p5: 'nicht geprüft',
+    p6: 'nicht geprüft',
+    p7: 'nicht geprüft'
   };
 
   // --- Gekapselter Speicherzugriff; Safari wirft im privaten Modus. --------
@@ -320,6 +348,15 @@
   function entferne(schluessel) {
     try { window.localStorage.removeItem(schluessel); return true; }
     catch (e) { return e.name + ': ' + e.message; }
+  }
+
+  // Sitzungsspeicher: ueberlebt planmaessig das Neuladen, aber nie einen
+  // Browser-Neustart. Dient als Vergleichsmassstab fuer Pruefung 6.
+  function liesSitzung(schluessel) {
+    try { return window.sessionStorage.getItem(schluessel); } catch (e) { return null; }
+  }
+  function schreibSitzung(schluessel, wert) {
+    try { window.sessionStorage.setItem(schluessel, wert); return true; } catch (e) { return false; }
   }
 
   function el(id) { return document.getElementById(id); }
@@ -344,6 +381,28 @@
   var imRahmen = false;
   try { imRahmen = (window.self !== window.top); } catch (e) { imRahmen = true; }
 
+  // Laeuft die Seite als Home-Bildschirm-App oder im normalen Browser?
+  // Entscheidend fuer die Bewertung von Pruefung 1 auf dem iPad.
+  var anzeigeModus = (function () {
+    var treffer = [];
+    ['standalone', 'fullscreen', 'minimal-ui', 'browser'].forEach(function (modus) {
+      try {
+        if (window.matchMedia('(display-mode: ' + modus + ')').matches) treffer.push(modus);
+      } catch (e) {}
+    });
+    var navFlag = 'nicht vorhanden';
+    try {
+      if (typeof navigator.standalone !== 'undefined') navFlag = String(navigator.standalone);
+    } catch (e) {}
+    return {
+      medien: treffer.length ? treffer.join(', ') : 'unbekannt',
+      navigatorFlag: navFlag,
+      text: (treffer.indexOf('standalone') !== -1 || treffer.indexOf('fullscreen') !== -1 || navFlag === 'true')
+              ? 'Home-Bildschirm-App'
+              : (treffer.indexOf('browser') !== -1 ? 'normaler Browser-Tab' : 'nicht eindeutig erkennbar')
+    };
+  })();
+
   var speicherVerfuegbar = true;
   var speicherFehler = '';
   try {
@@ -357,6 +416,8 @@
   (function zeigeUmgebung() {
     var zeilen = [
       ['Adresse dieser Seite', herkunft],
+      ['Gestartet als', anzeigeModus.text + '  (display-mode: ' + anzeigeModus.medien +
+                        ', navigator.standalone: ' + anzeigeModus.navigatorFlag + ')'],
       ['Läuft in einem Rahmen', imRahmen ? 'ja (erwartet)' : 'nein'],
       ['Lokaler Speicher nutzbar', speicherVerfuegbar ? 'ja' : 'NEIN — ' + speicherFehler],
       ['showOpenFilePicker vorhanden', (typeof window.showOpenFilePicker === 'function') ? 'ja (sagt aber nichts über die Nutzbarkeit)' : 'nein'],
@@ -439,6 +500,7 @@
 
   el('btnMarkeSetzen').addEventListener('click', function () {
     var ergebnis = schreib(SCHLUESSEL, JSON.stringify({ zeit: jetzt(), herkunft: herkunft }));
+    schreibSitzung(SITZMARKE, jetzt());
     if (ergebnis === true) {
       zeige('erg1', 'Marke gesetzt am ' + jetzt() + '.\n\n' +
                     'Jetzt bitte der Reihe nach: neu laden, Browser neu starten, ' +
@@ -453,6 +515,7 @@
   el('btnMarkeLoeschen').addEventListener('click', function () {
     entferne(SCHLUESSEL);
     entferne(SITZUNG);
+    try { window.sessionStorage.removeItem(SITZMARKE); } catch (e) {}
     zeige('erg1', 'Marke und Zähler gelöscht. Die Prüfung beginnt von vorn.', 'offen');
     befund.p1 = 'zurückgesetzt';
   });
@@ -598,6 +661,86 @@
     zeige('erg5', 'Notiert: Nichts bleibt stehen.', 'schlecht');
   });
 
+  // === Prüfung 6: verhält sich localStorage wie sessionStorage? ==========
+  (function pruefeSpeicherart() {
+    var dauerhaft = lies(SCHLUESSEL);
+    var sitzung   = liesSitzung(SITZMARKE);
+    var hatDauerhaft = !!(dauerhaft && !dauerhaft.fehler);
+    var hatSitzung   = !!sitzung;
+
+    var text = 'dauerhafte Marke (localStorage): ' + (hatDauerhaft ? 'vorhanden' : 'fehlt') + '\n' +
+               'Sitzungsmarke (sessionStorage):  ' + (hatSitzung   ? 'vorhanden' : 'fehlt') + '\n\n';
+
+    if (!hatDauerhaft && !hatSitzung) {
+      befund.p6 = 'beide Marken fehlen — entweder noch nichts gesetzt, oder beide gemeinsam verloren';
+      text += 'Beide fehlen. Wurde die Marke in dieser Sitzung noch nie gesetzt, ist das ' +
+              'normal. Wurde sie vor einem Browser-Neustart gesetzt, ist das der Beweis: ' +
+              'Der dauerhafte Speicher wird wie ein Sitzungsspeicher behandelt.';
+      zeige('erg6', text, 'offen');
+    } else if (hatDauerhaft && !hatSitzung) {
+      befund.p6 = 'GUT — dauerhafte Marke überlebt, Sitzungsmarke nicht (normales Verhalten)';
+      text += 'Genau das erwartete, gesunde Verhalten: Die Sitzungsmarke ist beim Neustart ' +
+              'verschwunden, die dauerhafte Marke hat überdauert. Der Speicher ist ' +
+              'wirklich dauerhaft.';
+      zeige('erg6', text, 'gut');
+    } else if (hatDauerhaft && hatSitzung) {
+      befund.p6 = 'beide vorhanden — Browser wurde nicht neu gestartet, noch keine Aussage';
+      text += 'Beide sind da. Das heißt nur, dass der Browser seit dem Setzen nicht ' +
+              'vollständig geschlossen wurde. Für eine Aussage bitte den Browser ganz ' +
+              'schließen und wiederkommen.';
+      zeige('erg6', text, 'offen');
+    } else {
+      befund.p6 = 'ungewöhnlich — Sitzungsmarke ohne dauerhafte Marke';
+      text += 'Ungewöhnliche Kombination. Bitte genau so zurückmelden.';
+      zeige('erg6', text, 'schlecht');
+    }
+  })();
+
+  // === Prüfung 7: Storage Access API =====================================
+  el('btnSpeicherzugriff').addEventListener('click', function () {
+    if (typeof document.requestStorageAccess !== 'function') {
+      befund.p7 = 'nicht vorhanden — Browser kennt die Anforderung nicht';
+      zeige('erg7', 'Dieser Browser kennt die Möglichkeit nicht, dauerhaften Speicher ' +
+                    'anzufordern. Damit ist dieser Ausweg hier nicht verfügbar.', 'offen');
+      return;
+    }
+
+    function melde(text, art, kurz) {
+      befund.p7 = kurz;
+      zeige('erg7', text, art);
+    }
+
+    var vorher = 'unbekannt';
+    var kette = (typeof document.hasStorageAccess === 'function')
+      ? document.hasStorageAccess().then(function (ja) { vorher = ja ? 'ja' : 'nein'; },
+                                         function () { vorher = 'nicht ermittelbar'; })
+      : Promise.resolve();
+
+    kette.then(function () {
+      return document.requestStorageAccess();
+    }).then(function () {
+      // Nach der Gewährung testweise schreiben und sofort wieder lesen.
+      var probe = schreib('vorabpruefung_sa_probe', jetzt());
+      melde('GEWÄHRT.\n\n' +
+            'Zugriff vorher bereits vorhanden: ' + vorher + '\n' +
+            'Schreibprobe danach: ' + (probe === true ? 'erfolgreich' : 'fehlgeschlagen — ' + probe) +
+            '\n\nDas ist eine gute Nachricht: Es gibt einen Weg zu dauerhaftem Speicher. ' +
+            'Bitte jetzt den Browser vollständig schließen, wiederkommen und erneut ' +
+            'anfordern — nur wenn die Marke dann noch da ist, trägt der Weg wirklich.',
+            'gut', 'GEWÄHRT (vorher: ' + vorher + ', Schreibprobe: ' +
+            (probe === true ? 'ok' : 'fehlgeschlagen') + ')');
+    }).catch(function (e) {
+      var name = (e && e.name) ? e.name : 'unbekannt';
+      var text = (e && e.message) ? e.message : '';
+      melde('ABGELEHNT.\n\n' +
+            'Zugriff vorher bereits vorhanden: ' + vorher + '\n' +
+            name + (text ? ': ' + text : '') +
+            '\n\nDamit ist dieser Ausweg hier nicht verfügbar. Kein Beinbruch — es ' +
+            'bedeutet nur, dass die Zuordnungsliste bei Bedarf neu geladen wird.',
+            'offen', 'ABGELEHNT — ' + name + (text ? ': ' + text : ''));
+    });
+  });
+
   // === Bericht ===========================================================
   function erzeugeBericht() {
     var z = [];
@@ -606,6 +749,9 @@
     z.push('');
     z.push('UMGEBUNG');
     z.push('  Adresse:            ' + herkunft);
+    z.push('  Gestartet als:      ' + anzeigeModus.text +
+           ' (display-mode: ' + anzeigeModus.medien +
+           ', navigator.standalone: ' + anzeigeModus.navigatorFlag + ')');
     z.push('  Im Rahmen:          ' + (imRahmen ? 'ja' : 'nein'));
     z.push('  Speicher nutzbar:   ' + (speicherVerfuegbar ? 'ja' : 'NEIN — ' + speicherFehler));
     z.push('  sticky bekannt:     ' + (stickyBekannt ? 'ja' : 'nein'));
@@ -621,9 +767,13 @@
     z.push('  3 Download:         ' + befund.p3);
     z.push('  4 Fenster:          ' + befund.p4);
     z.push('  5 haftende Spalten: ' + befund.p5);
+    z.push('  6 Speicherart:      ' + befund.p6);
+    z.push('  7 Speicheranforder.:' + befund.p7);
     z.push('');
-    z.push('GERAET (bitte von Hand ergaenzen): ');
-    z.push('SCHRITT (neu geladen / Browser neu gestartet / neu bereitgestellt): ');
+    z.push('GERAET (bitte von Hand ergaenzen, z. B. iPad / Dienst-PC): ');
+    z.push('SCHRITT (was ist seit dem Setzen der Marke passiert?');
+    z.push('        nichts / neu geladen / Browser GANZ geschlossen und neu geoeffnet /');
+    z.push('        neue Version bereitgestellt): ');
     return z.join('\n');
   }
 
