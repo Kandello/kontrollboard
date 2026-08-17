@@ -183,5 +183,50 @@ console.log('\n=== Einzeiliger Paste wird erkannt ===');
   pruefe('Blatt unveraendert bei 69', holeBlatt_('Schueler').getLastRow() - 1, 69);
 }
 
+console.log('\n=== Import ohne Dialog (Blatt "Import") ===');
+{
+  // 1. Aufruf legt das Blatt an
+  const r1 = importSchuelerAusBlatt();
+  pruefe('legt Blatt an', r1.angelegt, true);
+  pruefe('Blatt vorhanden', !!ss.getSheetByName('Import'), true);
+
+  // Fall A: ganze Zeile je Zelle (Firefox-artiges Einfuegen)
+  const roh = fs.readFileSync('/home/user/kontrollboard/schueler-import.csv', 'utf8')
+                .replace(/^\uFEFF/, '').split(/\r?\n/).filter(z => z.trim());
+  const imp = ss.getSheetByName('Import');
+  imp.getRange(1, 1, roh.length, 1).setValues(roh.map(z => [z]));
+  const rA = importSchuelerAusBlatt();
+  pruefe('Fall A: 69 Zeilen gelesen', rA.gesamt, 69);
+
+  // Fall B: bereits auf Spalten verteilt
+  imp.d = [];
+  const zerlegt = roh.map(z => z.split(';'));
+  imp.getRange(1, 1, zerlegt.length, 5).setValues(zerlegt);
+  const rB = importSchuelerAusBlatt();
+  pruefe('Fall B: 69 Zeilen gelesen', rB.gesamt, 69);
+  pruefe('Fall B: alles aktualisiert, nichts doppelt', rB.neu, 0);
+  pruefe('Schueler weiterhin 69', holeBlatt_('Schueler').getLastRow() - 1, 69);
+
+  // Fall C: Sheets macht aus TRUE einen echten Boolean und aus 1 eine Zahl
+  imp.d = [];
+  const getypt = roh.map((z, i) => {
+    const f = z.split(';');
+    return i === 0 ? f : [f[0], f[1], Number(f[2]), f[3] === 'TRUE', f[4]];
+  });
+  imp.getRange(1, 1, getypt.length, 5).setValues(getypt);
+  const rC = importSchuelerAusBlatt();
+  pruefe('Fall C: 69 Zeilen trotz echter Typen', rC.gesamt, 69);
+  const alle = ladeAlles().schueler;
+  pruefe('Fall C: alle aktiv', alle.every(s => s.aktiv === true), true);
+  pruefe('Fall C: Listennummern erhalten', alle.filter(s => s.klasse === '3L').map(s => s.listennummer).sort((a,b)=>a-b),
+         Array.from({length:23},(_,i)=>i+1));
+
+  // Leeres Blatt meldet sich verstaendlich
+  imp.d = [];
+  let m = '';
+  try { importSchuelerAusBlatt(); } catch (e) { m = e.message; }
+  pruefe('leeres Blatt meldet Ursache', /ist leer/.test(m), true);
+}
+
 console.log(fehler === 0 ? '\nALLE TESTS BESTANDEN' : `\n${fehler} TEST(S) FEHLGESCHLAGEN`);
 process.exit(fehler === 0 ? 0 : 1);

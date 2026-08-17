@@ -351,6 +351,52 @@ function importVomDialog(csvText) {
   return importSchuelerAusText(csvText);
 }
 
+/**
+ * Import ohne Dialogfenster, direkt aus einem Hilfsblatt namens "Import".
+ *
+ * Der Weg ueber ein Dialogfenster braucht eine Verbindung zwischen Fenster
+ * und Skript, die manche Browser mit strengem Tracking-Schutz unterbinden —
+ * ohne sichtbare Fehlermeldung. Dieser Weg laeuft vollstaendig innerhalb
+ * der Tabelle und funktioniert deshalb immer.
+ *
+ * Ablauf: Funktion einmal ausfuehren (legt das Blatt an), CSV ab Zelle A1
+ * einfuegen, Funktion erneut ausfuehren.
+ */
+function importSchuelerAusBlatt() {
+  var tabelle = SpreadsheetApp.getActiveSpreadsheet();
+  var blatt = tabelle.getSheetByName('Import');
+
+  if (!blatt) {
+    tabelle.insertSheet('Import');
+    var hinweis = 'Das Blatt "Import" wurde angelegt. Bitte den Inhalt von ' +
+                  'schueler-import.csv ab Zelle A1 einfügen und diese Funktion erneut ausführen.';
+    console.log(hinweis);
+    return { angelegt: true, hinweis: hinweis };
+  }
+
+  // Beim Einfuegen landet je nach Browser entweder die ganze Zeile in einer
+  // Zelle oder bereits auf Spalten verteilt. Beides wieder zusammensetzen.
+  var zeilen = blatt.getDataRange().getValues().map(function (zeile) {
+    var felder = zeile.map(function (w) {
+      return (w === null || w === undefined) ? '' : String(w).trim();
+    });
+    while (felder.length && felder[felder.length - 1] === '') felder.pop();
+    return felder.length === 1 ? felder[0] : felder.join(';');
+  }).filter(function (z) { return z !== ''; });
+
+  if (!zeilen.length) {
+    throw new Error('Das Blatt "Import" ist leer. Bitte den Inhalt von schueler-import.csv ' +
+                    'ab Zelle A1 einfügen.');
+  }
+
+  var ergebnis = importSchuelerAusText(zeilen.join('\n'));
+  var meldung = ergebnis.neu + ' neu angelegt, ' + ergebnis.aktualisiert +
+                ' aktualisiert (' + ergebnis.gesamt + ' Zeilen gelesen).';
+  console.log(meldung);
+  console.log('Das Blatt "Import" kann jetzt gelöscht werden.');
+  return ergebnis;
+}
+
 var IMPORT_DIALOG =
 '<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><base target="_top"><style>' +
 'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;' +
