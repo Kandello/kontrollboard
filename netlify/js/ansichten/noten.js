@@ -413,7 +413,7 @@ function jahrVonMonat(schuljahr, monatNr) {
 }
 
 function zeichneBeteiligung(ziel, rahmen) {
-  const { daten, kinder, verbergen, neuZeichnen, grenze } = rahmen;
+  const { daten, kinder, verbergen, neuZeichnen, grenze, schluessel } = rahmen;
 
   if (!kinder.length) {
     ziel.appendChild(e('div', { klasse: 'leer', text: 'Für diese Klasse stehen keine aktiven Kürzel bereit.' }));
@@ -479,11 +479,11 @@ function zeichneBeteiligung(ziel, rahmen) {
     return;
   }
 
-  ziel.appendChild(zeichneBeteiligungstabelle({ daten, kinder, verbergen, neuZeichnen }, monat, jahr));
+  ziel.appendChild(zeichneBeteiligungstabelle({ daten, kinder, verbergen, neuZeichnen, schluessel }, monat, jahr));
 }
 
 function zeichneBeteiligungstabelle(rahmen, monat, jahr) {
-  const { daten, kinder, verbergen, neuZeichnen } = rahmen;
+  const { daten, kinder, verbergen, neuZeichnen, schluessel } = rahmen;
   const kw = zustand.beteiligungWoche;
   const behaelter = e('div', {});
 
@@ -545,7 +545,10 @@ function zeichneBeteiligungstabelle(rahmen, monat, jahr) {
     // vollstaendigen Neuzeichnen (Wochen-/Monatswechsel) den neuen Stand.
     const monatZellen = {};
     BETEILIGUNG_ARTEN.forEach((art) => {
-      monatZellen[art] = e('td', { klasse: 'zahl', text: monatswertText(daten, kind.kuerzel, art, jahr, monat.nr) });
+      monatZellen[art] = e('td', {
+        klasse: monatswertKlasse(daten, kind.kuerzel, art, jahr, monat.nr, schluessel),
+        text: monatswertText(daten, kind.kuerzel, art, jahr, monat.nr)
+      });
     });
 
     const felder = BETEILIGUNG_ARTEN.map((art) => {
@@ -567,6 +570,7 @@ function zeichneBeteiligungstabelle(rahmen, monat, jahr) {
         });
         aktualisiereMonatswert(kind.kuerzel, art);
         monatZellen[art].textContent = monatswertText(daten, kind.kuerzel, art, jahr, monat.nr);
+        monatZellen[art].className = monatswertKlasse(daten, kind.kuerzel, art, jahr, monat.nr, schluessel);
         planeSpeichern();
       });
       return e('td', {}, [feld]);
@@ -588,7 +592,7 @@ function zeichneBeteiligungstabelle(rahmen, monat, jahr) {
   ]));
 
   behaelter.appendChild(e('div', { klasse: 'tabellenrahmen' }, [
-    e('table', { klasse: 'liste' }, [
+    e('table', { klasse: 'liste beteiligung-tabelle' }, [
       e('thead', {}, [e('tr', {}, [
         e('th', { text: 'Nr.' }), e('th', { text: 'Nachname' }), e('th', { text: 'Vorname' }),
         ...BETEILIGUNG_ARTEN.map((art) => e('th', { text: BETEILIGUNG_NAME[art] + ' (1–10)' })),
@@ -604,6 +608,17 @@ function zeichneBeteiligungstabelle(rahmen, monat, jahr) {
 function monatswertText(daten, kuerzel, art, jahr, monatNr) {
   const p = beteiligungProzentFuer(daten, kuerzel, art, jahr, monatNr);
   return p === null ? '–' : String(p) + ' %';
+}
+
+/**
+ * CSS-Klasse fuer die Monatszelle, farblich nach Leistungsstufe — dieselben
+ * sechs Bandfarben wie im Kriterienblatt der Vorlage (grün bis rot), an
+ * denselben Grenzen wie der Notenschluessel (92/80/67/50/23 %).
+ */
+function monatswertKlasse(daten, kuerzel, art, jahr, monatNr, schluessel) {
+  const p = beteiligungProzentFuer(daten, kuerzel, art, jahr, monatNr);
+  const note = noteFuer(p, schluessel);
+  return 'zahl' + (note ? ' beteiligung-band-' + note : '');
 }
 
 function setzePunktLokal(daten, kuerzel, art, kw, punkte) {

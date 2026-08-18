@@ -145,6 +145,29 @@ console.log('\n=== Beteiligung: eigene Ansicht, Monat- und Wochenwahl, 1-10 Punk
   pruefe('Monatsprozent aktualisiert sich sofort, ohne auf den Server zu warten',
     zeile.includes('90 %') && zeile.includes('80 %'), true);
 
+  // Farben aus der Vorlage (Primary Participation Tracker): dunkles Blau
+  // mit weisser Schrift im Kopf, sechs Bandfarben nach Leistungsstufe.
+  const kopfzelle = p.locator('table.beteiligung-tabelle thead th').first();
+  pruefe('Tabellenkopf: dunkles Blau wie in der Vorlage',
+    await kopfzelle.evaluate((el) => getComputedStyle(el).backgroundColor), 'rgb(23, 54, 93)');
+  pruefe('Tabellenkopf: weisse Schrift',
+    await kopfzelle.evaluate((el) => getComputedStyle(el).color), 'rgb(255, 255, 255)');
+
+  const monatszellenKind1 = p.locator('table.beteiligung-tabelle tbody tr').first().locator('td.zahl');
+  pruefe('90 % (Note 2) sofort blau eingefärbt, wie im Kriterienblatt der Vorlage',
+    await monatszellenKind1.first().evaluate((el) => getComputedStyle(el).backgroundColor), 'rgb(217, 234, 247)');
+
+  // Zweites Kind: niedriger Wert -> andere Bandfarbe (orange-rot, Note 5).
+  // Nur zur Farbprobe — wird danach wieder geleert, damit die Übersicht
+  // weiter unten mit einem unveränderten zweiten Kind rechnet.
+  await felder.nth(2).fill('3'); // Mündlich, zweites Kind, Woche 1
+  const monatszellenKind2 = p.locator('table.beteiligung-tabelle tbody tr').nth(1).locator('td.zahl');
+  pruefe('30 % (Note 5) andere Bandfarbe als 90 % (Note 2)',
+    await monatszellenKind2.first().evaluate((el) => getComputedStyle(el).backgroundColor), 'rgb(252, 228, 214)');
+  await felder.nth(2).fill('');
+  pruefe('geleert: Bandfarbe verschwindet wieder',
+    await monatszellenKind2.first().evaluate((el) => getComputedStyle(el).backgroundColor), 'rgb(255, 255, 255)');
+
   await p.waitForTimeout(1400);
   pruefe('Punkte wurden gesendet',
     aufrufe.some((a) => a.aktion === 'beteiligungspunkte' &&

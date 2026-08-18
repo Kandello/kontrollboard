@@ -479,3 +479,30 @@ table.liste td.zahl, table.liste th.zahl { text-align: right; }
   font-family: var(--serif); font-size: var(--t-gross);
   border-top: 1px solid var(--linie); padding-top: var(--s1);
 }
+
+/* --- Beteiligung: Farben aus der Vorlage (Primary Participation Tracker) ---
+   Dunkles Blau mit weisser Schrift fuer den Tabellenkopf, sechs pastellene
+   Bandfarben fuer die Leistungsstufen — beides direkt aus den Zellfarben
+   der Original-Numbers-Datei uebernommen (Instructions & Criteria, Zeilen
+   16-21: Green/Blue/Light blue/Amber/Orange-red/Red bei 92/80/67/50/23/1 %,
+   exakt die Grenzen des bestehenden Notenschluessels). */
+:root {
+  --beteiligung-kopf:  #17365d;
+  --beteiligung-band-1: #e2f0d9; /* Note 1, 92-100 % */
+  --beteiligung-band-2: #d9eaf7; /* Note 2, 80-91 % */
+  --beteiligung-band-3: #eaf2f8; /* Note 3, 67-79 % */
+  --beteiligung-band-4: #fff2cc; /* Note 4, 50-66 % */
+  --beteiligung-band-5: #fce4d6; /* Note 5, 23-49 % */
+  --beteiligung-band-6: #f4cccc; /* Note 6, 1-22 % */
+}
+
+table.liste.beteiligung-tabelle thead th {
+  background: var(--beteiligung-kopf); color: #fff;
+  font-family: inherit; font-weight: 700;
+}
+table.liste td.beteiligung-band-1 { background: var(--beteiligung-band-1); }
+table.liste td.beteiligung-band-2 { background: var(--beteiligung-band-2); }
+table.liste td.beteiligung-band-3 { background: var(--beteiligung-band-3); }
+table.liste td.beteiligung-band-4 { background: var(--beteiligung-band-4); }
+table.liste td.beteiligung-band-5 { background: var(--beteiligung-band-5); }
+table.liste td.beteiligung-band-6 { background: var(--beteiligung-band-6); }
