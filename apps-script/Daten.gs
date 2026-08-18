@@ -19,7 +19,7 @@ var FACH = 'DE';
 var TRENNER = '\u0000';
 
 /** Blaetter, die eine fach-Spalte tragen und danach gefiltert werden. */
-var MIT_FACH = ['Erhebungen', 'Gruppengewichte', 'Boards', 'Einheiten', 'Schueler'];
+var MIT_FACH = ['Erhebungen', 'Gruppengewichte', 'Boards', 'Einheiten', 'Schueler', 'Tests'];
 
 function holeBlatt_(name) {
   var blatt = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name);
@@ -285,6 +285,17 @@ function ladeAlles() {
           notiz: alsText_(z.notiz)
         };
       }),
+
+    // Thema je Test — einmal je Schuljahr/Halbjahr/Nummer, klassenuebergreifend:
+    // die Parallelklassen schreiben dieselben Tests zum selben Thema.
+    tests: liesBlatt_('Tests').map(function (z) {
+      return {
+        schuljahr: alsZahl_(z.schuljahr) || 0,
+        halbjahr: alsZahl_(z.halbjahr) || 0,
+        nummer: alsZahl_(z.nummer) || 0,
+        thema: alsText_(z.thema)
+      };
+    }),
 
     boards: liesBlatt_('Boards').map(function (z) {
       return {

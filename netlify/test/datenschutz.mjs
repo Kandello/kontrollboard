@@ -50,8 +50,17 @@ await p.click('button[aria-label="Spalte hinzufügen"]'); await p.waitForTimeout
 await p.locator('td.board-zelle button.zellzustand').first().click();
 await p.waitForTimeout(1300); // Debounce abwarten, damit der Aufruf im Verkehr steht.
 
+// Note fuer ein zugeordnetes Kind erfassen — auch dieser Aufruf darf nur
+// das Kuerzel enthalten.
+await p.goto(B + '#/noten/3L'); await p.waitForTimeout(600);
+await p.locator('.werkzeug', { hasText: 'Test 1' }).first().click(); await p.waitForTimeout(400);
+await p.fill('input[aria-label="Thema des Tests"]', 'Wortarten');
+await p.locator('input[aria-label="Thema des Tests"]').blur(); await p.waitForTimeout(500);
+await p.locator('input.notenfeld').first().fill('96');
+await p.waitForTimeout(1400); // Debounce abwarten.
+
 // Durch alle Ansichten laufen, damit jeder Serveraufruf erfasst wird.
-for (const pfad of ['#/', '#/klasse/3L', '#/klasse/3L/noten', '#/checklisten', '#/checklisten/3L',
+for (const pfad of ['#/', '#/klasse/3L', '#/noten', '#/noten/3L', '#/checklisten', '#/checklisten/3L',
                     '#/klasse/3M', '#/klasse/3OB/einheiten', '#/einstellungen']) {
   await p.goto(B + pfad); await p.waitForTimeout(350);
 }
@@ -85,6 +94,14 @@ if (!boardAufruf) schlecht++;
 const kuerzelDrin = boardAufruf && boardAufruf.rumpf.includes('3L-01');
 console.log(`${kuerzelDrin ? 'OK  ' : 'FEHL'}  … und enthält das Kürzel, nicht den Namen`);
 if (!kuerzelDrin) schlecht++;
+
+// Und: wurde die Note wirklich gesendet (mit Kuerzel, ohne Namen)?
+const notenAufruf = verkehr.find(v => v.rumpf.includes('"aktion":"erhebungen"'));
+console.log(`${notenAufruf ? 'OK  ' : 'FEHL'}  Note wird uebertragen`);
+if (!notenAufruf) schlecht++;
+const noteKuerzel = notenAufruf && notenAufruf.rumpf.includes('3L-01');
+console.log(`${noteKuerzel ? 'OK  ' : 'FEHL'}  … und enthält das Kürzel, nicht den Namen`);
+if (!noteKuerzel) schlecht++;
 
 console.log(schlecht === 0 ? '\nKEIN NAME HAT DAS GERAET VERLASSEN' : `\n${schlecht} PROBLEM(E)`);
 await b.close();

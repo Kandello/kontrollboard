@@ -129,6 +129,17 @@ function doPost(e) {
       case 'boardWerte':
         return antwort_({ ok: true, ergebnis: boardWerteSpeichern(rumpf.aenderungen) });
 
+      case 'testThema':
+        return antwort_({ ok: true, ergebnis:
+          testThemaSetzen(rumpf.schuljahr, rumpf.halbjahr, rumpf.nummer, rumpf.thema) });
+
+      case 'erhebungen':
+        return antwort_({ ok: true, ergebnis: erhebungenSpeichern(rumpf.aenderungen) });
+
+      case 'erhebungenAnlassLoeschen':
+        return antwort_({ ok: true, ergebnis:
+          erhebungenAnlassLoeschen(rumpf.klasse, rumpf.kategorie_id, rumpf.anlass) });
+
       case 'schuelerImport':
         return antwort_({ ok: true, ergebnis: importSchuelerAusText(rumpf.csv || '') });
 

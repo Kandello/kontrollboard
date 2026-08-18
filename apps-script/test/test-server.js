@@ -71,7 +71,7 @@ global.ContentService = {
   createTextOutput: t => ({ setMimeType() { return { text: t }; } })
 };
 
-for (const f of ['Setup', 'Daten', 'Boards', 'Code']) {
+for (const f of ['Setup', 'Daten', 'Boards', 'Noten', 'Code']) {
   const src = fs.readFileSync(`../${f}.gs`, 'utf8');
   (0, eval)(src.replace(/^function (\w+)/gm, 'global.$1 = function $1')
               .replace(/^var (\w+) =/gm, 'global.$1 ='));
@@ -86,7 +86,7 @@ const pruefe = (name, ist, soll) => {
 
 console.log('=== setupSheets ===');
 const b1 = setupSheets();
-pruefe('alle 16 Blaetter angelegt', b1.angelegt.length, 16);
+pruefe('alle 17 Blaetter angelegt', b1.angelegt.length, 17);
 pruefe('Stundenplan 22 Zeilen', holeBlatt_('Stundenplan').getLastRow() - 1, 22);
 pruefe('Kategorien 3 Zeilen', holeBlatt_('Kategorien').getLastRow() - 1, 3);
 pruefe('Notenschluessel 6 Zeilen', holeBlatt_('Notenschluessel').getLastRow() - 1, 6);
@@ -94,7 +94,7 @@ pruefe('Notenschluessel 6 Zeilen', holeBlatt_('Notenschluessel').getLastRow() - 
 console.log('\n=== setupSheets erneut (darf nichts zerstoeren) ===');
 const b2 = setupSheets();
 pruefe('nichts neu angelegt', b2.angelegt.length, 0);
-pruefe('alle unveraendert', b2.unveraendert.length, 16);
+pruefe('alle unveraendert', b2.unveraendert.length, 17);
 pruefe('Stundenplan weiterhin 22', holeBlatt_('Stundenplan').getLastRow() - 1, 22);
 
 console.log('\n=== importSchuelerAusText ===');
@@ -525,6 +525,127 @@ console.log('\n=== Boards: keine Klarnamen im Datenpaket ===');
 {
   const roh = JSON.stringify(ladeAlles());
   pruefe('kein Klarname in Boards/Spalten/Werten sichtbar',
+    /Musterfrau|Beispiel|Anna|Ben|Bruno/.test(roh), false);
+}
+
+console.log('\n=== Noten: Testthema setzen, aendern, entfernen ===');
+{
+  testThemaSetzen(2026, 1, 1, 'Wortarten');
+  testThemaSetzen(2026, 1, 2, 'Präteritum');
+  pruefe('zwei Themen angelegt', ladeAlles().tests.length, 2);
+  pruefe('Thema gespeichert',
+    ladeAlles().tests.find(t => t.nummer === 1).thema, 'Wortarten');
+
+  testThemaSetzen(2026, 1, 1, 'Wortarten und Satzglieder');
+  pruefe('geaendert, nicht dupliziert', ladeAlles().tests.length, 2);
+  pruefe('neues Thema', ladeAlles().tests.find(t => t.nummer === 1).thema, 'Wortarten und Satzglieder');
+
+  testThemaSetzen(2026, 1, 2, '');
+  pruefe('leeres Thema entfernt den Eintrag', ladeAlles().tests.length, 1);
+
+  let m = '';
+  try { testThemaSetzen(2026, 3, 1, 'X'); } catch (e) { m = e.message; }
+  pruefe('Halbjahr 3 abgewiesen', /Halbjahr/.test(m), true);
+}
+
+console.log('\n=== Noten: Erhebungen speichern, aendern, loeschen ===');
+{
+  const r = erhebungenSpeichern([
+    { kuerzel: '3L-01', kategorie_id: 'TEST', anlass: 'Test 1', datum: '2026-09-15', wert: 96 },
+    { kuerzel: '3L-02', kategorie_id: 'TEST', anlass: 'Test 1', datum: '2026-09-15', wert: 82 },
+    { kuerzel: '3L-01', kategorie_id: 'PART', anlass: '2026-09', datum: '2026-09-30', wert: 90 }
+  ]);
+  pruefe('drei Erhebungen gespeichert', r.gespeichert, 3);
+  pruefe('drei in ladeAlles', ladeAlles().erhebungen.length, 3);
+  pruefe('Wert korrekt',
+    ladeAlles().erhebungen.find(e => e.kuerzel === '3L-01' && e.kategorie_id === 'TEST').wert, 96);
+
+  // Aendern: gleiche Kombination, neuer Wert -> keine Dublette, ID bleibt.
+  const vorherId = ladeAlles().erhebungen.find(e => e.kuerzel === '3L-01' && e.kategorie_id === 'TEST').id;
+  erhebungenSpeichern([{ kuerzel: '3L-01', kategorie_id: 'TEST', anlass: 'Test 1', datum: '2026-09-15', wert: 98 }]);
+  const nach = ladeAlles().erhebungen.find(e => e.kuerzel === '3L-01' && e.kategorie_id === 'TEST');
+  pruefe('keine Dublette', ladeAlles().erhebungen.length, 3);
+  pruefe('Wert aktualisiert', nach.wert, 98);
+  pruefe('ID bleibt erhalten', nach.id, vorherId);
+
+  // Leerer Wert loescht die Zeile (kein Wert ist nicht null Prozent).
+  erhebungenSpeichern([{ kuerzel: '3L-02', kategorie_id: 'TEST', anlass: 'Test 1', datum: '2026-09-15', wert: '' }]);
+  pruefe('leerer Wert entfernt die Zeile', ladeAlles().erhebungen.length, 2);
+  pruefe('andere bleiben', ladeAlles().erhebungen.some(e => e.kuerzel === '3L-01'), true);
+}
+
+console.log('\n=== Noten: unsinnige Eingaben werden abgewiesen ===');
+{
+  const vorher = ladeAlles().erhebungen.length;
+  let m = '';
+  try { erhebungenSpeichern([{ kuerzel: 'Mustermann', kategorie_id: 'TEST', anlass: 'Test 1', datum: '2026-09-15', wert: 50 }]); }
+  catch (e) { m = e.message; }
+  pruefe('Name statt Kuerzel abgewiesen', /Ungültiges Kürzel/.test(m), true);
+
+  m = '';
+  try { erhebungenSpeichern([{ kuerzel: '3L-01', kategorie_id: 'QUATSCH', anlass: 'Test 1', datum: '2026-09-15', wert: 50 }]); }
+  catch (e) { m = e.message; }
+  pruefe('unbekannte Kategorie abgewiesen', /Unbekannte Kategorie/.test(m), true);
+
+  m = '';
+  try { erhebungenSpeichern([{ kuerzel: '3L-01', kategorie_id: 'TEST', anlass: 'Test 1', datum: '2026-09-15', wert: 150 }]); }
+  catch (e) { m = e.message; }
+  pruefe('über 100 Prozent abgewiesen', /außerhalb/.test(m), true);
+
+  m = '';
+  try { erhebungenSpeichern([{ kuerzel: '3L-01', kategorie_id: 'TEST', anlass: 'Test 1', datum: '2026-09-15', wert: -5 }]); }
+  catch (e) { m = e.message; }
+  pruefe('negativer Wert abgewiesen', /außerhalb/.test(m), true);
+
+  m = '';
+  try { erhebungenSpeichern([{ kuerzel: '3L-01', kategorie_id: 'TEST', anlass: 'Test 1', datum: '15.09.2026', wert: 50 }]); }
+  catch (e) { m = e.message; }
+  pruefe('falsches Datumsformat abgewiesen', /Datum/.test(m), true);
+
+  pruefe('nach allen Fehlern nichts geschrieben', ladeAlles().erhebungen.length, vorher);
+}
+
+console.log('\n=== Noten: Anlass einer Klasse loeschen laesst Parallelklassen unberuehrt ===');
+{
+  erhebungenSpeichern([
+    { kuerzel: '3L-01', kategorie_id: 'TEST', anlass: 'Test 2', datum: '2026-11-10', wert: 70 },
+    { kuerzel: '3M-05', kategorie_id: 'TEST', anlass: 'Test 2', datum: '2026-11-10', wert: 75 }
+  ]);
+  pruefe('beide Klassen haben Test 2',
+    ladeAlles().erhebungen.filter(e => e.anlass === 'Test 2').length, 2);
+
+  const r = erhebungenAnlassLoeschen('3L', 'TEST', 'Test 2');
+  pruefe('ein Eintrag entfernt', r.entfernt, 1);
+  pruefe('3L ist Test 2 los',
+    ladeAlles().erhebungen.some(e => e.anlass === 'Test 2' && e.kuerzel === '3L-01'), false);
+  pruefe('3M behaelt Test 2',
+    ladeAlles().erhebungen.some(e => e.anlass === 'Test 2' && e.kuerzel === '3M-05'), true);
+}
+
+console.log('\n=== Noten: ueber doPost erreichbar ===');
+{
+  const t = holeToken_();
+  const p = JSON.parse(doPost({ postData: { contents: JSON.stringify({
+    token: t, aktion: 'erhebungen', aenderungen: [
+      { kuerzel: '3OB-11', kategorie_id: 'PRES', anlass: '2026-10', datum: '2026-10-31', wert: 88 }
+    ] }) } }).text);
+  pruefe('erhebungen ueber doPost', p.ok, true);
+  pruefe('Wert liegt in der Tabelle',
+    ladeAlles().erhebungen.some(e => e.kuerzel === '3OB-11' && e.wert === 88), true);
+
+  const p2 = JSON.parse(doPost({ postData: { contents: JSON.stringify({
+    token: 'falsch', aktion: 'erhebungen', aenderungen: [
+      { kuerzel: '3OB-11', kategorie_id: 'PRES', anlass: '2026-11', datum: '2026-11-30', wert: 50 }
+    ] }) } }).text);
+  pruefe('falscher Token abgewiesen', p2.ok, false);
+  pruefe('nichts geschrieben',
+    ladeAlles().erhebungen.some(e => e.anlass === '2026-11'), false);
+}
+
+console.log('\n=== Noten: keine Klarnamen im Datenpaket ===');
+{
+  const roh = JSON.stringify(ladeAlles());
+  pruefe('kein Klarname in Erhebungen/Tests sichtbar',
     /Musterfrau|Beispiel|Anna|Ben|Bruno/.test(roh), false);
 }
 

@@ -36,7 +36,9 @@ pruefe('Klassenknopf zeigt 23 Kinder', (await p.locator('.klassenknopf').first()
 await p.locator('.klassenknopf').first().click(); await p.waitForTimeout(400);
 pruefe('URL enthaelt Klasse', p.url().includes('#/klasse/3L'));
 pruefe('Pfadleiste Start > 3L', (await p.locator('.pfad').innerText()).replace(/\s+/g,' ').includes('Start › 3L'));
-pruefe('2 Werkzeugeinstiege', await p.locator('.werkzeug').count() === 2);
+// Noten und Checklisten sind klassenuebergreifend und haben eigene Einstiege
+// in der Kopfleiste; auf der Klassenseite bleiben nur die Einheiten.
+pruefe('1 Werkzeugeinstieg', await p.locator('.werkzeug').count() === 1);
 pruefe('Klassenliste 23 Zeilen', await p.locator('table.liste tbody tr').count() === 23);
 const ersteZeile = await p.locator('table.liste tbody tr').first().innerText();
 pruefe('Liste beginnt bei Nr. 1', ersteZeile.trim().startsWith('1'), ersteZeile);
@@ -51,7 +53,12 @@ pruefe('Kuerzel NICHT aufsteigend (Mischung intakt)', JSON.stringify(nurK) !== J
 
 // Werkzeug-Unteransicht
 await p.locator('.werkzeug').nth(0).click(); await p.waitForTimeout(400);
-pruefe('URL Werkzeug noten', p.url().includes('/noten'));
+pruefe('URL Werkzeug einheiten', p.url().includes('/einheiten'));
+pruefe('Pfad zeigt Unterrichtseinheiten', (await p.locator('.pfad').innerText()).includes('Unterrichtseinheiten'));
+
+// Notentracker: eigener Kopfleisten-Knopf, landet direkt in einer Klasse
+await p.locator('a.knopf', { hasText: 'Noten' }).click(); await p.waitForTimeout(500);
+pruefe('Notentracker landet direkt in der ersten Klasse', p.url().includes('#/noten/3L'));
 pruefe('Pfad zeigt Notentracker', (await p.locator('.pfad').innerText()).includes('Notentracker'));
 
 // Checklisten: eigener Kopfleisten-Knopf, landet ohne Umweg über eine

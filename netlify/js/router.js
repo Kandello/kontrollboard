@@ -98,9 +98,17 @@ export function pfadEintraege(daten) {
       ? (daten.klassen.find((k) => k.klasse === t[1]) || null)
       : null;
     eintraege.push({ text: klasse ? klasse.bezeichnung : t[1], ziel: '/klasse/' + t[1] });
-    const werkzeuge = { noten: 'Notentracker', einheiten: 'Unterrichtseinheiten' };
+    const werkzeuge = { einheiten: 'Unterrichtseinheiten' };
     if (t[2] && werkzeuge[t[2]]) {
       eintraege.push({ text: werkzeuge[t[2]], ziel: null });
+    }
+  } else if (t[0] === 'noten') {
+    eintraege.push({ text: 'Notentracker', ziel: '/noten' });
+    if (t[1]) {
+      const klasse = daten && daten.klassen
+        ? (daten.klassen.find((k) => k.klasse === t[1]) || null)
+        : null;
+      eintraege.push({ text: klasse ? klasse.bezeichnung : t[1], ziel: null });
     }
   } else if (t[0] === 'checklisten') {
     eintraege.push({ text: 'Checklisten', ziel: '/checklisten' });

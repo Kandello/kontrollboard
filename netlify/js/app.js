@@ -10,6 +10,7 @@ import * as zuordnung from './zuordnung.js';
 import { zeichneStart, raeumeStartAuf } from './ansichten/start.js';
 import { zeichneKlasse } from './ansichten/klasse.js';
 import { zeichneChecklisten } from './ansichten/checklisten.js';
+import { zeichneNoten } from './ansichten/noten.js';
 import { zeichneEinstellungen } from './ansichten/einstellungen.js';
 import { zeichneZuordnung } from './ansichten/zuordnungAnsicht.js';
 
@@ -56,6 +57,7 @@ function zeichneKopf() {
   kopf.appendChild(e('div', { klasse: 'kopfleiste-inhalt' }, [
     pfad,
     schalter,
+    e('a', { klasse: 'knopf klein', href: '#/noten', text: 'Noten' }),
     e('a', { klasse: 'knopf klein', href: '#/checklisten', text: 'Checklisten' }),
     e('a', { klasse: 'knopf klein', href: '#/einstellungen', text: 'Einstellungen' })
   ]));
@@ -224,6 +226,23 @@ registriere('/checklisten', ansicht((ziel, k) => {
 registriere('/checklisten/:klasse', ansicht((ziel, k) => {
   if (!k.daten) return;
   zeichneChecklisten(ziel, k);
+}));
+
+registriere('/noten', ansicht((ziel, k) => {
+  if (!k.daten) return;
+  if (!k.daten.klassen.length) {
+    ziel.appendChild(hinweis({
+      art: 'warn', zeichen: '→', titel: 'Keine Klasse eingetragen',
+      text: 'Im Blatt „Klassen" ist noch keine aktive Klasse eingetragen.'
+    }));
+    return;
+  }
+  gehe('/noten/' + encodeURIComponent(k.daten.klassen[0].klasse), { ersetzen: true });
+}));
+
+registriere('/noten/:klasse', ansicht((ziel, k) => {
+  if (!k.daten) return;
+  zeichneNoten(ziel, k);
 }));
 
 registriere('/einstellungen', ansicht(zeichneEinstellungen));

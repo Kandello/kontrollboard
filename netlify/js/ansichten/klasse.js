@@ -18,7 +18,6 @@ import { lehrkraftVerweis } from './start.js';
 import { gehe } from '../router.js';
 
 const WERKZEUGE = [
-  { id: 'noten',     titel: 'Notentracker',        beschreibung: 'Erhebungen erfassen, Notenübersicht, Auswertung' },
   { id: 'einheiten', titel: 'Unterrichtseinheiten', beschreibung: 'Fortschritt dieser Klasse' }
 ];
 

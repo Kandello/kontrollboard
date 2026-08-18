@@ -431,3 +431,51 @@ td.board-zelle { padding: 6px; text-align: center; }
   table.board-tabelle th.sticky-vor,
   table.board-tabelle td.sticky-vor  { left: 156px; }
 }
+
+/* --- Notentracker --------------------------------------------------------- */
+
+/* Eingabekacheln fuer Tests und Monate: grosse Bezeichnung, klein und grau
+   das Thema darunter — wie bei den Klassenknoepfen. */
+button.werkzeug.kachel-eingabe {
+  font: inherit; cursor: pointer; width: 100%;
+}
+button.werkzeug.kachel-eingabe:hover { border-color: var(--akzent); }
+/* Thema und Erfassungsstand stehen untereinander, nicht in einer Zeile. */
+button.werkzeug.kachel-eingabe .beschreibung { display: block; }
+
+.notenfeld {
+  width: 5.5em; text-align: right;
+  padding: var(--s1) var(--s2);
+}
+.notenfeld.fehlerhaft {
+  border-color: var(--schlecht);
+  background: var(--schlecht-leis);
+}
+table.liste td.zahl, table.liste th.zahl { text-align: right; }
+
+/* Notenfarben: nie Farbe allein — die Ziffer steht immer daneben. */
+.marke.note-1, .marke.note-2 { background: var(--gut-leis);      color: var(--gut);      border-color: var(--gut); }
+.marke.note-3, .marke.note-4 { background: var(--warn-leis);     color: var(--warn);     border-color: var(--warn); }
+.marke.note-5, .marke.note-6 { background: var(--schlecht-leis); color: var(--schlecht); border-color: var(--schlecht); }
+
+/* Notenverteilung: schlichtes Saeulenbild, Werte stehen als Zahl darueber. */
+.verteilung {
+  display: grid; grid-template-columns: repeat(6, 1fr);
+  gap: var(--s3); align-items: end; height: 160px;
+}
+.verteilung-saeule {
+  display: flex; flex-direction: column; justify-content: flex-end;
+  height: 100%; gap: var(--s1); text-align: center;
+}
+.verteilung-zahl { font-size: var(--t-klein); color: var(--text-leise); min-height: 1.2em; }
+.verteilung-balken {
+  border-radius: var(--radius) var(--radius) 0 0; min-height: 2px;
+  border: 1px solid var(--linie);
+}
+.verteilung-balken.note-1, .verteilung-balken.note-2 { background: var(--gut);      border-color: var(--gut); }
+.verteilung-balken.note-3, .verteilung-balken.note-4 { background: var(--warn);     border-color: var(--warn); }
+.verteilung-balken.note-5, .verteilung-balken.note-6 { background: var(--schlecht); border-color: var(--schlecht); }
+.verteilung-note {
+  font-family: var(--serif); font-size: var(--t-gross);
+  border-top: 1px solid var(--linie); padding-top: var(--s1);
+}
