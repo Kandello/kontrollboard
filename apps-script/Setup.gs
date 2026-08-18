@@ -48,16 +48,20 @@ var TEXTSPALTEN = {
 
 /** Wird nur eingetragen, wenn das Blatt noch leer ist. */
 var VORBELEGUNG = {
+  /**
+   * In der bisherigen Tabelle wurde jede Deutsch-Testnote doppelt gefuehrt
+   * (Assessment 50 % UND Quiz 30 % mit identischem Wert). Da der Wert hier
+   * nur einmal erfasst wird, steht dafuer eine Kategorie „Test" mit dem
+   * zusammengezogenen Gewicht von 80 % — rechnerisch dasselbe Ergebnis.
+   */
   Kategorien: [
-    ['ASSESS', 'Assessment',   'ASSESS', 1, true],
-    ['QUIZ',   'Quiz',         'QUIZ',   2, true],
-    ['PART',   'Participation', 'PP',    3, true],
-    ['PRES',   'Presentation',  'PP',    4, true]
+    ['TEST', 'Test',          'TEST', 1, true],
+    ['PART', 'Participation', 'PP',   2, true],
+    ['PRES', 'Presentation',  'PP',   3, true]
   ],
   Gruppengewichte: [
-    ['DE', 'ASSESS', 0.5],
-    ['DE', 'QUIZ',   0.3],
-    ['DE', 'PP',     0.2]
+    ['DE', 'TEST', 0.8],
+    ['DE', 'PP',   0.2]
   ],
   Notenschluessel: [
     [1, 92], [2, 80], [3, 67], [4, 50], [5, 23], [6, 0]

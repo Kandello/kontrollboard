@@ -88,7 +88,7 @@ console.log('=== setupSheets ===');
 const b1 = setupSheets();
 pruefe('alle 16 Blaetter angelegt', b1.angelegt.length, 16);
 pruefe('Stundenplan 22 Zeilen', holeBlatt_('Stundenplan').getLastRow() - 1, 22);
-pruefe('Kategorien 4 Zeilen', holeBlatt_('Kategorien').getLastRow() - 1, 4);
+pruefe('Kategorien 3 Zeilen', holeBlatt_('Kategorien').getLastRow() - 1, 3);
 pruefe('Notenschluessel 6 Zeilen', holeBlatt_('Notenschluessel').getLastRow() - 1, 6);
 
 console.log('\n=== setupSheets erneut (darf nichts zerstoeren) ===');
@@ -124,7 +124,7 @@ const d = ladeAlles();
 pruefe('69 Schueler', d.schueler.length, 69);
 pruefe('3 Klassen', d.klassen.length, 3);
 pruefe('22 Stundenplanzeilen', d.stundenplan.length, 22);
-pruefe('4 Kategorien', d.kategorien.length, 4);
+pruefe('3 Kategorien', d.kategorien.length, 3);
 pruefe('Gewichte summieren auf 1', Math.round(d.gruppengewichte.reduce((s, g) => s + g.gewicht, 0) * 1000) / 1000, 1);
 pruefe('Notenschluessel absteigend', d.notenschluessel.map(n => n.min_prozent), [92, 80, 67, 50, 23, 0]);
 pruefe('Meta halbjahresgrenze', d.meta.halbjahresgrenze, '01-31');
