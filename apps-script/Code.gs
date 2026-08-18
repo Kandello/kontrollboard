@@ -95,6 +95,37 @@ function doPost(e) {
         return antwort_({ ok: true, ergebnis:
           setzeWochenstatus(rumpf.kw, rumpf.aufgabe, rumpf.erledigt) });
 
+      case 'boardErstellen':
+        return antwort_({ ok: true, ergebnis:
+          boardErstellen(rumpf.klasse, rumpf.titel, rumpf.untertitel, rumpf.labels, rumpf.spalten) });
+
+      case 'boardAktualisieren':
+        return antwort_({ ok: true, ergebnis:
+          boardAktualisieren(rumpf.id, rumpf.titel, rumpf.untertitel, rumpf.labels) });
+
+      case 'boardStatus':
+        return antwort_({ ok: true, ergebnis: boardStatus(rumpf.id, rumpf.status) });
+
+      case 'boardZuruecksetzen':
+        return antwort_({ ok: true, ergebnis: boardZuruecksetzen(rumpf.id) });
+
+      case 'boardSpalteHinzufuegen':
+        return antwort_({ ok: true, ergebnis:
+          boardSpalteHinzufuegen(rumpf.board_id, rumpf.bezeichnung) });
+
+      case 'boardSpalteUmbenennen':
+        return antwort_({ ok: true, ergebnis: boardSpalteUmbenennen(rumpf.id, rumpf.bezeichnung) });
+
+      case 'boardSpaltenReihenfolge':
+        return antwort_({ ok: true, ergebnis:
+          boardSpaltenReihenfolge(rumpf.board_id, rumpf.reihenfolge) });
+
+      case 'boardSpalteLoeschen':
+        return antwort_({ ok: true, ergebnis: boardSpalteLoeschen(rumpf.id) });
+
+      case 'boardWerte':
+        return antwort_({ ok: true, ergebnis: boardWerteSpeichern(rumpf.aenderungen) });
+
       case 'schuelerImport':
         return antwort_({ ok: true, ergebnis: importSchuelerAusText(rumpf.csv || '') });
 

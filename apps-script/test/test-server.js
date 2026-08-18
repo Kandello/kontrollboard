@@ -71,7 +71,7 @@ global.ContentService = {
   createTextOutput: t => ({ setMimeType() { return { text: t }; } })
 };
 
-for (const f of ['Setup', 'Daten', 'Code']) {
+for (const f of ['Setup', 'Daten', 'Boards', 'Code']) {
   const src = fs.readFileSync(`../${f}.gs`, 'utf8');
   (0, eval)(src.replace(/^function (\w+)/gm, 'global.$1 = function $1')
               .replace(/^var (\w+) =/gm, 'global.$1 ='));
@@ -288,6 +288,185 @@ console.log('\n=== Wochenstatus ===');
     { token: t, aktion: 'wochenstatus', kw: '2026-W36', aufgabe: 'PEAK', erledigt: true }) } }).text);
   pruefe('ueber doPost erreichbar', p.ok, true);
   pruefe('doPost hat geschrieben', ladeAlles().wochenstatus.length, 3);
+}
+
+console.log('\n=== Boards: anlegen ===');
+{
+  holeBlatt_('Boards').d = [SCHEMA.Boards.slice()];
+  holeBlatt_('BoardSpalten').d = [SCHEMA.BoardSpalten.slice()];
+  holeBlatt_('BoardWerte').d = [SCHEMA.BoardWerte.slice()];
+
+  const r1 = boardErstellen('3L', 'Materialien September', 'Erster Monat', 'Material, September',
+    ['Heft', 'Stifte', 'Federmappe']);
+  pruefe('Board angelegt', typeof r1.board.id, 'string');
+  pruefe('drei Spalten in Reihenfolge', r1.spalten.map(s => s.bezeichnung), ['Heft', 'Stifte', 'Federmappe']);
+  pruefe('Reihenfolge 1..3', r1.spalten.map(s => s.reihenfolge), [1, 2, 3]);
+  pruefe('Board in ladeAlles sichtbar', ladeAlles().boards.length, 1);
+  pruefe('drei Spalten in ladeAlles', ladeAlles().boardSpalten.length, 3);
+  pruefe('Status aktiv', ladeAlles().boards[0].status, 'aktiv');
+
+  let m = '';
+  try { boardErstellen('', 'X', '', '', []); } catch (e) { m = e.message; }
+  pruefe('ohne Klasse abgewiesen', /Klasse/.test(m), true);
+  m = '';
+  try { boardErstellen('3L', '', '', '', []); } catch (e) { m = e.message; }
+  pruefe('ohne Titel abgewiesen', /Titel/.test(m), true);
+}
+
+console.log('\n=== Boards: Spalten uebernehmen beim Anlegen ===');
+{
+  const bestehend = ladeAlles().boardSpalten.map(s => s.bezeichnung);
+  const r2 = boardErstellen('3M', 'Materialien September (Kopie)', '', '', bestehend);
+  pruefe('uebernommene Spalten identisch', r2.spalten.map(s => s.bezeichnung), bestehend);
+  pruefe('zwei Boards insgesamt', ladeAlles().boards.length, 2);
+  pruefe('sechs Spalten insgesamt', ladeAlles().boardSpalten.length, 6);
+}
+
+console.log('\n=== Boards: aktualisieren ===');
+{
+  const board = ladeAlles().boards[0];
+  boardAktualisieren(board.id, 'Materialien Herbst', 'Neuer Untertitel', 'Material, Herbst');
+  const nach = ladeAlles().boards.find(b => b.id === board.id);
+  pruefe('Titel geaendert', nach.titel, 'Materialien Herbst');
+  pruefe('Untertitel geaendert', nach.untertitel, 'Neuer Untertitel');
+  pruefe('Klasse unveraendert', nach.klasse, '3L');
+  pruefe('Status unveraendert', nach.status, 'aktiv');
+  pruefe('weiterhin nur zwei Boards (kein Duplikat)', ladeAlles().boards.length, 2);
+
+  let m = '';
+  try { boardAktualisieren('unbekannt', 'X', '', ''); } catch (e) { m = e.message; }
+  pruefe('unbekanntes Board abgewiesen', /nicht gefunden/.test(m), true);
+}
+
+console.log('\n=== Boards: Zellzustaende schreiben, aktualisieren, loeschen ===');
+{
+  const board = ladeAlles().boards[0];
+  const spalten = ladeAlles().boardSpalten.filter(s => s.board_id === board.id);
+  const heft = spalten.find(s => s.bezeichnung === 'Heft');
+  const stifte = spalten.find(s => s.bezeichnung === 'Stifte');
+
+  const r = boardWerteSpeichern([
+    { board_id: board.id, spalte_id: heft.id, kuerzel: '3L-01', zustand: 'haken' },
+    { board_id: board.id, spalte_id: heft.id, kuerzel: '3L-02', zustand: 'teilweise' },
+    { board_id: board.id, spalte_id: stifte.id, kuerzel: '3L-01', zustand: 'x' }
+  ]);
+  pruefe('drei neue Werte gespeichert', r.gespeichert, 3);
+  pruefe('drei Werte in ladeAlles (nur nicht-leere)', ladeAlles().boardWerte.length, 3);
+
+  // Zustand aendern: leer -> haken -> teilweise -> x -> leer
+  boardWerteSpeichern([{ board_id: board.id, spalte_id: heft.id, kuerzel: '3L-01', zustand: 'teilweise' }]);
+  let werte = ladeAlles().boardWerte;
+  pruefe('Zustand aktualisiert, keine Dublette',
+    werte.filter(w => w.board_id === board.id && w.spalte_id === heft.id && w.kuerzel === '3L-01').length, 1);
+  pruefe('neuer Zustand uebernommen',
+    werte.find(w => w.spalte_id === heft.id && w.kuerzel === '3L-01').zustand, 'teilweise');
+
+  // Auf leer zuruecksetzen loescht die Zeile.
+  boardWerteSpeichern([{ board_id: board.id, spalte_id: heft.id, kuerzel: '3L-01', zustand: '' }]);
+  werte = ladeAlles().boardWerte;
+  pruefe('leer entfernt die Zeile', werte.some(w => w.spalte_id === heft.id && w.kuerzel === '3L-01'), false);
+  pruefe('andere Werte bleiben', werte.length, 2);
+
+  let m = '';
+  try { boardWerteSpeichern([{ board_id: board.id, spalte_id: heft.id, kuerzel: 'Mustermann', zustand: 'haken' }]); }
+  catch (e) { m = e.message; }
+  pruefe('ungueltiges Kuerzel abgewiesen', /Ungültiges Kürzel/.test(m), true);
+  pruefe('nichts geschrieben nach Fehler', ladeAlles().boardWerte.length, 2);
+
+  let m2 = '';
+  try { boardWerteSpeichern([{ board_id: board.id, spalte_id: heft.id, kuerzel: '3L-03', zustand: 'quatsch' }]); }
+  catch (e) { m2 = e.message; }
+  pruefe('unbekannter Zustand abgewiesen', /Unbekannter Zustand/.test(m2), true);
+}
+
+console.log('\n=== Boards: Spalte hinzufuegen, umbenennen, Reihenfolge ===');
+{
+  const board = ladeAlles().boards[0];
+  const neu = boardSpalteHinzufuegen(board.id, 'Elternbrief');
+  pruefe('neue Spalte an Position 4', neu.reihenfolge, 4);
+  pruefe('vier Spalten fuer dieses Board', ladeAlles().boardSpalten.filter(s => s.board_id === board.id).length, 4);
+
+  boardSpalteUmbenennen(neu.id, 'Elternbrief unterschrieben');
+  pruefe('umbenannt', ladeAlles().boardSpalten.find(s => s.id === neu.id).bezeichnung, 'Elternbrief unterschrieben');
+
+  const alle = ladeAlles().boardSpalten.filter(s => s.board_id === board.id).sort((a, b) => a.reihenfolge - b.reihenfolge);
+  const neueReihenfolge = [alle[3].id, alle[0].id, alle[1].id, alle[2].id];
+  boardSpaltenReihenfolge(board.id, neueReihenfolge);
+  const sortiert = ladeAlles().boardSpalten.filter(s => s.board_id === board.id).sort((a, b) => a.reihenfolge - b.reihenfolge);
+  pruefe('Reihenfolge uebernommen', sortiert.map(s => s.id), neueReihenfolge);
+  pruefe('Reihenfolge neu durchnummeriert 1..4', sortiert.map(s => s.reihenfolge), [1, 2, 3, 4]);
+}
+
+console.log('\n=== Boards: Spalte loeschen kaskadiert Werte ===');
+{
+  const board = ladeAlles().boards[0];
+  const spalten = ladeAlles().boardSpalten.filter(s => s.board_id === board.id);
+  const stifte = spalten.find(s => s.bezeichnung === 'Stifte');
+  pruefe('Stifte hat einen Wert vor dem Loeschen',
+    ladeAlles().boardWerte.some(w => w.spalte_id === stifte.id), true);
+
+  const r = boardSpalteLoeschen(stifte.id);
+  pruefe('ein Wert mitgeloescht', r.geloeschteWerte, 1);
+  pruefe('Spalte verschwunden', ladeAlles().boardSpalten.some(s => s.id === stifte.id), false);
+  pruefe('kein Wert mehr fuer diese Spalte', ladeAlles().boardWerte.some(w => w.spalte_id === stifte.id), false);
+  pruefe('drei Spalten fuer das Board uebrig', ladeAlles().boardSpalten.filter(s => s.board_id === board.id).length, 3);
+
+  let m = '';
+  try { boardSpalteLoeschen('unbekannt'); } catch (e) { m = e.message; }
+  pruefe('unbekannte Spalte abgewiesen', /nicht gefunden/.test(m), true);
+}
+
+console.log('\n=== Boards: zuruecksetzen leert nur die Werte ===');
+{
+  const board = ladeAlles().boards[0];
+  pruefe('Board hat noch Werte vor dem Zuruecksetzen',
+    ladeAlles().boardWerte.some(w => w.board_id === board.id), true);
+  const spaltenVorher = ladeAlles().boardSpalten.filter(s => s.board_id === board.id).length;
+
+  const r = boardZuruecksetzen(board.id);
+  pruefe('Werte entfernt', r.entfernt > 0, true);
+  pruefe('keine Werte mehr fuer dieses Board', ladeAlles().boardWerte.some(w => w.board_id === board.id), false);
+  pruefe('Spalten bleiben erhalten', ladeAlles().boardSpalten.filter(s => s.board_id === board.id).length, spaltenVorher);
+}
+
+console.log('\n=== Boards: archivieren ===');
+{
+  const board = ladeAlles().boards[0];
+  const r = boardStatus(board.id, 'archiviert');
+  pruefe('Status archiviert', r.status, 'archiviert');
+  const nach = ladeAlles().boards.find(b => b.id === board.id);
+  pruefe('Status in der Tabelle archiviert', nach.status, 'archiviert');
+  pruefe('archiviert_am gesetzt', /^\d{4}-\d{2}-\d{2}$/.test(nach.archiviert_am), true);
+
+  boardStatus(board.id, 'aktiv');
+  const wieder = ladeAlles().boards.find(b => b.id === board.id);
+  pruefe('zurueckgesetzt auf aktiv', wieder.status, 'aktiv');
+  pruefe('archiviert_am geleert', wieder.archiviert_am, '');
+
+  let m = '';
+  try { boardStatus(board.id, 'unsinn'); } catch (e) { m = e.message; }
+  pruefe('unbekannter Status abgewiesen', /Unbekannter Status/.test(m), true);
+}
+
+console.log('\n=== Boards: ueber doPost erreichbar, mit Token-Pruefung ===');
+{
+  const t = holeToken_();
+  const p1 = JSON.parse(doPost({ postData: { contents: JSON.stringify(
+    { token: t, aktion: 'boardErstellen', klasse: '3OB', titel: 'Lesepass', spalten: ['Kapitel 1'] }) } }).text);
+  pruefe('boardErstellen ueber doPost', p1.ok, true);
+  pruefe('drei Boards insgesamt', ladeAlles().boards.length, 3);
+
+  const p2 = JSON.parse(doPost({ postData: { contents: JSON.stringify(
+    { token: 'falsch', aktion: 'boardErstellen', klasse: '3OB', titel: 'X', spalten: [] }) } }).text);
+  pruefe('falscher Token abgewiesen', p2.ok, false);
+  pruefe('weiterhin nur drei Boards', ladeAlles().boards.length, 3);
+}
+
+console.log('\n=== Boards: keine Klarnamen im Datenpaket ===');
+{
+  const roh = JSON.stringify(ladeAlles());
+  pruefe('kein Klarname in Boards/Spalten/Werten sichtbar',
+    /Musterfrau|Beispiel|Anna|Ben|Bruno/.test(roh), false);
 }
 
 console.log(fehler === 0 ? '\nALLE TESTS BESTANDEN' : `\n${fehler} TEST(S) FEHLGESCHLAGEN`);

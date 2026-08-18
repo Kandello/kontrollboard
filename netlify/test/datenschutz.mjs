@@ -39,6 +39,17 @@ await felder.nth(2).fill('w');
 await knopf('Speichern').click();
 await p.waitForTimeout(900);
 
+// Kontrollboard fuer ein zugeordnetes Kind anlegen und einen Zustand
+// setzen — das ist der Aufruf, der ausschliesslich das Kuerzel enthalten darf.
+await p.goto(B + '#/klasse/3L/boards'); await p.waitForTimeout(500);
+await knopf('Neues Board').click(); await p.waitForTimeout(200);
+await p.fill('input[aria-label="Titel"]', 'Materialien');
+await knopf('Anlegen').click(); await p.waitForTimeout(700);
+p.once('dialog', (d) => d.accept('Heft'));
+await p.click('button[aria-label="Spalte hinzufügen"]'); await p.waitForTimeout(700);
+await p.locator('td.board-zelle button.zellzustand').first().click();
+await p.waitForTimeout(1300); // Debounce abwarten, damit der Aufruf im Verkehr steht.
+
 // Durch alle Ansichten laufen, damit jeder Serveraufruf erfasst wird.
 for (const pfad of ['#/', '#/klasse/3L', '#/klasse/3L/noten', '#/klasse/3L/boards',
                     '#/klasse/3M', '#/klasse/3OB/einheiten', '#/einstellungen']) {
@@ -66,6 +77,14 @@ if (!kontrolle) schlecht++;
 const stempel = verkehr.some(v => v.rumpf.includes('zuordnung_version'));
 console.log(`${stempel ? 'OK  ' : 'FEHL'}  Zeitstempel wird uebertragen (ohne Namen)`);
 if (!stempel) schlecht++;
+
+// Und: wurde der Board-Zustand wirklich gesendet (mit Kuerzel, ohne Namen)?
+const boardAufruf = verkehr.find(v => v.rumpf.includes('boardWerte'));
+console.log(`${boardAufruf ? 'OK  ' : 'FEHL'}  Board-Zustand wird uebertragen`);
+if (!boardAufruf) schlecht++;
+const kuerzelDrin = boardAufruf && boardAufruf.rumpf.includes('3L-01');
+console.log(`${kuerzelDrin ? 'OK  ' : 'FEHL'}  … und enthält das Kürzel, nicht den Namen`);
+if (!kuerzelDrin) schlecht++;
 
 console.log(schlecht === 0 ? '\nKEIN NAME HAT DAS GERAET VERLASSEN' : `\n${schlecht} PROBLEM(E)`);
 await b.close();

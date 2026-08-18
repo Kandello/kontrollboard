@@ -1,40 +1,115 @@
-// Statischer Server fuer netlify/ plus nachgebauter Apps-Script-Endpunkt.
+// Statischer Server fuer netlify/ plus ein Apps-Script-Endpunkt, der die
+// ECHTE Serverlogik ausfuehrt (dieselbe Stub-Technik wie
+// apps-script/test/test-server.js) statt sie ein zweites Mal von Hand
+// nachzubauen. Das schliesst aus, dass Mock und echter Server auseinanderlaufen.
 const http = require('http'), fs = require('fs'), path = require('path'), url = require('url');
+
 const WURZEL = '/home/user/kontrollboard/netlify';
-const PAKET = JSON.parse(fs.readFileSync('/home/user/kontrollboard/apps-script/test/paket.json', 'utf8'));
+const APPS_SCRIPT = '/home/user/kontrollboard/apps-script';
 const TOKEN = 'testtoken123';
-const TYPEN = { '.html':'text/html', '.css':'text/css', '.js':'text/javascript', '.webmanifest':'application/manifest+json' };
+const TYPEN = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.webmanifest': 'application/manifest+json' };
+
+// --- Minimaler Nachbau der Apps-Script-Laufzeit ----------------------------
+
+class FakeSheet {
+  constructor(name) { this.name = name; this.d = []; this.frozen = 0; }
+  getName() { return this.name; }
+  getLastRow() { let n = 0; this.d.forEach((r, i) => { if (r && r.join('') !== '') n = i + 1; }); return n; }
+  getLastColumn() { return this.d.reduce((m, r) => Math.max(m, r ? r.length : 0), 0); }
+  getMaxRows() { return Math.max(1000, this.d.length + 10); }
+  setFrozenRows(n) { this.frozen = n; }
+  getDataRange() { return this.getRange(1, 1, Math.max(this.getLastRow(), 1), Math.max(this.getLastColumn(), 1)); }
+  getRange(r, c, nr = 1, nc = 1) {
+    const s = this;
+    return {
+      getValues() {
+        const out = [];
+        for (let i = 0; i < nr; i++) {
+          const row = [];
+          for (let j = 0; j < nc; j++) {
+            const src = s.d[r - 1 + i];
+            row.push(src && src[c - 1 + j] !== undefined ? src[c - 1 + j] : '');
+          }
+          out.push(row);
+        }
+        return out;
+      },
+      setValues(v) {
+        v.forEach((row, i) => {
+          const ri = r - 1 + i;
+          if (!s.d[ri]) s.d[ri] = [];
+          row.forEach((val, j) => { s.d[ri][c - 1 + j] = val; });
+        });
+        return this;
+      },
+      clearContent() {
+        for (let i = 0; i < nr; i++) {
+          const ri = r - 1 + i;
+          if (s.d[ri]) for (let j = 0; j < nc; j++) s.d[ri][c - 1 + j] = '';
+        }
+        return this;
+      },
+      setNumberFormat() { return this; },
+      setFontWeight() { return this; }
+    };
+  }
+}
+
+class FakeSS {
+  constructor() { this.sheets = {}; }
+  getSheetByName(n) { return this.sheets[n] || null; }
+  insertSheet(n) { return (this.sheets[n] = new FakeSheet(n)); }
+  setSpreadsheetTimeZone() {}
+}
+
+const ss = new FakeSS();
+global.SpreadsheetApp = { getActiveSpreadsheet: () => ss, getUi: () => { throw new Error('keine UI im Mock'); } };
+global.LockService = { getScriptLock: () => ({ tryLock: () => true, releaseLock() {} }) };
+global.Utilities = {
+  getUuid: () => require('crypto').randomUUID(),
+  formatDate: (d, tz, fmt) => {
+    const p = (n) => String(n).padStart(2, '0');
+    if (fmt === 'yyyy-MM-dd') return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+  }
+};
+// Fester Zugangsschluessel, damit er zu den Tests passt, die ihn hart codieren.
+const props = { zugangsschluessel: TOKEN };
+global.PropertiesService = { getScriptProperties: () => ({ getProperty: (k) => props[k] || null, setProperty: (k, v) => { props[k] = v; } }) };
+global.ContentService = {
+  MimeType: { JSON: 'json' },
+  createTextOutput: (t) => ({ setMimeType() { return { text: t }; } })
+};
+
+for (const datei of ['Setup', 'Daten', 'Boards', 'Code']) {
+  const quelle = fs.readFileSync(`${APPS_SCRIPT}/${datei}.gs`, 'utf8');
+  (0, eval)(quelle.replace(/^function (\w+)/gm, 'global.$1 = function $1')
+                  .replace(/^var (\w+) =/gm, 'global.$1 ='));
+}
+
+// Frisch eingerichtete Tabelle mit den echten 69 Kuerzeln, genau wie in DEPLOY.md.
+setupSheets();
+importSchuelerAusText(fs.readFileSync('/home/user/kontrollboard/schueler-import.csv', 'utf8'));
+
+// --- HTTP-Server ------------------------------------------------------------
 
 http.createServer((req, res) => {
   const u = url.parse(req.url, true);
-  const cors = { 'Access-Control-Allow-Origin':'*', 'Content-Type':'application/json' };
+  const cors = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
 
   if (u.pathname === '/exec') {
     if (req.method === 'POST') {
       let rumpf = '';
-      req.on('data', d => rumpf += d);
+      req.on('data', (d) => { rumpf += d; });
       req.on('end', () => {
-        let b = {}; try { b = JSON.parse(rumpf); } catch (e) {}
-        if (b.token !== TOKEN) return res.writeHead(200, cors).end(JSON.stringify({ ok:false, fehler:'Zugang verweigert.' }));
-        if (b.aktion === 'meta') {
-          Object.assign(PAKET.meta, b.werte || {});
-          return res.writeHead(200, cors).end(JSON.stringify({ ok:true, ergebnis:{ gespeichert:Object.keys(b.werte||{}).length } }));
-        }
-        if (b.aktion === 'wochenstatus') {
-          const kw = String(b.kw || ''), auf = String(b.aufgabe || '').toUpperCase();
-          if (!/^\d{4}-W\d{2}$/.test(kw)) return res.writeHead(200, cors).end(JSON.stringify({ ok:false, fehler:'Ungültige Kalenderwoche.' }));
-          PAKET.wochenstatus = PAKET.wochenstatus.filter(w => !(w.kw === kw && w.aufgabe === auf));
-          if (b.erledigt) PAKET.wochenstatus.push({ kw, aufgabe: auf, erledigt_am: new Date().toISOString().slice(0,10) });
-          return res.writeHead(200, cors).end(JSON.stringify({ ok:true, ergebnis:{ kw, aufgabe:auf, erledigt:!!b.erledigt } }));
-        }
-        return res.writeHead(200, cors).end(JSON.stringify({ ok:false, fehler:'Unbekannte Aktion.' }));
+        const antwort = doPost({ postData: { contents: rumpf } });
+        res.writeHead(200, cors).end(antwort.text);
       });
       return;
     }
-    if (u.query.token !== TOKEN) return res.writeHead(200, cors).end(JSON.stringify({ ok:false, fehler:'Zugang verweigert. Bitte den Zugangsschlüssel in den Einstellungen prüfen.' }));
-    if (u.query.aktion === 'ping') return res.writeHead(200, cors).end(JSON.stringify({ ok:true, stand:new Date().toISOString() }));
-    if (u.query.aktion === 'laden') return res.writeHead(200, cors).end(JSON.stringify({ ok:true, daten:PAKET }));
-    return res.writeHead(200, cors).end(JSON.stringify({ ok:false, fehler:'Unbekannte Aktion.' }));
+    const antwort = doGet({ parameter: u.query });
+    res.writeHead(200, cors).end(antwort.text);
+    return;
   }
 
   let p = path.join(WURZEL, u.pathname === '/' ? 'index.html' : u.pathname);
@@ -44,4 +119,4 @@ http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': TYPEN[path.extname(p)] || 'application/octet-stream' });
     res.end(inhalt);
   });
-}).listen(8901, () => console.log('laeuft auf 8901'));
+}).listen(8901, () => console.log('laeuft auf 8901, Zugangsschluessel:', TOKEN));

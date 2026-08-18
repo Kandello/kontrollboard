@@ -13,6 +13,7 @@
 import { e, karte } from '../ui.js';
 import { name as anzeigeName, klassenlehrkraftEintrag, sortiereNachListe } from '../zuordnung.js';
 import { lehrkraftVerweis } from './start.js';
+import { zeichneBoardsWerkzeug } from './boards.js';
 import { gehe } from '../router.js';
 
 const WERKZEUGE = [
@@ -21,7 +22,8 @@ const WERKZEUGE = [
   { id: 'einheiten', titel: 'Unterrichtseinheiten', beschreibung: 'Fortschritt dieser Klasse' }
 ];
 
-export function zeichneKlasse(ziel, { daten, verbergen, klasse, werkzeug }) {
+export function zeichneKlasse(ziel, kontext) {
+  const { daten, verbergen, klasse, werkzeug } = kontext;
   const eintrag = daten.klassen.find((k) => k.klasse === klasse);
 
   if (!eintrag) {
@@ -80,9 +82,14 @@ export function zeichneKlasse(ziel, { daten, verbergen, klasse, werkzeug }) {
     return;
   }
 
-  // --- Einzelnes Werkzeug (noch Platzhalter) ------------------------------
+  // --- Einzelnes Werkzeug --------------------------------------------------
   const w = WERKZEUGE.find((x) => x.id === werkzeug);
   if (!w) { gehe('/klasse/' + encodeURIComponent(klasse), { ersetzen: true }); return; }
+
+  if (werkzeug === 'boards') {
+    zeichneBoardsWerkzeug(ziel, kontext);
+    return;
+  }
 
   ziel.appendChild(karte(w.titel, [
     e('div', { klasse: 'leer', style: 'padding:32px 16px' }, [

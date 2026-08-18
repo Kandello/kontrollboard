@@ -360,3 +360,74 @@ ul.tagesplan li:first-child { border-top: 0; }
 /* --- E-Mail-Verweis der Klassenlehrkraft ---------------------------------- */
 a.lehrkraft { color: inherit; text-decoration: none; border-bottom: 1px dotted var(--linie-stark); }
 a.lehrkraft:hover { color: var(--akzent); border-bottom-color: var(--akzent); }
+
+/* --- Kontrollboards --------------------------------------------------------
+   Eigener Scroll-Container mit fester Hoehe, damit sticky ueberhaupt greift
+   (Abschnitt 9, technischer Hinweis). Erste drei Spalten (Nr., Nachname,
+   Vorname) haften beim horizontalen Scrollen links, die Kopfzeile oben.
+-------------------------------------------------------------------------- */
+.board-rahmen { max-height: 72vh; }
+
+table.board-tabelle th.sticky-nr,
+table.board-tabelle td.sticky-nr    { position: sticky; left: 0;    z-index: 1; width: 46px; }
+table.board-tabelle th.sticky-nach,
+table.board-tabelle td.sticky-nach  { position: sticky; left: 46px; z-index: 1; width: 140px; }
+table.board-tabelle th.sticky-vor,
+table.board-tabelle td.sticky-vor   { position: sticky; left: 186px; z-index: 1; width: 120px; }
+
+table.board-tabelle thead th.sticky-nr,
+table.board-tabelle thead th.sticky-nach,
+table.board-tabelle thead th.sticky-vor { z-index: 3; }
+
+table.board-tabelle td.sticky-nr,
+table.board-tabelle td.sticky-nach,
+table.board-tabelle td.sticky-vor { background: var(--flaeche); }
+table.board-tabelle .nurkuerzel { font-style: italic; }
+
+.board-kopf {
+  min-width: 92px; vertical-align: top; padding-top: var(--s2);
+}
+.board-kopf-name {
+  font-family: var(--serif); font-weight: 600; font-size: 14px;
+  color: var(--text); white-space: normal; margin-bottom: 4px;
+}
+.board-kopf-werkzeuge { display: flex; gap: 2px; flex-wrap: wrap; }
+.board-kopf-werkzeuge button { min-height: 30px; min-width: 30px; padding: 2px 6px; font-size: 13px; }
+
+.board-plus { width: 52px; vertical-align: middle; text-align: center; }
+.board-plus button { min-height: 36px; min-width: 36px; padding: 0; font-size: 18px; }
+
+td.board-zelle { padding: 6px; text-align: center; }
+
+.zellzustand {
+  width: 40px; height: 40px; min-width: 40px; min-height: 40px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1.5px solid var(--linie-stark); border-radius: 8px;
+  background: var(--flaeche); font-size: 18px; line-height: 1; padding: 0;
+  color: var(--text-sehrleis);
+}
+.zellzustand:hover { border-color: var(--akzent); }
+.zellzustand.zustand-haken {
+  background: var(--akzent); border-color: var(--akzent); color: #fff;
+}
+.zellzustand.zustand-teilweise {
+  background: linear-gradient(135deg, var(--warn-leis) 50%, var(--flaeche) 50%);
+  border-color: var(--warn); color: var(--warn);
+}
+.zellzustand.zustand-x {
+  background: var(--schlecht-leis); border-color: var(--schlecht); color: var(--schlecht);
+}
+.zellzustand.nurlesen { cursor: default; }
+
+.status-gut      { color: var(--gut); }
+.status-warn      { color: var(--warn); }
+.status-schlecht { color: var(--schlecht); }
+
+@media (max-width: 600px) {
+  table.board-tabelle td.sticky-nach { width: 110px; }
+  table.board-tabelle td.sticky-vor  { width: 90px; }
+  table.board-tabelle th.sticky-nach,
+  table.board-tabelle td.sticky-nach { left: 46px; }
+  table.board-tabelle th.sticky-vor,
+  table.board-tabelle td.sticky-vor  { left: 156px; }
+}
