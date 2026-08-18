@@ -156,3 +156,67 @@ function erhebungenAnlassLoeschen(klasse, kategorie_id, anlass) {
     return { entfernt: entfernt };
   });
 }
+
+/** Die beiden Beteiligungsarten — muendlich, und schriftlich (Praesentation ist darin aufgegangen). */
+var BETEILIGUNG_ARTEN = ['MUND', 'SCHR'];
+
+/**
+ * Gebuendeltes Schreiben woechentlicher Beteiligungspunkte (1-10). Anders
+ * als bei Erhebungen ist hier keine eigene id notwendig — Fach, Kuerzel,
+ * Art und Kalenderwoche identifizieren die Zeile eindeutig. `punkte: ''`
+ * loescht den Eintrag (nicht beobachtet, nicht 0 Punkte).
+ *
+ * Die Umrechnung in eine monatliche Prozentzahl passiert ausschliesslich
+ * im Client (netlify/js/noten.js) — hier liegen nur die Rohpunkte.
+ */
+function beteiligungspunkteSpeichern(aenderungen) {
+  if (!aenderungen || !aenderungen.length) return { gespeichert: 0, geloescht: 0 };
+
+  return mitSperre_(function () {
+    var zuSchreiben = [];
+    var zuLoeschen = [];
+
+    aenderungen.forEach(function (a) {
+      var kuerzel = String(a.kuerzel || '').trim();
+      var art = String(a.art || '').trim();
+      var kw = String(a.kw || '').trim();
+      var roh = a.punkte;
+
+      if (!kuerzel || !art || !kw) return;
+
+      if (!/^[0-9][A-Za-z]{1,3}-[0-9]{2}$/.test(kuerzel)) {
+        throw new Error('Ungültiges Kürzel: ' + kuerzel);
+      }
+      if (BETEILIGUNG_ARTEN.indexOf(art) === -1) {
+        throw new Error('Unbekannte Beteiligungsart: ' + art);
+      }
+      if (!/^\d{4}-W\d{2}$/.test(kw)) {
+        throw new Error('Ungültige Kalenderwoche: ' + kw);
+      }
+
+      var schluessel = [FACH, kuerzel, art, kw];
+
+      if (roh === '' || roh === null || roh === undefined) {
+        zuLoeschen.push(schluessel);
+        return;
+      }
+
+      var punkte = Number(roh);
+      if (!Number.isInteger(punkte) || punkte < 1 || punkte > 10) {
+        throw new Error('Punkte für ' + kuerzel + ' müssen zwischen 1 und 10 liegen: ' + roh);
+      }
+
+      zuSchreiben.push({ fach: FACH, kuerzel: kuerzel, art: art, kw: kw, punkte: punkte });
+    });
+
+    var gespeichert = 0, geloescht = 0;
+    if (zuSchreiben.length) {
+      var r = schreibeNachSchluessel_('Beteiligungspunkte', zuSchreiben, ['fach', 'kuerzel', 'art', 'kw']);
+      gespeichert = r.aktualisiert + r.neu;
+    }
+    if (zuLoeschen.length) {
+      geloescht = loescheNachSchluessel_('Beteiligungspunkte', ['fach', 'kuerzel', 'art', 'kw'], zuLoeschen);
+    }
+    return { gespeichert: gespeichert, geloescht: geloescht };
+  });
+}

@@ -140,6 +140,9 @@ function doPost(e) {
         return antwort_({ ok: true, ergebnis:
           erhebungenAnlassLoeschen(rumpf.klasse, rumpf.kategorie_id, rumpf.anlass) });
 
+      case 'beteiligungspunkte':
+        return antwort_({ ok: true, ergebnis: beteiligungspunkteSpeichern(rumpf.aenderungen) });
+
       case 'schuelerImport':
         return antwort_({ ok: true, ergebnis: importSchuelerAusText(rumpf.csv || '') });
 

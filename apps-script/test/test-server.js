@@ -86,7 +86,7 @@ const pruefe = (name, ist, soll) => {
 
 console.log('=== setupSheets ===');
 const b1 = setupSheets();
-pruefe('alle 17 Blaetter angelegt', b1.angelegt.length, 17);
+pruefe('alle 18 Blaetter angelegt', b1.angelegt.length, 18);
 pruefe('Stundenplan 22 Zeilen', holeBlatt_('Stundenplan').getLastRow() - 1, 22);
 pruefe('Kategorien 3 Zeilen', holeBlatt_('Kategorien').getLastRow() - 1, 3);
 pruefe('Notenschluessel 6 Zeilen', holeBlatt_('Notenschluessel').getLastRow() - 1, 6);
@@ -94,7 +94,7 @@ pruefe('Notenschluessel 6 Zeilen', holeBlatt_('Notenschluessel').getLastRow() - 
 console.log('\n=== setupSheets erneut (darf nichts zerstoeren) ===');
 const b2 = setupSheets();
 pruefe('nichts neu angelegt', b2.angelegt.length, 0);
-pruefe('alle unveraendert', b2.unveraendert.length, 17);
+pruefe('alle unveraendert', b2.unveraendert.length, 18);
 pruefe('Stundenplan weiterhin 22', holeBlatt_('Stundenplan').getLastRow() - 1, 22);
 
 console.log('\n=== importSchuelerAusText ===');
@@ -553,7 +553,7 @@ console.log('\n=== Noten: Erhebungen speichern, aendern, loeschen ===');
   const r = erhebungenSpeichern([
     { kuerzel: '3L-01', kategorie_id: 'TEST', anlass: 'Test 1', datum: '2026-09-15', wert: 96 },
     { kuerzel: '3L-02', kategorie_id: 'TEST', anlass: 'Test 1', datum: '2026-09-15', wert: 82 },
-    { kuerzel: '3L-01', kategorie_id: 'PART', anlass: '2026-09', datum: '2026-09-30', wert: 90 }
+    { kuerzel: '3L-01', kategorie_id: 'MUND', anlass: '2026-09', datum: '2026-09-30', wert: 90 }
   ]);
   pruefe('drei Erhebungen gespeichert', r.gespeichert, 3);
   pruefe('drei in ladeAlles', ladeAlles().erhebungen.length, 3);
@@ -627,7 +627,7 @@ console.log('\n=== Noten: ueber doPost erreichbar ===');
   const t = holeToken_();
   const p = JSON.parse(doPost({ postData: { contents: JSON.stringify({
     token: t, aktion: 'erhebungen', aenderungen: [
-      { kuerzel: '3OB-11', kategorie_id: 'PRES', anlass: '2026-10', datum: '2026-10-31', wert: 88 }
+      { kuerzel: '3OB-11', kategorie_id: 'SCHR', anlass: '2026-10', datum: '2026-10-31', wert: 88 }
     ] }) } }).text);
   pruefe('erhebungen ueber doPost', p.ok, true);
   pruefe('Wert liegt in der Tabelle',
@@ -635,7 +635,7 @@ console.log('\n=== Noten: ueber doPost erreichbar ===');
 
   const p2 = JSON.parse(doPost({ postData: { contents: JSON.stringify({
     token: 'falsch', aktion: 'erhebungen', aenderungen: [
-      { kuerzel: '3OB-11', kategorie_id: 'PRES', anlass: '2026-11', datum: '2026-11-30', wert: 50 }
+      { kuerzel: '3OB-11', kategorie_id: 'SCHR', anlass: '2026-11', datum: '2026-11-30', wert: 50 }
     ] }) } }).text);
   pruefe('falscher Token abgewiesen', p2.ok, false);
   pruefe('nichts geschrieben',
@@ -646,6 +646,84 @@ console.log('\n=== Noten: keine Klarnamen im Datenpaket ===');
 {
   const roh = JSON.stringify(ladeAlles());
   pruefe('kein Klarname in Erhebungen/Tests sichtbar',
+    /Musterfrau|Beispiel|Anna|Ben|Bruno/.test(roh), false);
+}
+
+console.log('\n=== Beteiligungspunkte: speichern, aendern, loeschen ===');
+{
+  const r = beteiligungspunkteSpeichern([
+    { kuerzel: '3L-01', art: 'MUND', kw: '2026-W37', punkte: 8 },
+    { kuerzel: '3L-01', art: 'SCHR', kw: '2026-W37', punkte: 6 },
+    { kuerzel: '3L-02', art: 'MUND', kw: '2026-W37', punkte: 9 }
+  ]);
+  pruefe('drei Punkte gespeichert', r.gespeichert, 3);
+  pruefe('drei in ladeAlles', ladeAlles().beteiligungspunkte.length, 3);
+  pruefe('Punkte korrekt',
+    ladeAlles().beteiligungspunkte.find(b => b.kuerzel === '3L-01' && b.art === 'MUND').punkte, 8);
+
+  // Aendern: gleiche Kombination, neuer Wert -> keine Dublette.
+  beteiligungspunkteSpeichern([{ kuerzel: '3L-01', art: 'MUND', kw: '2026-W37', punkte: 10 }]);
+  pruefe('keine Dublette', ladeAlles().beteiligungspunkte.length, 3);
+  pruefe('Punkte aktualisiert',
+    ladeAlles().beteiligungspunkte.find(b => b.kuerzel === '3L-01' && b.art === 'MUND').punkte, 10);
+
+  // Leerer Wert loescht die Zeile (nicht beobachtet, nicht 0 Punkte).
+  beteiligungspunkteSpeichern([{ kuerzel: '3L-02', art: 'MUND', kw: '2026-W37', punkte: '' }]);
+  pruefe('leerer Wert entfernt die Zeile', ladeAlles().beteiligungspunkte.length, 2);
+}
+
+console.log('\n=== Beteiligungspunkte: unsinnige Eingaben werden abgewiesen ===');
+{
+  const vorher = ladeAlles().beteiligungspunkte.length;
+  let m = '';
+  try { beteiligungspunkteSpeichern([{ kuerzel: 'Mustermann', art: 'MUND', kw: '2026-W37', punkte: 5 }]); }
+  catch (e) { m = e.message; }
+  pruefe('Name statt Kuerzel abgewiesen', /Ungültiges Kürzel/.test(m), true);
+
+  m = '';
+  try { beteiligungspunkteSpeichern([{ kuerzel: '3L-01', art: 'QUATSCH', kw: '2026-W37', punkte: 5 }]); }
+  catch (e) { m = e.message; }
+  pruefe('unbekannte Art abgewiesen', /Unbekannte Beteiligungsart/.test(m), true);
+
+  m = '';
+  try { beteiligungspunkteSpeichern([{ kuerzel: '3L-01', art: 'MUND', kw: '37', punkte: 5 }]); }
+  catch (e) { m = e.message; }
+  pruefe('ungueltige Kalenderwoche abgewiesen', /Ungültige Kalenderwoche/.test(m), true);
+
+  m = '';
+  try { beteiligungspunkteSpeichern([{ kuerzel: '3L-01', art: 'MUND', kw: '2026-W37', punkte: 11 }]); }
+  catch (e) { m = e.message; }
+  pruefe('über 10 Punkte abgewiesen', /zwischen 1 und 10/.test(m), true);
+
+  m = '';
+  try { beteiligungspunkteSpeichern([{ kuerzel: '3L-01', art: 'MUND', kw: '2026-W37', punkte: 0 }]); }
+  catch (e) { m = e.message; }
+  pruefe('0 Punkte abgewiesen (nicht beobachtet heißt leer, nicht 0)', /zwischen 1 und 10/.test(m), true);
+
+  m = '';
+  try { beteiligungspunkteSpeichern([{ kuerzel: '3L-01', art: 'MUND', kw: '2026-W37', punkte: 5.5 }]); }
+  catch (e) { m = e.message; }
+  pruefe('Kommazahl abgewiesen', /zwischen 1 und 10/.test(m), true);
+
+  pruefe('nach allen Fehlern nichts geschrieben', ladeAlles().beteiligungspunkte.length, vorher);
+}
+
+console.log('\n=== Beteiligungspunkte: ueber doPost erreichbar ===');
+{
+  const t = holeToken_();
+  const p = JSON.parse(doPost({ postData: { contents: JSON.stringify({
+    token: t, aktion: 'beteiligungspunkte', aenderungen: [
+      { kuerzel: '3M-05', art: 'SCHR', kw: '2026-W38', punkte: 7 }
+    ] }) } }).text);
+  pruefe('beteiligungspunkte ueber doPost', p.ok, true);
+  pruefe('Punkt liegt in der Tabelle',
+    ladeAlles().beteiligungspunkte.some(b => b.kuerzel === '3M-05' && b.punkte === 7), true);
+}
+
+console.log('\n=== Beteiligungspunkte: keine Klarnamen im Datenpaket ===');
+{
+  const roh = JSON.stringify(ladeAlles());
+  pruefe('kein Klarname in Beteiligungspunkten sichtbar',
     /Musterfrau|Beispiel|Anna|Ben|Bruno/.test(roh), false);
 }
 

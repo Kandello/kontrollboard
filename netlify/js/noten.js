@@ -18,6 +18,8 @@
  * DATENSCHUTZ: Hier laufen ausschliesslich Kuerzel und Zahlen durch.
  */
 
+import { isoWoche } from './zeit.js';
+
 /**
  * Die Notenstufen. Ein Kind bekommt die erste Stufe, deren Mindestprozent
  * es erreicht — deshalb ist die Reihenfolge absteigend verbindlich.
@@ -194,4 +196,58 @@ export function gewichteFuer(daten, fach) {
     .filter((g) => !g.fach || g.fach === fach)
     .forEach((g) => { gewichte[g.gruppe] = (gewichte[g.gruppe] || 0) + g.gewicht; });
   return gewichte;
+}
+
+// --- Beteiligung: woechentliche Punkte -> monatliche Prozentzahl -----------
+//
+// Seit diesem Schuljahr wird Beteiligung nicht mehr direkt in Prozent
+// geschaetzt, sondern woechentlich mit 1-10 Punkten bewertet (10 = sehr
+// gut). Die Kategorien MUENDlich/SCHRiftlich bekommen ihren monatlichen
+// Prozentwert dadurch automatisch: Punkteschnitt des Monats × 10,
+// kaufmaennisch aufgerundet — dieselbe runde()-Regel wie ueberall sonst.
+// Das Ergebnis wird als gewoehnliche Erhebung behandelt (Kategorie MUND
+// oder SCHR, Anlass = Monat) und braucht deshalb keine eigene Rechenlogik
+// in werteAus() — die vorhandene Saeulen-Mittelung greift unveraendert.
+
+/** Die beiden Beteiligungsarten. Praesentation ist in „schriftlich" aufgegangen. */
+export const BETEILIGUNG_ARTEN = ['MUND', 'SCHR'];
+
+/**
+ * Alle Montags-Kalenderwochen ('JJJJ-Www'), die in einen Kalendermonat
+ * fallen — eine Woche gehoert zu dem Monat, in dem ihr Montag liegt.
+ */
+export function wochenDesMonats(jahr, monatNr) {
+  const letzterTag = new Date(Date.UTC(jahr, monatNr, 0)).getUTCDate();
+  const wochen = [];
+  for (let tag = 1; tag <= letzterTag; tag++) {
+    const d = new Date(Date.UTC(jahr, monatNr - 1, tag));
+    if (d.getUTCDay() === 1) {
+      const { jahr: j, woche } = isoWoche({ jahr, monat: monatNr, tag });
+      wochen.push(`${j}-W${String(woche).padStart(2, '0')}`);
+    }
+  }
+  return wochen;
+}
+
+/** Punkteschnitt (1-10) eines Monats in eine Prozentzahl — null ohne Eintrag. */
+export function beteiligungProzent(punkteliste) {
+  const schnitt = mittel(punkteliste);
+  return schnitt === null ? null : runde(schnitt * 10);
+}
+
+/** Punkte eines Kindes fuer eine Art in einer bestimmten Woche — null ohne Eintrag. */
+export function punkteFuer(daten, kuerzel, art, kw) {
+  const treffer = daten.beteiligungspunkte.find(
+    (b) => b.kuerzel === kuerzel && b.art === art && b.kw === kw
+  );
+  return treffer ? treffer.punkte : null;
+}
+
+/** Prozentzahl eines Kindes fuer eine Beteiligungsart in einem Kalendermonat. */
+export function beteiligungProzentFuer(daten, kuerzel, art, jahr, monatNr) {
+  const wochen = wochenDesMonats(jahr, monatNr);
+  const punkte = wochen
+    .map((kw) => punkteFuer(daten, kuerzel, art, kw))
+    .filter((p) => typeof p === 'number');
+  return beteiligungProzent(punkte);
 }

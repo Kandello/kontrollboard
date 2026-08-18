@@ -59,6 +59,14 @@ await p.locator('input[aria-label="Thema des Tests"]').blur(); await p.waitForTi
 await p.locator('input.notenfeld').first().fill('96');
 await p.waitForTimeout(1400); // Debounce abwarten.
 
+// Beteiligungspunkte fuer ein zugeordnetes Kind erfassen — auch die
+// woechentlichen Punkte und die daraus abgeleitete Monatsnote duerfen nur
+// das Kuerzel enthalten.
+await knopf('Beteiligung').click(); await p.waitForTimeout(400);
+await p.locator('.werkzeug').first().click(); await p.waitForTimeout(400);
+await p.locator('input.notenfeld').first().fill('8');
+await p.waitForTimeout(1400); // Debounce abwarten.
+
 // Durch alle Ansichten laufen, damit jeder Serveraufruf erfasst wird.
 for (const pfad of ['#/', '#/klasse/3L', '#/noten', '#/noten/3L', '#/checklisten', '#/checklisten/3L',
                     '#/klasse/3M', '#/klasse/3OB/einheiten', '#/einstellungen']) {
@@ -102,6 +110,20 @@ if (!notenAufruf) schlecht++;
 const noteKuerzel = notenAufruf && notenAufruf.rumpf.includes('3L-01');
 console.log(`${noteKuerzel ? 'OK  ' : 'FEHL'}  … und enthält das Kürzel, nicht den Namen`);
 if (!noteKuerzel) schlecht++;
+
+// Und: wurden die Beteiligungspunkte wirklich gesendet (mit Kuerzel, ohne Namen)?
+const punkteAufruf = verkehr.find(v => v.rumpf.includes('"aktion":"beteiligungspunkte"'));
+console.log(`${punkteAufruf ? 'OK  ' : 'FEHL'}  Beteiligungspunkte werden uebertragen`);
+if (!punkteAufruf) schlecht++;
+const punkteKuerzel = punkteAufruf && punkteAufruf.rumpf.includes('3L-01');
+console.log(`${punkteKuerzel ? 'OK  ' : 'FEHL'}  … und enthalten das Kürzel, nicht den Namen`);
+if (!punkteKuerzel) schlecht++;
+// Die daraus abgeleitete Monatsnote (Kategorie MUND) laeuft ueber denselben
+// erhebungen-Aufruf wie oben schon geprueft — hier zusaetzlich sicherstellen,
+// dass mindestens einer der erhebungen-Aufrufe die Kategorie MUND trägt.
+const mundAufruf = verkehr.some(v => v.rumpf.includes('"kategorie_id":"MUND"'));
+console.log(`${mundAufruf ? 'OK  ' : 'FEHL'}  abgeleitete Beteiligungsnote (MUND) wird uebertragen`);
+if (!mundAufruf) schlecht++;
 
 console.log(schlecht === 0 ? '\nKEIN NAME HAT DAS GERAET VERLASSEN' : `\n${schlecht} PROBLEM(E)`);
 await b.close();

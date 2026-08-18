@@ -58,22 +58,11 @@ pruefe('keine JS-Fehler bisher', fehler.length, 0);
 console.log('\n=== Testkacheln: drei Tests je Halbjahr, Thema als kleine Zeile ===');
 {
   const titel = await p.locator('.werkzeug .titel').allInnerTexts();
-  pruefe('drei Tests', titel.slice(0, 3), ['Test 1', 'Test 2', 'Test 3']);
-  pruefe('erstes Halbjahr hat sechs Monate (August bis Januar)',
-    titel.slice(3), ['August', 'September', 'Oktober', 'November', 'Dezember', 'Januar']);
+  pruefe('genau drei Tests, keine Monatskacheln mehr in der Erfassung', titel, ['Test 1', 'Test 2', 'Test 3']);
   pruefe('Thema anfangs leer',
     (await kachel('Test 1').innerText()).includes('Thema noch nicht eingetragen'), true);
   pruefe('Erfassungsstand anfangs leer',
     (await kachel('Test 1').innerText()).includes('noch nichts erfasst'), true);
-}
-
-console.log('\n=== Zweites Halbjahr zeigt die anderen Monate ===');
-{
-  await knopf('Zweites Halbjahr').click(); await p.waitForTimeout(400);
-  const titel = await p.locator('.werkzeug .titel').allInnerTexts();
-  pruefe('zweites Halbjahr: Februar bis Juli',
-    titel.slice(3), ['Februar', 'März', 'April', 'Mai', 'Juni', 'Juli']);
-  await knopf('Erstes Halbjahr').click(); await p.waitForTimeout(400);
 }
 
 console.log('\n=== Test erfassen: Thema und Werte ===');
@@ -133,17 +122,40 @@ console.log('\n=== Werte überstehen ein Neuladen ===');
   await knopf('Zurück').click(); await p.waitForTimeout(400);
 }
 
-console.log('\n=== Mitarbeit und Präsentation: zwei Felder je Kind ===');
+console.log('\n=== Beteiligung: eigene Ansicht, Monat- und Wochenwahl, 1-10 Punkte ===');
 {
+  await knopf('Beteiligung').click(); await p.waitForTimeout(400);
+  const monate = await p.locator('.werkzeug .titel').allInnerTexts();
+  pruefe('sechs Monate im ersten Halbjahr', monate, ['August', 'September', 'Oktober', 'November', 'Dezember', 'Januar']);
+  pruefe('Fortschritt anfangs leer',
+    (await kachel('September').innerText()).includes('noch nichts erfasst'), true);
+
   await kachel('September').click(); await p.waitForTimeout(400);
-  pruefe('zwei Felder je Kind', await p.locator('input.notenfeld').count(), 46);
-  pruefe('kein Themenfeld bei Monaten', await p.locator('input[aria-label="Thema des Tests"]').count(), 0);
+  pruefe('vier Wochen im September', await p.locator('[role="group"][aria-label="Woche wählen"] button').count(), 4);
+  pruefe('zwei Felder je Kind (mündlich, schriftlich)', await p.locator('input.notenfeld').count(), 46);
+  pruefe('kein Themenfeld hier', await p.locator('input[aria-label="Thema des Tests"]').count(), 0);
+  pruefe('Monatsspalten in Prozent im Kopf',
+    (await p.locator('table.liste thead').innerText()).includes('Mündlich Monat (%)'), true);
 
   const felder = p.locator('input.notenfeld');
-  await felder.nth(0).fill('90');   // Participation, erstes Kind
-  await felder.nth(1).fill('80');   // Presentation, erstes Kind
+  await felder.nth(0).fill('9');   // Mündlich, erstes Kind, Woche 1
+  await felder.nth(1).fill('8');   // Schriftlich, erstes Kind, Woche 1
+
+  const zeile = await p.locator('table.liste tbody tr').first().innerText();
+  pruefe('Monatsprozent aktualisiert sich sofort, ohne auf den Server zu warten',
+    zeile.includes('90 %') && zeile.includes('80 %'), true);
+
   await p.waitForTimeout(1400);
+  pruefe('Punkte wurden gesendet',
+    aufrufe.some((a) => a.aktion === 'beteiligungspunkte' &&
+      a.aenderungen.some((x) => x.kuerzel === '3L-01' && x.art === 'MUND' && x.punkte === '9')), true);
+  pruefe('daraus abgeleitete Monatsnote wurde als Erhebung gesendet',
+    aufrufe.some((a) => a.aktion === 'erhebungen' &&
+      a.aenderungen.some((x) => x.kuerzel === '3L-01' && x.kategorie_id === 'MUND' && x.wert === 90)), true);
+
   await knopf('Zurück').click(); await p.waitForTimeout(400);
+  pruefe('Fortschritt auf der Monatskachel', (await kachel('September').innerText()).includes('1 von 4 Wochen erfasst'), true);
+  await knopf('Erfassung').click(); await p.waitForTimeout(300);
 }
 
 console.log('\n=== Übersicht rechnet wie die bisherige Tabelle ===');
@@ -153,16 +165,16 @@ console.log('\n=== Übersicht rechnet wie die bisherige Tabelle ===');
   pruefe('Gewichte stehen in den Spaltenköpfen',
     kopf.includes('80 %') && kopf.includes('20 %'), true);
 
-  // Erstes Kind: Test 96, Mitarbeit (90+80)/2 = 85 -> 96*0,8 + 85*0,2 = 93,8 -> 94 -> Note 1
+  // Erstes Kind: Test 96, Beteiligung (90+80)/2 = 85 -> 96*0,8 + 85*0,2 = 93,8 -> 94 -> Note 1
   const zeile = (await p.locator('table.liste tbody tr').first().innerText()).split('\t');
   pruefe('Testmittel', zeile[3], '96.0');
-  pruefe('Mitarbeit ist das Mittel der beiden Mittelwerte', zeile[4], '85.0');
+  pruefe('Beteiligung ist das Mittel aus mündlich (90 %) und schriftlich (80 %)', zeile[4], '85.0');
   pruefe('Gesamt aufgerundet', zeile[5], '94');
   pruefe('Note', zeile[6], '1');
 
-  // Zweites Kind hat nur einen Testwert, keine Mitarbeit -> Gewicht wandert.
+  // Zweites Kind hat nur einen Testwert, keine Beteiligung -> Gewicht wandert.
   const zwei = (await p.locator('table.liste tbody tr').nth(1).innerText()).split('\t');
-  pruefe('ohne Mitarbeit zählt der Test allein', zwei[5], '82');
+  pruefe('ohne Beteiligung zählt der Test allein', zwei[5], '82');
   pruefe('Note dazu', zwei[6], '2');
 
   // Kind ganz ohne Werte bekommt keine Note, keine Sechs.

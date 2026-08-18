@@ -19,7 +19,7 @@ var FACH = 'DE';
 var TRENNER = '\u0000';
 
 /** Blaetter, die eine fach-Spalte tragen und danach gefiltert werden. */
-var MIT_FACH = ['Erhebungen', 'Gruppengewichte', 'Boards', 'Einheiten', 'Schueler', 'Tests'];
+var MIT_FACH = ['Erhebungen', 'Gruppengewichte', 'Boards', 'Einheiten', 'Schueler', 'Tests', 'Beteiligungspunkte'];
 
 function holeBlatt_(name) {
   var blatt = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name);
@@ -294,6 +294,19 @@ function ladeAlles() {
         halbjahr: alsZahl_(z.halbjahr) || 0,
         nummer: alsZahl_(z.nummer) || 0,
         thema: alsText_(z.thema)
+      };
+    }),
+
+    // Woechentliche 1-10-Punkte fuer muendliche/schriftliche Beteiligung.
+    // Die monatliche Prozentzahl daraus ist eine gewoehnliche Erhebung
+    // (Kategorie MUND/SCHR) — hier stehen nur die Rohpunkte, fuer die
+    // Wochenansicht und damit nichts nachtraeglich verschwindet.
+    beteiligungspunkte: liesBlatt_('Beteiligungspunkte').map(function (z) {
+      return {
+        kuerzel: alsText_(z.kuerzel),
+        art: alsText_(z.art),
+        kw: alsText_(z.kw),
+        punkte: alsZahl_(z.punkte)
       };
     }),
 

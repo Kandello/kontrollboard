@@ -10,7 +10,8 @@
 import fs from 'fs';
 import {
   runde, mittel, mitarbeitMittel, noteFuer, gesamtProzent, werteAus,
-  halbjahrVon, schuljahrVon, erhebungenFuer, gewichteFuer, NOTENSCHLUESSEL
+  halbjahrVon, schuljahrVon, erhebungenFuer, gewichteFuer, NOTENSCHLUESSEL,
+  wochenDesMonats, beteiligungProzent, punkteFuer, beteiligungProzentFuer
 } from '../js/noten.js';
 
 let n = 0, schlecht = 0;
@@ -170,6 +171,49 @@ console.log('\n=== Prüffall: 22 Kinder aus der bisherigen Tabelle ===');
     const e = werteAus(erhebungen, { kategorien: KATEGORIEN, gewichte: GEWICHTE });
     pruefe(`  ,5-Fall wird aufgerundet (${e.prozent}%)`, e.prozent, halb.sollGesamt);
   }
+}
+
+console.log('\n=== Beteiligung: Wochen eines Monats ===');
+{
+  // September 2026: Montage am 7., 14., 21. und 28. -> KW 37-40.
+  pruefe('vier Montage im September 2026', wochenDesMonats(2026, 9),
+    ['2026-W37', '2026-W38', '2026-W39', '2026-W40']);
+
+  // Januar 2027: erster Montag ist der 4. -> KW gehoert bereits zu 2027.
+  const wochenJan = wochenDesMonats(2027, 1);
+  pruefe('erste Woche im Januar 2027 beginnt mit dem richtigen Jahr',
+    wochenJan[0], '2027-W01');
+}
+
+console.log('\n=== Beteiligung: Punkteschnitt -> Prozent ===');
+{
+  pruefe('Schnitt 8,0 wird 80 %', beteiligungProzent([7, 8, 9, 8]), 80);
+  pruefe('Schnitt genau auf ,5 wird aufgerundet', beteiligungProzent([7, 8]), 75);
+  pruefe('ein einzelner Wert', beteiligungProzent([10]), 100);
+  pruefe('keine Punkte ergibt null, nicht 0 %', beteiligungProzent([]), null);
+  pruefe('Luecken zaehlen nicht mit', beteiligungProzent([8, null, 8]), 80);
+}
+
+console.log('\n=== Beteiligung: Punkte und Prozent eines Kindes ===');
+{
+  const daten = { beteiligungspunkte: [
+    { kuerzel: '3L-01', art: 'MUND', kw: '2026-W37', punkte: 8 },
+    { kuerzel: '3L-01', art: 'MUND', kw: '2026-W38', punkte: 6 },
+    { kuerzel: '3L-01', art: 'SCHR', kw: '2026-W37', punkte: 10 },
+    { kuerzel: '3L-02', art: 'MUND', kw: '2026-W37', punkte: 2 }
+  ] };
+  pruefe('Punkte einer bestimmten Woche', punkteFuer(daten, '3L-01', 'MUND', '2026-W37'), 8);
+  pruefe('ohne Eintrag null', punkteFuer(daten, '3L-01', 'MUND', '2026-W40'), null);
+  pruefe('anderes Kind bleibt unberührt', punkteFuer(daten, '3L-02', 'MUND', '2026-W37'), 2);
+
+  // September 2026 hat vier Wochen (37-40); 3L-01/MUND hat nur in KW37+38
+  // Punkte -> Schnitt (8+6)/2=7 -> 70%. KW39/40 fehlen und zaehlen nicht mit.
+  pruefe('Monatsprozent aus den vorhandenen Wochen',
+    beteiligungProzentFuer(daten, '3L-01', 'MUND', 2026, 9), 70);
+  pruefe('andere Art desselben Kindes unabhängig',
+    beteiligungProzentFuer(daten, '3L-01', 'SCHR', 2026, 9), 100);
+  pruefe('Kind ganz ohne Punkte in dem Monat: null',
+    beteiligungProzentFuer(daten, '3L-09', 'MUND', 2026, 9), null);
 }
 
 console.log('\n=== Kind ohne jede Erhebung ===');

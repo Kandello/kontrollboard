@@ -15,6 +15,7 @@ var SCHEMA = {
   Gruppengewichte:    ['fach', 'gruppe', 'gewicht'],
   Erhebungen:         ['id', 'datum', 'fach', 'kuerzel', 'kategorie_id', 'anlass', 'wert', 'notiz', 'geloescht'],
   Tests:              ['fach', 'schuljahr', 'halbjahr', 'nummer', 'thema'],
+  Beteiligungspunkte: ['fach', 'kuerzel', 'art', 'kw', 'punkte'],
   Notenschluessel:    ['note', 'min_prozent'],
   Boards:             ['id', 'fach', 'titel', 'untertitel', 'labels', 'status', 'erstellt_am', 'archiviert_am'],
   BoardSpalten:       ['id', 'board_id', 'bezeichnung', 'reihenfolge'],
@@ -37,6 +38,7 @@ var TEXTSPALTEN = {
   Stundenplan:        ['von', 'bis', 'klasse'],
   Erhebungen:         ['id', 'datum', 'kuerzel', 'anlass'],
   Tests:              ['thema'],
+  Beteiligungspunkte: ['kuerzel', 'kw'],
   Boards:             ['id', 'erstellt_am', 'archiviert_am'],
   BoardSpalten:       ['id', 'board_id'],
   BoardWerte:         ['board_id', 'spalte_id', 'kuerzel', 'geaendert_am'],
@@ -55,11 +57,17 @@ var VORBELEGUNG = {
    * (Assessment 50 % UND Quiz 30 % mit identischem Wert). Da der Wert hier
    * nur einmal erfasst wird, steht dafuer eine Kategorie „Test" mit dem
    * zusammengezogenen Gewicht von 80 % — rechnerisch dasselbe Ergebnis.
+   *
+   * Beteiligung ist seit diesem Schuljahr in „muendlich" und „schriftlich"
+   * geteilt; Presentation ist darin aufgegangen (schriftlich), nicht mehr
+   * eigenstaendig. Beide werden aus woechentlichen 1-10-Punkten hergeleitet
+   * (siehe Noten.gs, beteiligungspunkteSpeichern) statt direkt in Prozent
+   * erfasst — die Kategorien selbst bleiben aber gewoehnliche Erhebungen.
    */
   Kategorien: [
-    ['TEST', 'Test',          'TEST', 1, true],
-    ['PART', 'Participation', 'PP',   2, true],
-    ['PRES', 'Presentation',  'PP',   3, true]
+    ['TEST', 'Test',                              'TEST', 1, true],
+    ['MUND', 'Mündliche Beteiligung',             'PP',   2, true],
+    ['SCHR', 'Schriftliche Beteiligung & Präsentation', 'PP', 3, true]
   ],
   Gruppengewichte: [
     ['DE', 'TEST', 0.8],
