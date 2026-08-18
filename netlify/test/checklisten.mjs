@@ -1,9 +1,10 @@
 /**
- * Prueft die Kontrollboards: Anlegen, Spalten, vier Zustaende, gebuendeltes
- * verzoegertes Speichern, Zuruecksetzen, Archiv.
+ * Prueft die Checklisten: Anlegen, geteilt ueber alle Klassen, Spalten, vier
+ * Zustaende, sofortige lokale Anzeige bei Strukturaenderungen, gebuendeltes
+ * verzoegertes Speichern der Zellwerte, Zuruecksetzen, Archiv.
  *
- *   node mock.js &     (mit leerem Board-Bestand starten)
- *   node boards.mjs
+ *   node mock.js &     (mit leerem Checklisten-Bestand starten)
+ *   node checklisten.mjs
  */
 
 import { chromium } from 'playwright';
@@ -27,15 +28,31 @@ const fehler = [];
 p.on('pageerror', (e) => fehler.push('PAGEERROR: ' + e.message));
 p.on('console', (m) => { if (m.type() === 'error') fehler.push('CONSOLE: ' + m.text()); });
 
-const boardWerteAufrufe = [];
+const aufrufe = [];
 p.on('request', (r) => {
   if (!r.url().includes('/exec') || r.method() !== 'POST') return;
   let b = {};
   try { b = JSON.parse(r.postData() || '{}'); } catch (e) {}
-  if (b.aktion === 'boardWerte') boardWerteAufrufe.push(b.aenderungen);
+  aufrufe.push(b);
 });
+const boardWerteAufrufe = () => aufrufe.filter((a) => a.aktion === 'boardWerte').map((a) => a.aenderungen);
 
 const knopf = (t) => p.locator('button', { hasText: t }).first();
+// Welche Checkliste zuletzt offen war, ist reine Anzeigesache und übersteht
+// bewusst kein Neuladen — anders als die gespeicherten Haken selbst. Nach
+// jedem reload() also gezielt wieder auswählen, statt uns auf den
+// Startzustand (alphabetisch erste Checkliste) zu verlassen.
+const waehleCheckliste = async (titel) => {
+  await p.selectOption('select[aria-label="Checkliste auswählen"]', { label: titel });
+  await p.waitForTimeout(200);
+};
+const wartetAuf = async (bedingung, versuche = 20) => {
+  for (let i = 0; i < versuche; i++) {
+    if (bedingung()) return true;
+    await p.waitForTimeout(100);
+  }
+  return bedingung();
+};
 
 await p.goto(B + '/');
 await p.evaluate(({ url, token }) => localStorage.setItem('kz.verbindung', JSON.stringify({ url, token })),
@@ -43,47 +60,76 @@ await p.evaluate(({ url, token }) => localStorage.setItem('kz.verbindung', JSON.
 // Ein reiner Hash-Wechsel laedt die Module nicht neu — server.js wuerde die
 // gerade gesetzte Verbindung nie einlesen. Erst ein echtes Neuladen liest sie ein.
 await p.reload();
-await p.goto(B + '#/klasse/3L/boards');
+await p.goto(B + '#/checklisten/3L');
 await p.waitForTimeout(600);
 
 console.log('=== Leerer Zustand ===');
-pruefe('Hinweis auf fehlendes Board', (await p.locator('.hinweis', { hasText: 'Noch kein Board' }).innerText()).includes('Noch kein Board'), true);
+pruefe('Hinweis auf fehlende Checkliste', (await p.locator('.hinweis', { hasText: 'Noch keine Checkliste' }).innerText()).includes('Noch keine Checkliste'), true);
 pruefe('keine JS-Fehler bisher', fehler.length, 0);
 
-console.log('\n=== Board anlegen ===');
+console.log('\n=== Checkliste anlegen: einfache Maske, sofort sichtbar ===');
 {
-  await knopf('Neues Board').click(); await p.waitForTimeout(200);
+  await knopf('Neue Checkliste').click(); await p.waitForTimeout(200);
+  pruefe('Maske hat nur drei Felder (kein "Spalten übernehmen von")',
+    await p.locator('.karte:not([hidden]) input, .karte:not([hidden]) select').count(), 3);
+
   await p.fill('input[aria-label="Titel"]', 'Materialien September');
   await p.fill('input[aria-label="Untertitel"]', 'Erster Monat');
   await p.fill('input[aria-label="Labels"]', 'Material, September');
-  await knopf('Anlegen').click(); await p.waitForTimeout(700);
+  await knopf('Anlegen').click();
+  await p.waitForTimeout(80); // absichtlich kurz: die Anzeige soll nicht auf den Server warten.
 
-  pruefe('Titel erscheint', await p.locator('h3.board-titel').innerText(), 'Materialien September');
-  pruefe('Untertitel erscheint', (await p.locator('.board-untertitel').innerText()), 'Erster Monat');
+  pruefe('Titel sofort sichtbar', await p.locator('h3.board-titel').innerText(), 'Materialien September');
+  pruefe('Untertitel sofort sichtbar', (await p.locator('.board-untertitel').innerText()), 'Erster Monat');
   const labels = await p.locator('.marke').allInnerTexts();
   pruefe('beide Labels als Chips', labels, ['Material', 'September']);
-  pruefe('Board in der Auswahl', await p.locator('select[aria-label="Board auswählen"] option').count(), 1);
+  pruefe('Checkliste sofort in der Auswahl', await p.locator('select[aria-label="Checkliste auswählen"] option').count(), 1);
+
+  pruefe('boardErstellen läuft im Hintergrund an', await wartetAuf(() => aufrufe.some((a) => a.aktion === 'boardErstellen')), true);
 }
 
-console.log('\n=== Zweites Board mit übernommenen Spalten ===');
+console.log('\n=== Spalte hinzufügen: sofort sichtbar, ohne auf den Server zu warten ===');
 {
   p.once('dialog', (d) => d.accept('Heft'));
-  await p.click('button[aria-label="Spalte hinzufügen"]'); await p.waitForTimeout(700);
+  await p.click('button[aria-label="Spalte hinzufügen"]');
+  await p.waitForTimeout(80);
+  pruefe('Spalte "Heft" sofort in der Tabelle', await p.locator('.board-kopf-name').allInnerTexts(), ['Heft']);
+
   p.once('dialog', (d) => d.accept('Stifte'));
-  await p.click('button[aria-label="Spalte hinzufügen"]'); await p.waitForTimeout(700);
-  pruefe('zwei Spalten am ersten Board', await p.locator('.board-kopf-name').count(), 2);
+  await p.click('button[aria-label="Spalte hinzufügen"]');
+  await p.waitForTimeout(80);
+  pruefe('Spalte "Stifte" sofort ergänzt', await p.locator('.board-kopf-name').allInnerTexts(), ['Heft', 'Stifte']);
 
-  await knopf('Neues Board').click(); await p.waitForTimeout(200);
-  await p.fill('input[aria-label="Titel"]', 'Materialien September (3M)');
-  await p.selectOption('select[aria-label="Spalten übernehmen von"]', { label: 'Materialien September (3L)' });
-  await knopf('Anlegen').click(); await p.waitForTimeout(700);
+  pruefe('boardSpalteHinzufuegen läuft im Hintergrund', await wartetAuf(() => aufrufe.filter((a) => a.aktion === 'boardSpalteHinzufuegen').length === 2), true);
+}
 
-  pruefe('zwei Boards in der Auswahl', await p.locator('select[aria-label="Board auswählen"] option').count(), 2);
-  pruefe('übernommene Spalten identisch benannt', await p.locator('.board-kopf-name').allInnerTexts(), ['Heft', 'Stifte']);
+console.log('\n=== Zweite Checkliste, sofort auch geteilt ===');
+{
+  await knopf('Neue Checkliste').click(); await p.waitForTimeout(200);
+  await p.fill('input[aria-label="Titel"]', 'Lesepass');
+  await knopf('Anlegen').click(); await p.waitForTimeout(80);
+  pruefe('zwei Checklisten in der Auswahl (3L)', await p.locator('select[aria-label="Checkliste auswählen"] option').count(), 2);
 
-  // Zurueck zum ersten Board fuer die weiteren Tests.
-  await p.selectOption('select[aria-label="Board auswählen"]', { label: 'Materialien September' });
-  await p.waitForTimeout(300);
+  // Zurück zur ersten Checkliste fuer die weiteren Tests.
+  await p.selectOption('select[aria-label="Checkliste auswählen"]', { label: 'Materialien September' });
+  await p.waitForTimeout(200);
+}
+
+console.log('\n=== Geteilt über alle Klassen, aber getrennte Tabellen ===');
+{
+  await p.goto(B + '#/checklisten/3M'); await p.waitForTimeout(400);
+  pruefe('beide Checklisten auch unter 3M sichtbar', await p.locator('select[aria-label="Checkliste auswählen"] option').count(), 2);
+  pruefe('dieselben Spalten unter 3M, ohne sie neu anzulegen', await p.locator('.board-kopf-name').allInnerTexts(), ['Heft', 'Stifte']);
+
+  const zelle3M = p.locator('td.board-zelle button.zellzustand').first();
+  pruefe('Zustand unter 3M ist unabhängig noch leer', await zelle3M.getAttribute('class'), 'zellzustand');
+  await zelle3M.click();
+  await p.waitForTimeout(1300); // Debounce abwarten.
+  pruefe('unter 3M gesetzt', await zelle3M.getAttribute('class'), 'zellzustand zustand-haken');
+
+  await p.goto(B + '#/checklisten/3L'); await p.waitForTimeout(400);
+  const zelle3L = p.locator('td.board-zelle button.zellzustand').first();
+  pruefe('unter 3L weiterhin leer — dieselbe Checkliste, aber getrennte Haken', await zelle3L.getAttribute('class'), 'zellzustand');
 }
 
 console.log('\n=== Vier Zustände, feste Reihenfolge, aria-Attribute ===');
@@ -112,9 +158,9 @@ console.log('\n=== Vier Zustände, feste Reihenfolge, aria-Attribute ===');
   pruefe('4: kein Symbol mehr', await zelle.innerText(), '');
 }
 
-console.log('\n=== Sofort lokal sichtbar, gebündelt verzögert gespeichert ===');
+console.log('\n=== Zellwerte: sofort lokal sichtbar, gebündelt verzögert gespeichert ===');
 {
-  boardWerteAufrufe.length = 0;
+  aufrufe.length = 0;
   const heft = p.locator('td.board-zelle button.zellzustand').nth(0);
   const stifte = p.locator('td.board-zelle button.zellzustand').nth(1);
 
@@ -123,72 +169,78 @@ console.log('\n=== Sofort lokal sichtbar, gebündelt verzögert gespeichert ==='
     await heft.getAttribute('class'), 'zellzustand zustand-haken');
   pruefe('Status zeigt "nicht gespeichert" direkt nach dem Antippen',
     (await p.locator('.status-warn').innerText()), 'nicht gespeichert');
-  pruefe('noch kein Serveraufruf ausgelöst', boardWerteAufrufe.length, 0);
+  pruefe('noch kein Serveraufruf ausgelöst', boardWerteAufrufe().length, 0);
 
   await stifte.click(); // zweite Aenderung innerhalb des Verzoegerungsfensters
   await p.waitForTimeout(300);
-  pruefe('nach 300ms immer noch kein Aufruf (Verzögerung wirkt)', boardWerteAufrufe.length, 0);
+  pruefe('nach 300ms immer noch kein Aufruf (Verzögerung wirkt)', boardWerteAufrufe().length, 0);
 
   await p.waitForTimeout(1000);
-  pruefe('nach etwa 1s genau ein gebündelter Aufruf', boardWerteAufrufe.length, 1);
-  pruefe('beide Änderungen im selben Aufruf', boardWerteAufrufe[0].length, 2);
+  pruefe('nach etwa 1s genau ein gebündelter Aufruf', boardWerteAufrufe().length, 1);
+  pruefe('beide Änderungen im selben Aufruf', boardWerteAufrufe()[0].length, 2);
   pruefe('Status zeigt "gespeichert"', await p.locator('.status-gut').innerText(), 'gespeichert');
 }
 
 console.log('\n=== Übersteht ein Neuladen (liegt wirklich in der Tabelle) ===');
 {
   await p.reload(); await p.waitForTimeout(700);
+  await waehleCheckliste('Materialien September');
   const heftNeu = p.locator('td.board-zelle button.zellzustand').nth(0);
   pruefe('Zustand nach Reload erhalten', await heftNeu.getAttribute('class'), 'zellzustand zustand-haken');
 }
 
-console.log('\n=== Spalte umbenennen ===');
+console.log('\n=== Spalte umbenennen: sofort sichtbar ===');
 {
   p.once('dialog', (d) => { pruefe('Umbenennen-Dialog zeigt aktuellen Namen', d.defaultValue(), 'Heft'); d.accept('Schulheft'); });
   await p.locator('.board-kopf-werkzeuge button[aria-label="Umbenennen"]').first().click();
-  await p.waitForTimeout(700);
-  pruefe('neue Bezeichnung übernommen', (await p.locator('.board-kopf-name').allInnerTexts())[0], 'Schulheft');
+  await p.waitForTimeout(80);
+  pruefe('neue Bezeichnung sofort übernommen', (await p.locator('.board-kopf-name').allInnerTexts())[0], 'Schulheft');
+
+  await p.reload(); await p.waitForTimeout(700);
+  await waehleCheckliste('Materialien September');
+  pruefe('übersteht Neuladen', (await p.locator('.board-kopf-name').allInnerTexts())[0], 'Schulheft');
 }
 
-console.log('\n=== Reihenfolge ändern ===');
+console.log('\n=== Reihenfolge ändern: sofort sichtbar ===');
 {
   pruefe('Ausgangsreihenfolge', await p.locator('.board-kopf-name').allInnerTexts(), ['Schulheft', 'Stifte']);
   await p.locator('.board-kopf-werkzeuge button[aria-label="Nach rechts verschieben"]').first().click();
-  await p.waitForTimeout(700);
-  pruefe('vertauscht', await p.locator('.board-kopf-name').allInnerTexts(), ['Stifte', 'Schulheft']);
+  await p.waitForTimeout(80);
+  pruefe('sofort vertauscht', await p.locator('.board-kopf-name').allInnerTexts(), ['Stifte', 'Schulheft']);
 
   await p.reload(); await p.waitForTimeout(700);
+  await waehleCheckliste('Materialien September');
   pruefe('Reihenfolge übersteht Neuladen', await p.locator('.board-kopf-name').allInnerTexts(), ['Stifte', 'Schulheft']);
 }
 
-console.log('\n=== Spalte löschen fragt nach und kaskadiert ===');
+console.log('\n=== Spalte löschen fragt nach, kaskadiert und ist sofort sichtbar ===');
 {
   // "Stifte" hat noch den Zustand aus dem gebündelten Speichern von oben.
   let dialogGesehen = false;
   p.once('dialog', (d) => { dialogGesehen = true; d.dismiss(); });
   await p.locator('.board-kopf-werkzeuge button[aria-label="Löschen"]').first().click();
-  await p.waitForTimeout(300);
+  await p.waitForTimeout(200);
   pruefe('Rückfrage erschien', dialogGesehen, true);
   pruefe('bei Abbruch bleibt die Spalte', await p.locator('.board-kopf-name').count(), 2);
 
   p.once('dialog', (d) => d.accept());
   await p.locator('.board-kopf-werkzeuge button[aria-label="Löschen"]').first().click();
-  await p.waitForTimeout(700);
-  pruefe('nach Bestätigung gelöscht', await p.locator('.board-kopf-name').allInnerTexts(), ['Schulheft']);
+  await p.waitForTimeout(80);
+  pruefe('nach Bestätigung sofort gelöscht', await p.locator('.board-kopf-name').allInnerTexts(), ['Schulheft']);
 }
 
-console.log('\n=== Zurücksetzen fragt nach und leert nur die Werte ===');
+console.log('\n=== Zurücksetzen fragt nach, leert nur die Werte und ist sofort sichtbar ===');
 {
   const zelle = p.locator('td.board-zelle button.zellzustand').first();
   pruefe('Zelle noch belegt vor dem Zurücksetzen', await zelle.getAttribute('class'), 'zellzustand zustand-haken');
 
   p.once('dialog', (d) => d.dismiss());
-  await knopf('Zurücksetzen').click(); await p.waitForTimeout(300);
+  await knopf('Zurücksetzen').click(); await p.waitForTimeout(150);
   pruefe('bei Abbruch unverändert', await p.locator('td.board-zelle button.zellzustand').first().getAttribute('class'), 'zellzustand zustand-haken');
 
   p.once('dialog', (d) => d.accept());
-  await knopf('Zurücksetzen').click(); await p.waitForTimeout(700);
-  pruefe('nach Bestätigung leer', await p.locator('td.board-zelle button.zellzustand').first().getAttribute('class'), 'zellzustand');
+  await knopf('Zurücksetzen').click(); await p.waitForTimeout(80);
+  pruefe('nach Bestätigung sofort leer', await p.locator('td.board-zelle button.zellzustand').first().getAttribute('class'), 'zellzustand');
   pruefe('Spalte bleibt erhalten', await p.locator('.board-kopf-name').count(), 1);
 }
 
@@ -201,25 +253,25 @@ console.log('\n=== Nummer zeigt listennummer, nicht die Kürzelzahl ===');
   pruefe('erste Zeile ist Listenplatz 1', ersteNr, '1');
 }
 
-console.log('\n=== Archivieren ===');
+console.log('\n=== Archivieren: sofort aus der Auswahl verschwunden ===');
 {
   let dialogGesehen = false;
   p.once('dialog', (d) => { dialogGesehen = true; d.dismiss(); });
-  await knopf('Archivieren').click(); await p.waitForTimeout(300);
+  await knopf('Archivieren').click(); await p.waitForTimeout(150);
   pruefe('Rückfrage vor dem Archivieren', dialogGesehen, true);
-  pruefe('bei Abbruch weiterhin in der Auswahl', await p.locator('select[aria-label="Board auswählen"] option').count(), 2);
+  pruefe('bei Abbruch weiterhin in der Auswahl', await p.locator('select[aria-label="Checkliste auswählen"] option').count(), 2);
 
   p.once('dialog', (d) => d.accept());
-  await knopf('Archivieren').click(); await p.waitForTimeout(700);
-  pruefe('verschwindet aus der aktiven Auswahl', await p.locator('select[aria-label="Board auswählen"] option').count(), 1);
-  const uebrig = await p.locator('select[aria-label="Board auswählen"] option').first().innerText();
-  pruefe('das andere Board bleibt aktiv', uebrig, 'Materialien September (3M)');
+  await knopf('Archivieren').click(); await p.waitForTimeout(80);
+  pruefe('verschwindet sofort aus der aktiven Auswahl', await p.locator('select[aria-label="Checkliste auswählen"] option').count(), 1);
+  const uebrig = await p.locator('select[aria-label="Checkliste auswählen"] option').first().innerText();
+  pruefe('die andere Checkliste bleibt aktiv', uebrig, 'Lesepass');
 }
 
-console.log('\n=== Archivansicht: schreibgeschützt, filterbar ===');
+console.log('\n=== Archivansicht: schreibgeschützt, filterbar, auch unter anderer Klasse ===');
 {
   await knopf('Archiv ansehen').click(); await p.waitForTimeout(400);
-  pruefe('archiviertes Board gelistet', (await p.locator('.werkzeug .titel').allInnerTexts()).includes('Materialien September'), true);
+  pruefe('archivierte Checkliste gelistet', (await p.locator('.werkzeug .titel').allInnerTexts()).includes('Materialien September'), true);
 
   await p.click('.werkzeug .titel >> text=Materialien September'); await p.waitForTimeout(400);
   pruefe('schreibgeschützte Ansicht: keine anklickbaren Zellzustände',
@@ -232,17 +284,23 @@ console.log('\n=== Archivansicht: schreibgeschützt, filterbar ===');
   // Filter nach Label, das nicht vorkommt.
   await p.selectOption('select[aria-label="Nach Label filtern"]', { label: 'September' });
   await p.waitForTimeout(300);
-  pruefe('Label "September" zeigt das Board', (await p.locator('.werkzeug .titel').count()) >= 1, true);
+  pruefe('Label "September" zeigt die Checkliste', (await p.locator('.werkzeug .titel').count()) >= 1, true);
 
   const heute = new Date(); const morgen = new Date(heute.getTime() + 86400000);
   const iso = (d) => d.toISOString().slice(0, 10);
   await p.fill('input[aria-label="Von"]', iso(morgen));
   await p.waitForTimeout(300);
   pruefe('Zeitraum in der Zukunft zeigt nichts', await p.locator('.leer').first().innerText(),
-    'Keine archivierten Boards für diese Auswahl.');
+    'Keine archivierten Checklisten für diese Auswahl.');
+  await p.fill('input[aria-label="Von"]', ''); await p.waitForTimeout(300); // Filter wieder zuruecksetzen.
 
-  await knopf('Zu den aktiven Boards').click(); await p.waitForTimeout(400);
-  pruefe('zurück bei den aktiven Boards', await p.locator('h3.board-titel').innerText(), 'Materialien September (3M)');
+  await knopf('Zu den aktiven Checklisten').click(); await p.waitForTimeout(400);
+  pruefe('zurück bei den aktiven Checklisten', await p.locator('h3.board-titel').innerText(), 'Lesepass');
+
+  // Auch unter einer anderen Klasse ist dieselbe Checkliste archiviert sichtbar.
+  await p.goto(B + '#/checklisten/3OB'); await p.waitForTimeout(400);
+  await knopf('Archiv ansehen').click(); await p.waitForTimeout(400);
+  pruefe('archivierte Checkliste auch unter 3OB sichtbar', (await p.locator('.werkzeug .titel').allInnerTexts()).includes('Materialien September'), true);
 }
 
 console.log('\n=== Ungültiges Kürzel wird serverseitig abgewiesen ===');

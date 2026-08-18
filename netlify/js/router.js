@@ -1,7 +1,7 @@
 /**
  * router.js — Navigation ueber die Fragmentkennung.
  *
- * Die aktuelle Ansicht steht in der Adresse (#/klasse/3M/boards), damit
+ * Die aktuelle Ansicht steht in der Adresse (#/klasse/3M/noten), damit
  * Zurueck-Knopf und Neuladen funktionieren. Der Wechsel loest niemals
  * einen Serveraufruf aus — die Rohdaten liegen bereits im Browser.
  */
@@ -98,9 +98,17 @@ export function pfadEintraege(daten) {
       ? (daten.klassen.find((k) => k.klasse === t[1]) || null)
       : null;
     eintraege.push({ text: klasse ? klasse.bezeichnung : t[1], ziel: '/klasse/' + t[1] });
-    const werkzeuge = { noten: 'Notentracker', boards: 'Kontrollboards', einheiten: 'Unterrichtseinheiten' };
+    const werkzeuge = { noten: 'Notentracker', einheiten: 'Unterrichtseinheiten' };
     if (t[2] && werkzeuge[t[2]]) {
       eintraege.push({ text: werkzeuge[t[2]], ziel: null });
+    }
+  } else if (t[0] === 'checklisten') {
+    eintraege.push({ text: 'Checklisten', ziel: '/checklisten' });
+    if (t[1]) {
+      const klasse = daten && daten.klassen
+        ? (daten.klassen.find((k) => k.klasse === t[1]) || null)
+        : null;
+      eintraege.push({ text: klasse ? klasse.bezeichnung : t[1], ziel: null });
     }
   } else if (t[0] === 'einstellungen') {
     eintraege.push({ text: 'Einstellungen', ziel: null });

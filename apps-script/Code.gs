@@ -97,7 +97,7 @@ function doPost(e) {
 
       case 'boardErstellen':
         return antwort_({ ok: true, ergebnis:
-          boardErstellen(rumpf.klasse, rumpf.titel, rumpf.untertitel, rumpf.labels, rumpf.spalten) });
+          boardErstellen(rumpf.titel, rumpf.untertitel, rumpf.labels, rumpf.id) });
 
       case 'boardAktualisieren':
         return antwort_({ ok: true, ergebnis:
@@ -111,7 +111,7 @@ function doPost(e) {
 
       case 'boardSpalteHinzufuegen':
         return antwort_({ ok: true, ergebnis:
-          boardSpalteHinzufuegen(rumpf.board_id, rumpf.bezeichnung) });
+          boardSpalteHinzufuegen(rumpf.board_id, rumpf.bezeichnung, rumpf.id) });
 
       case 'boardSpalteUmbenennen':
         return antwort_({ ok: true, ergebnis: boardSpalteUmbenennen(rumpf.id, rumpf.bezeichnung) });

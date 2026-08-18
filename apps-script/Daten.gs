@@ -289,7 +289,6 @@ function ladeAlles() {
     boards: liesBlatt_('Boards').map(function (z) {
       return {
         id: alsText_(z.id),
-        klasse: alsText_(z.klasse),
         titel: alsText_(z.titel),
         untertitel: alsText_(z.untertitel),
         labels: alsText_(z.labels),

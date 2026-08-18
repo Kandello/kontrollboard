@@ -1,5 +1,5 @@
 /**
- * Boards.gs — Kontrollboards: Verwaltung von Boards, Spalten und Zellwerten.
+ * Boards.gs — Checklisten: Verwaltung von Boards, Spalten und Zellwerten.
  *
  * Eigenes Modul, getrennt von der allgemeinen Tabellenlogik (Daten.gs), damit
  * dieses Werkzeug geaendert werden kann, ohne die anderen zu beruehren
@@ -11,54 +11,47 @@ var BOARD_ZUSTAENDE = ['haken', 'teilweise', 'x'];
 
 function findeBoard_(id) {
   var treffer = liesBlatt_('Boards').filter(function (z) { return alsText_(z.id) === id; })[0];
-  if (!treffer) throw new Error('Das Board wurde nicht gefunden.');
+  if (!treffer) throw new Error('Die Checkliste wurde nicht gefunden.');
   return treffer;
 }
 
 /**
- * Legt ein neues Board an. `spaltenNamen` ist optional — beim Anlegen
- * lassen sich die Spalten eines bestehenden Boards uebernehmen, indem der
- * Client deren Bezeichnungen hier mitschickt.
+ * Legt eine neue Checkliste an — gemeinsam fuer alle Klassen, nicht je
+ * Klasse einzeln (Parallelklassen erhalten ohnehin dieselben Listen).
+ * Die Trennung nach Klasse ergibt sich allein aus dem Kuerzel der Kinder
+ * in BoardWerte, nie aus der Checkliste selbst.
+ *
+ * `id` kommt vom Client (optimistische Anzeige vor der Serverantwort) und
+ * wird uebernommen, falls angegeben — sonst hier erzeugt.
  */
-function boardErstellen(klasse, titel, untertitel, labels, spaltenNamen) {
-  klasse = String(klasse || '').trim();
+function boardErstellen(titel, untertitel, labels, id) {
   titel = String(titel || '').trim();
-  if (!klasse) throw new Error('Bitte eine Klasse angeben.');
+  id = String(id || '').trim() || Utilities.getUuid();
   if (!titel) throw new Error('Bitte einen Titel angeben.');
 
   return mitSperre_(function () {
-    var id = Utilities.getUuid();
     var jetzt = Utilities.formatDate(new Date(), 'Europe/Berlin', 'yyyy-MM-dd');
     var board = {
-      id: id, klasse: klasse, fach: FACH, titel: titel,
+      id: id, fach: FACH, titel: titel,
       untertitel: String(untertitel || ''), labels: String(labels || ''),
       status: 'aktiv', erstellt_am: jetzt, archiviert_am: ''
     };
     haengeAn_('Boards', [board]);
-
-    var spalten = [];
-    (spaltenNamen || []).forEach(function (name) {
-      var bez = String(name || '').trim();
-      if (!bez) return;
-      spalten.push({ id: Utilities.getUuid(), board_id: id, bezeichnung: bez, reihenfolge: spalten.length + 1 });
-    });
-    if (spalten.length) haengeAn_('BoardSpalten', spalten);
-
-    return { board: board, spalten: spalten };
+    return { board: board };
   });
 }
 
-/** Aendert Titel, Untertitel und Labels — nicht Klasse oder Status. */
+/** Aendert Titel, Untertitel und Labels — nicht den Status. */
 function boardAktualisieren(id, titel, untertitel, labels) {
   id = String(id || '').trim();
   titel = String(titel || '').trim();
-  if (!id) throw new Error('Kein Board angegeben.');
+  if (!id) throw new Error('Keine Checkliste angegeben.');
   if (!titel) throw new Error('Bitte einen Titel angeben.');
 
   return mitSperre_(function () {
     var vorhanden = findeBoard_(id);
     schreibeNachSchluessel_('Boards', [{
-      id: id, klasse: vorhanden.klasse, fach: vorhanden.fach, titel: titel,
+      id: id, fach: vorhanden.fach, titel: titel,
       untertitel: String(untertitel || ''), labels: String(labels || ''),
       status: vorhanden.status, erstellt_am: vorhanden.erstellt_am,
       archiviert_am: vorhanden.archiviert_am
@@ -67,7 +60,7 @@ function boardAktualisieren(id, titel, untertitel, labels) {
   });
 }
 
-/** Aktiv <-> archiviert. Archivierte Boards sind schreibgeschuetzt (Client). */
+/** Aktiv <-> archiviert. Archivierte Checklisten sind schreibgeschuetzt (Client). */
 function boardStatus(id, status) {
   id = String(id || '').trim();
   status = String(status || '').trim().toLowerCase();
@@ -77,7 +70,7 @@ function boardStatus(id, status) {
     var vorhanden = findeBoard_(id);
     var jetzt = Utilities.formatDate(new Date(), 'Europe/Berlin', 'yyyy-MM-dd');
     schreibeNachSchluessel_('Boards', [{
-      id: id, klasse: vorhanden.klasse, fach: vorhanden.fach, titel: vorhanden.titel,
+      id: id, fach: vorhanden.fach, titel: vorhanden.titel,
       untertitel: vorhanden.untertitel, labels: vorhanden.labels,
       status: status, erstellt_am: vorhanden.erstellt_am,
       archiviert_am: status === 'archiviert' ? jetzt : ''
@@ -89,7 +82,7 @@ function boardStatus(id, status) {
 /** Leert alle Zustaende eines Boards. Die Spalten bleiben erhalten. */
 function boardZuruecksetzen(id) {
   id = String(id || '').trim();
-  if (!id) throw new Error('Kein Board angegeben.');
+  if (!id) throw new Error('Keine Checkliste angegeben.');
 
   return mitSperre_(function () {
     var werte = liesBlatt_('BoardWerte').filter(function (z) { return alsText_(z.board_id) === id; });
@@ -101,17 +94,17 @@ function boardZuruecksetzen(id) {
   });
 }
 
-/** Neue Spalte ans Ende. */
-function boardSpalteHinzufuegen(board_id, bezeichnung) {
+/** Neue Spalte ans Ende. `id` kommt vom Client (optimistische Anzeige), sonst wird sie erzeugt. */
+function boardSpalteHinzufuegen(board_id, bezeichnung, id) {
   board_id = String(board_id || '').trim();
   bezeichnung = String(bezeichnung || '').trim();
-  if (!board_id) throw new Error('Kein Board angegeben.');
+  id = String(id || '').trim() || Utilities.getUuid();
+  if (!board_id) throw new Error('Keine Checkliste angegeben.');
   if (!bezeichnung) throw new Error('Bitte eine Bezeichnung angeben.');
 
   return mitSperre_(function () {
     var vorhandene = liesBlatt_('BoardSpalten').filter(function (z) { return alsText_(z.board_id) === board_id; });
     var naechste = vorhandene.reduce(function (m, z) { return Math.max(m, Number(z.reihenfolge) || 0); }, 0) + 1;
-    var id = Utilities.getUuid();
     haengeAn_('BoardSpalten', [{ id: id, board_id: board_id, bezeichnung: bezeichnung, reihenfolge: naechste }]);
     return { id: id, board_id: board_id, bezeichnung: bezeichnung, reihenfolge: naechste };
   });
@@ -136,7 +129,7 @@ function boardSpalteUmbenennen(id, bezeichnung) {
 /** `reihenfolge` ist die vollstaendige, neu geordnete Liste der Spalten-IDs. */
 function boardSpaltenReihenfolge(board_id, reihenfolge) {
   board_id = String(board_id || '').trim();
-  if (!board_id) throw new Error('Kein Board angegeben.');
+  if (!board_id) throw new Error('Keine Checkliste angegeben.');
   if (!reihenfolge || !reihenfolge.length) throw new Error('Keine Reihenfolge angegeben.');
 
   return mitSperre_(function () {

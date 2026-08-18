@@ -1,7 +1,7 @@
 /**
- * board.js — reine Logik der Kontrollboards, ohne Darstellung.
+ * board.js — reine Logik der Checklisten, ohne Darstellung.
  *
- * Getrennt von der Oberflaeche (ansichten/boards.js), damit die Reihenfolge
+ * Getrennt von der Oberflaeche (ansichten/checklisten.js), damit die Reihenfolge
  * der Zellzustaende und andere Regeln an einer Stelle stehen (Abschnitt 9:
  * "Lege die Reihenfolge als eine benannte Konstante an").
  */
@@ -28,9 +28,14 @@ export function zustandBeschriftung(zustand) {
   }[zustand || ''];
 }
 
-export function boardsFuerKlasse(daten, klasse, status = 'aktiv') {
+/**
+ * Checklisten sind geteilt — nicht je Klasse einzeln. Die Trennung nach
+ * Klasse entsteht erst in der Tabelle (nur die Kinder dieser Klasse) und
+ * in BoardWerte (Kuerzel tragen die Klasse), nie in der Liste der Boards.
+ */
+export function boardeNachStatus(daten, status = 'aktiv') {
   return daten.boards
-    .filter((b) => b.klasse === klasse && b.status === status)
+    .filter((b) => b.status === status)
     .sort((a, b) => a.titel.localeCompare(b.titel, 'de'));
 }
 
@@ -78,4 +83,65 @@ export function setzeWertLokal(daten, boardId, spalteId, kuerzel, zustand) {
   }
   if (i !== -1) daten.boardWerte[i].zustand = zustand;
   else daten.boardWerte.push({ board_id: boardId, spalte_id: spalteId, kuerzel, zustand });
+}
+
+// --- Optimistische Strukturaenderungen --------------------------------------
+//
+// Board- und Spaltenaenderungen sollen sich genauso sofort anfuehlen wie ein
+// Klick auf eine Zelle: erst lokal eintragen und zeichnen, dann im
+// Hintergrund an den Server schicken. Jede Funktion hier hat eine passende
+// Rueckgaengig-Funktion, falls der Serveraufruf scheitert.
+
+export function heutigesDatum() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+export function fuegeBoardLokalHinzu(daten, board) {
+  daten.boards.push(board);
+}
+
+export function entferneBoardLokal(daten, id) {
+  const i = daten.boards.findIndex((b) => b.id === id);
+  if (i !== -1) daten.boards.splice(i, 1);
+}
+
+export function setzeBoardStatusLokal(daten, id, status, archiviertAm = '') {
+  const board = daten.boards.find((b) => b.id === id);
+  if (board) { board.status = status; board.archiviert_am = archiviertAm; }
+}
+
+export function fuegeSpalteLokalHinzu(daten, spalte) {
+  daten.boardSpalten.push(spalte);
+}
+
+/** Entfernt eine Spalte und alle ihre Werte; gibt die Werte fuer ein Rueckgaengig zurueck. */
+export function entferneSpalteLokal(daten, id) {
+  const si = daten.boardSpalten.findIndex((s) => s.id === id);
+  const spalte = si !== -1 ? daten.boardSpalten.splice(si, 1)[0] : null;
+  const entfernteWerte = [];
+  for (let i = daten.boardWerte.length - 1; i >= 0; i--) {
+    if (daten.boardWerte[i].spalte_id === id) entfernteWerte.push(...daten.boardWerte.splice(i, 1));
+  }
+  return { spalte, entfernteWerte };
+}
+
+export function benenneSpalteLokalUm(daten, id, bezeichnung) {
+  const spalte = daten.boardSpalten.find((s) => s.id === id);
+  if (spalte) spalte.bezeichnung = bezeichnung;
+}
+
+export function setzeSpaltenReihenfolgeLokal(daten, reihenfolge) {
+  reihenfolge.forEach((id, i) => {
+    const spalte = daten.boardSpalten.find((s) => s.id === id);
+    if (spalte) spalte.reihenfolge = i + 1;
+  });
+}
+
+/** Leert alle Zustaende eines Boards; gibt die entfernten Werte fuer ein Rueckgaengig zurueck. */
+export function leereBoardWerteLokal(daten, boardId) {
+  const entfernt = [];
+  for (let i = daten.boardWerte.length - 1; i >= 0; i--) {
+    if (daten.boardWerte[i].board_id === boardId) entfernt.push(...daten.boardWerte.splice(i, 1));
+  }
+  return entfernt;
 }

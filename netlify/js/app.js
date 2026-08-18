@@ -9,6 +9,7 @@ import { istEingerichtet, ladeDaten, holeDaten } from './server.js';
 import * as zuordnung from './zuordnung.js';
 import { zeichneStart, raeumeStartAuf } from './ansichten/start.js';
 import { zeichneKlasse } from './ansichten/klasse.js';
+import { zeichneChecklistenUebersicht, zeichneChecklisten } from './ansichten/checklisten.js';
 import { zeichneEinstellungen } from './ansichten/einstellungen.js';
 import { zeichneZuordnung } from './ansichten/zuordnungAnsicht.js';
 
@@ -55,6 +56,7 @@ function zeichneKopf() {
   kopf.appendChild(e('div', { klasse: 'kopfleiste-inhalt' }, [
     pfad,
     schalter,
+    e('a', { klasse: 'knopf klein', href: '#/checklisten', text: 'Checklisten' }),
     e('a', { klasse: 'knopf klein', href: '#/einstellungen', text: 'Einstellungen' })
   ]));
 }
@@ -203,6 +205,16 @@ registriere('/klasse/:klasse', ansicht((ziel, k) => {
 registriere('/klasse/:klasse/:werkzeug', ansicht((ziel, k) => {
   if (!k.daten) return;
   zeichneKlasse(ziel, k);
+}));
+
+registriere('/checklisten', ansicht((ziel, k) => {
+  if (!k.daten) return;
+  zeichneChecklistenUebersicht(ziel, k);
+}));
+
+registriere('/checklisten/:klasse', ansicht((ziel, k) => {
+  if (!k.daten) return;
+  zeichneChecklisten(ziel, k);
 }));
 
 registriere('/einstellungen', ansicht(zeichneEinstellungen));

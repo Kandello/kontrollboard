@@ -1,24 +1,24 @@
 /**
  * ansichten/klasse.js — Ebene 2.
  *
- * Kopfzeile mit Klassenbezeichnung und Klassenlehrkraft, darunter die drei
+ * Kopfzeile mit Klassenbezeichnung und Klassenlehrkraft, darunter die
  * Werkzeugeinstiege. Die gewaehlte Klasse ist oben umschaltbar, ohne den
- * Weg ueber die Startseite.
+ * Weg ueber die Startseite. Checklisten sind kein Werkzeug dieser Seite
+ * mehr — sie sind klassenuebergreifend und haben einen eigenen Einstieg
+ * in der Kopfleiste (ansichten/checklisten.js).
  *
- * Stand Schritt 2: Die Werkzeuge selbst sind Platzhalter (Schritte 4 bis 9).
- * Die Schuelerliste wird bereits echt gezeigt — damit ist die
- * Zuordnungslogik ueberpruefbar.
+ * Stand Schritt 4: Notentracker und Unterrichtseinheiten sind noch
+ * Platzhalter (Schritte 5 und 6). Die Schuelerliste wird bereits echt
+ * gezeigt — damit ist die Zuordnungslogik ueberpruefbar.
  */
 
 import { e, karte } from '../ui.js';
 import { name as anzeigeName, klassenlehrkraftEintrag, sortiereNachListe } from '../zuordnung.js';
 import { lehrkraftVerweis } from './start.js';
-import { zeichneBoardsWerkzeug } from './boards.js';
 import { gehe } from '../router.js';
 
 const WERKZEUGE = [
   { id: 'noten',     titel: 'Notentracker',        beschreibung: 'Erhebungen erfassen, Notenübersicht, Auswertung' },
-  { id: 'boards',    titel: 'Kontrollboards',      beschreibung: 'Mehrspaltige Checklisten je Kind' },
   { id: 'einheiten', titel: 'Unterrichtseinheiten', beschreibung: 'Fortschritt dieser Klasse' }
 ];
 
@@ -85,11 +85,6 @@ export function zeichneKlasse(ziel, kontext) {
   // --- Einzelnes Werkzeug --------------------------------------------------
   const w = WERKZEUGE.find((x) => x.id === werkzeug);
   if (!w) { gehe('/klasse/' + encodeURIComponent(klasse), { ersetzen: true }); return; }
-
-  if (werkzeug === 'boards') {
-    zeichneBoardsWerkzeug(ziel, kontext);
-    return;
-  }
 
   ziel.appendChild(karte(w.titel, [
     e('div', { klasse: 'leer', style: 'padding:32px 16px' }, [

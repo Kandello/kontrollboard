@@ -290,36 +290,53 @@ console.log('\n=== Wochenstatus ===');
   pruefe('doPost hat geschrieben', ladeAlles().wochenstatus.length, 3);
 }
 
-console.log('\n=== Boards: anlegen ===');
+console.log('\n=== Boards: anlegen (gemeinsam fuer alle Klassen, keine Klassen-Spalte mehr) ===');
 {
   holeBlatt_('Boards').d = [SCHEMA.Boards.slice()];
   holeBlatt_('BoardSpalten').d = [SCHEMA.BoardSpalten.slice()];
   holeBlatt_('BoardWerte').d = [SCHEMA.BoardWerte.slice()];
 
-  const r1 = boardErstellen('3L', 'Materialien September', 'Erster Monat', 'Material, September',
-    ['Heft', 'Stifte', 'Federmappe']);
+  const r1 = boardErstellen('Materialien September', 'Erster Monat', 'Material, September');
   pruefe('Board angelegt', typeof r1.board.id, 'string');
-  pruefe('drei Spalten in Reihenfolge', r1.spalten.map(s => s.bezeichnung), ['Heft', 'Stifte', 'Federmappe']);
-  pruefe('Reihenfolge 1..3', r1.spalten.map(s => s.reihenfolge), [1, 2, 3]);
+  pruefe('keine Klasse im Datensatz', 'klasse' in r1.board, false);
   pruefe('Board in ladeAlles sichtbar', ladeAlles().boards.length, 1);
-  pruefe('drei Spalten in ladeAlles', ladeAlles().boardSpalten.length, 3);
   pruefe('Status aktiv', ladeAlles().boards[0].status, 'aktiv');
 
+  const r2 = boardErstellen('Lesepass', '', '', 'eigene-id-123');
+  pruefe('vom Client vorgegebene id uebernommen', r2.board.id, 'eigene-id-123');
+  pruefe('zwei Boards insgesamt', ladeAlles().boards.length, 2);
+
   let m = '';
-  try { boardErstellen('', 'X', '', '', []); } catch (e) { m = e.message; }
-  pruefe('ohne Klasse abgewiesen', /Klasse/.test(m), true);
-  m = '';
-  try { boardErstellen('3L', '', '', '', []); } catch (e) { m = e.message; }
+  try { boardErstellen('', '', ''); } catch (e) { m = e.message; }
   pruefe('ohne Titel abgewiesen', /Titel/.test(m), true);
+
+  const spaltenA = [
+    boardSpalteHinzufuegen(r1.board.id, 'Heft'),
+    boardSpalteHinzufuegen(r1.board.id, 'Stifte'),
+    boardSpalteHinzufuegen(r1.board.id, 'Federmappe')
+  ];
+  pruefe('drei Spalten in Reihenfolge', spaltenA.map(s => s.bezeichnung), ['Heft', 'Stifte', 'Federmappe']);
+  pruefe('Reihenfolge 1..3', spaltenA.map(s => s.reihenfolge), [1, 2, 3]);
+  pruefe('drei Spalten in ladeAlles', ladeAlles().boardSpalten.length, 3);
 }
 
-console.log('\n=== Boards: Spalten uebernehmen beim Anlegen ===');
+console.log('\n=== Boards: dieselbe Checkliste gilt fuer jede Klasse (Trennung nur ueber Kuerzel) ===');
 {
-  const bestehend = ladeAlles().boardSpalten.map(s => s.bezeichnung);
-  const r2 = boardErstellen('3M', 'Materialien September (Kopie)', '', '', bestehend);
-  pruefe('uebernommene Spalten identisch', r2.spalten.map(s => s.bezeichnung), bestehend);
-  pruefe('zwei Boards insgesamt', ladeAlles().boards.length, 2);
-  pruefe('sechs Spalten insgesamt', ladeAlles().boardSpalten.length, 6);
+  const board = ladeAlles().boards[0];
+  const heft = ladeAlles().boardSpalten.find(s => s.board_id === board.id && s.bezeichnung === 'Heft');
+  boardWerteSpeichern([
+    { board_id: board.id, spalte_id: heft.id, kuerzel: '3L-01', zustand: 'haken' },
+    { board_id: board.id, spalte_id: heft.id, kuerzel: '3M-01', zustand: 'x' }
+  ]);
+  const werte = ladeAlles().boardWerte.filter(w => w.board_id === board.id && w.spalte_id === heft.id);
+  pruefe('3L-01 und 3M-01 unabhaengig unter derselben Checkliste gespeichert',
+    werte.map(w => w.kuerzel + ':' + w.zustand).sort(), ['3L-01:haken', '3M-01:x']);
+  // Aufraeumen, damit der naechste Testblock unabhaengig bleibt.
+  boardWerteSpeichern([
+    { board_id: board.id, spalte_id: heft.id, kuerzel: '3L-01', zustand: '' },
+    { board_id: board.id, spalte_id: heft.id, kuerzel: '3M-01', zustand: '' }
+  ]);
+  pruefe('aufgeraeumt', ladeAlles().boardWerte.some(w => w.board_id === board.id && w.spalte_id === heft.id), false);
 }
 
 console.log('\n=== Boards: aktualisieren ===');
@@ -329,7 +346,6 @@ console.log('\n=== Boards: aktualisieren ===');
   const nach = ladeAlles().boards.find(b => b.id === board.id);
   pruefe('Titel geaendert', nach.titel, 'Materialien Herbst');
   pruefe('Untertitel geaendert', nach.untertitel, 'Neuer Untertitel');
-  pruefe('Klasse unveraendert', nach.klasse, '3L');
   pruefe('Status unveraendert', nach.status, 'aktiv');
   pruefe('weiterhin nur zwei Boards (kein Duplikat)', ladeAlles().boards.length, 2);
 
@@ -452,12 +468,12 @@ console.log('\n=== Boards: ueber doPost erreichbar, mit Token-Pruefung ===');
 {
   const t = holeToken_();
   const p1 = JSON.parse(doPost({ postData: { contents: JSON.stringify(
-    { token: t, aktion: 'boardErstellen', klasse: '3OB', titel: 'Lesepass', spalten: ['Kapitel 1'] }) } }).text);
+    { token: t, aktion: 'boardErstellen', titel: 'Lesestunde' }) } }).text);
   pruefe('boardErstellen ueber doPost', p1.ok, true);
   pruefe('drei Boards insgesamt', ladeAlles().boards.length, 3);
 
   const p2 = JSON.parse(doPost({ postData: { contents: JSON.stringify(
-    { token: 'falsch', aktion: 'boardErstellen', klasse: '3OB', titel: 'X', spalten: [] }) } }).text);
+    { token: 'falsch', aktion: 'boardErstellen', titel: 'X' }) } }).text);
   pruefe('falscher Token abgewiesen', p2.ok, false);
   pruefe('weiterhin nur drei Boards', ladeAlles().boards.length, 3);
 }

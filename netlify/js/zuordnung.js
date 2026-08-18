@@ -76,7 +76,7 @@ export function name(kuerzel, verbergen = false) {
   return n || kuerzel;
 }
 
-/** Getrennte Felder fuer die Kontrollboards (zwei Spalten). */
+/** Getrennte Felder fuer die Checklisten (zwei Spalten). */
 export function namensteile(kuerzel, verbergen = false) {
   if (verbergen) return { nachname: kuerzel, vorname: '', istKuerzel: true };
   const e = zustand.eintraege[kuerzel];

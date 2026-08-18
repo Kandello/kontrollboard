@@ -15,7 +15,7 @@ var SCHEMA = {
   Gruppengewichte:    ['fach', 'gruppe', 'gewicht'],
   Erhebungen:         ['id', 'datum', 'fach', 'kuerzel', 'kategorie_id', 'anlass', 'wert', 'notiz', 'geloescht'],
   Notenschluessel:    ['note', 'min_prozent'],
-  Boards:             ['id', 'klasse', 'fach', 'titel', 'untertitel', 'labels', 'status', 'erstellt_am', 'archiviert_am'],
+  Boards:             ['id', 'fach', 'titel', 'untertitel', 'labels', 'status', 'erstellt_am', 'archiviert_am'],
   BoardSpalten:       ['id', 'board_id', 'bezeichnung', 'reihenfolge'],
   BoardWerte:         ['board_id', 'spalte_id', 'kuerzel', 'zustand', 'geaendert_am'],
   Einheiten:          ['id', 'fach', 'titel', 'beschreibung', 'reihenfolge', 'geplante_stunden', 'lehrplanbezug', 'status', 'aktiv'],

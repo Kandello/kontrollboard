@@ -39,10 +39,10 @@ await felder.nth(2).fill('w');
 await knopf('Speichern').click();
 await p.waitForTimeout(900);
 
-// Kontrollboard fuer ein zugeordnetes Kind anlegen und einen Zustand
-// setzen — das ist der Aufruf, der ausschliesslich das Kuerzel enthalten darf.
-await p.goto(B + '#/klasse/3L/boards'); await p.waitForTimeout(500);
-await knopf('Neues Board').click(); await p.waitForTimeout(200);
+// Checkliste fuer ein zugeordnetes Kind anlegen und einen Zustand setzen —
+// das ist der Aufruf, der ausschliesslich das Kuerzel enthalten darf.
+await p.goto(B + '#/checklisten/3L'); await p.waitForTimeout(500);
+await knopf('Neue Checkliste').click(); await p.waitForTimeout(200);
 await p.fill('input[aria-label="Titel"]', 'Materialien');
 await knopf('Anlegen').click(); await p.waitForTimeout(700);
 p.once('dialog', (d) => d.accept('Heft'));
@@ -51,7 +51,7 @@ await p.locator('td.board-zelle button.zellzustand').first().click();
 await p.waitForTimeout(1300); // Debounce abwarten, damit der Aufruf im Verkehr steht.
 
 // Durch alle Ansichten laufen, damit jeder Serveraufruf erfasst wird.
-for (const pfad of ['#/', '#/klasse/3L', '#/klasse/3L/noten', '#/klasse/3L/boards',
+for (const pfad of ['#/', '#/klasse/3L', '#/klasse/3L/noten', '#/checklisten', '#/checklisten/3L',
                     '#/klasse/3M', '#/klasse/3OB/einheiten', '#/einstellungen']) {
   await p.goto(B + pfad); await p.waitForTimeout(350);
 }

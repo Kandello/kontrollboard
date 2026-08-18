@@ -1,43 +1,130 @@
 /**
- * ansichten/boards.js — Kontrollboards.
+ * ansichten/checklisten.js — Checklisten.
  *
- * Ersetzt die statische Entwurfsseite (Abschnitt 14). Mehrere Boards je
- * Klasse, variable Spalten, vier Zellzustaende, haftende Kopf- und
- * Namensspalten, gebuendeltes verzoegertes Speichern, Archiv.
+ * Eigener Einstieg oben in der Kopfleiste, nicht unter einer Klasse
+ * versteckt: Klick fuehrt auf die Klassenknoepfe (#/checklisten), Klick auf
+ * einen davon auf die eigentliche Checkliste (#/checklisten/:klasse).
+ *
+ * Eine Checkliste ist fuer alle Klassen gemeinsam angelegt — Parallelklassen
+ * bekommen ohnehin dieselben Listen zur selben Zeit. Getrennt bleiben nur
+ * die Tabellen: jede Klasse sieht ausschliesslich ihre eigenen Kinder, und
+ * die Haekchen haengen am Kuerzel, das die Klasse schon eindeutig traegt.
+ *
+ * Board/Spalten-Aenderungen werden lokal sofort eingetragen und gezeichnet,
+ * genau wie ein Klick auf eine Zelle — der Serveraufruf laeuft im
+ * Hintergrund. Schlaegt er fehl, macht eine Rueckgaengig-Funktion die
+ * lokale Aenderung wieder rueckgaengig und meldet den Fehler.
  *
  * DATENSCHUTZ: Klarnamen erscheinen ausschliesslich in dieser Darstellung.
  * Jeder Serveraufruf hier (boardWerte, boardSpalte*, board*) enthaelt
  * ausschliesslich Kuerzel, Bezeichnungen und Zustaende — niemals Namen.
  */
 
-import { e, leere, karte, hinweis, ladeanzeige, setzeMeldung } from '../ui.js';
+import { e, leere, karte, hinweis } from '../ui.js';
 import { namensteile, sortiereNachListe } from '../zuordnung.js';
-import { sende, holeDaten, leereDaten, ladeDaten } from '../server.js';
-import { setzeVerlassenPruefung } from '../router.js';
+import { sende, leereDaten, ladeDaten } from '../server.js';
+import { setzeVerlassenPruefung, gehe } from '../router.js';
 import {
   naechsterZustand, zustandSymbol, zustandBeschriftung,
-  boardsFuerKlasse, spaltenFuerBoard, wertFuer, alleLabels, labelListe, setzeWertLokal
+  boardeNachStatus, spaltenFuerBoard, wertFuer, alleLabels, labelListe, setzeWertLokal,
+  heutigesDatum, fuegeBoardLokalHinzu, entferneBoardLokal, setzeBoardStatusLokal,
+  fuegeSpalteLokalHinzu, entferneSpalteLokal, benenneSpalteLokalUm,
+  setzeSpaltenReihenfolgeLokal, leereBoardWerteLokal
 } from '../board.js';
 
-/** Welches Board je Klasse zuletzt offen war — ueberlebt ein neuZeichnen(). */
-const boardUiState = {};
+/**
+ * Welche Checkliste zuletzt offen war — ueberlebt ein neuZeichnen() und gilt
+ * klassenuebergreifend: Checklisten sind geteilt, ein Klassenwechsel ueber
+ * den Umschalter soll deshalb dieselbe Checkliste weiterzeigen, nicht auf
+ * die erste zurueckspringen.
+ */
+const zustand = { boardId: null, ansicht: 'aktiv', archivLabel: '', archivVon: '', archivBis: '', archivAnsicht: null };
 
-function zustandFuer(klasse) {
-  if (!boardUiState[klasse]) {
-    boardUiState[klasse] = { boardId: null, ansicht: 'aktiv', archivLabel: '', archivVon: '', archivBis: '', archivAnsicht: null };
+// --- Landing: Klassenknoepfe -------------------------------------------------
+
+export function zeichneChecklistenUebersicht(ziel, { daten }) {
+  ziel.appendChild(e('h1', { text: 'Checklisten' }));
+  ziel.appendChild(e('div', { klasse: 'feldhilfe', style: 'margin-bottom:16px',
+    text: 'Eine Checkliste gilt für alle Klassen gleichzeitig. Klasse wählen, um sie anzusehen oder abzuhaken.' }));
+
+  const raster = e('div', { klasse: 'klassenraster' });
+  if (!daten.klassen.length) {
+    raster.appendChild(e('div', { klasse: 'leer',
+      text: 'Im Blatt „Klassen" ist noch keine aktive Klasse eingetragen.' }));
+  } else {
+    daten.klassen.forEach((k, i) => {
+      const anzahl = daten.schueler.filter((s) => s.klasse === k.klasse && s.aktiv).length;
+      raster.appendChild(e('a', {
+        href: '#/checklisten/' + encodeURIComponent(k.klasse),
+        klasse: 'klassenknopf ' + farbklasse(k, i, daten),
+        style: (k.farbe ? `--klassenfarbe:${k.farbe};` : '') + 'text-decoration:none;color:inherit;display:block',
+        'aria-label': 'Checklisten für ' + k.bezeichnung + ' öffnen'
+      }, [
+        e('span', { klasse: 'name', text: k.bezeichnung }),
+        e('span', { klasse: 'zusatz', text: anzahl + (anzahl === 1 ? ' Kind' : ' Kinder') })
+      ]));
+    });
   }
-  return boardUiState[klasse];
+  ziel.appendChild(raster);
+
+  const aktive = boardeNachStatus(daten, 'aktiv');
+  if (aktive.length) {
+    ziel.appendChild(e('div', { klasse: 'abschnitt-titel', text: 'Vorhandene Checklisten' }));
+    ziel.appendChild(e('div', { klasse: 'werkzeuge' }, aktive.map((b) => e('span', { klasse: 'werkzeug', style: 'cursor:default' }, [
+      e('span', { klasse: 'titel', text: b.titel }),
+      b.untertitel ? e('span', { klasse: 'beschreibung', text: b.untertitel }) : null
+    ]))));
+  }
 }
 
-export function zeichneBoardsWerkzeug(ziel, kontext) {
+function farbklasse(k, i, daten) {
+  if (k.farbe) return '';
+  const idx = daten.klassen.findIndex((x) => x.klasse === k.klasse);
+  return 'k-farbe-' + (((k.reihenfolge || idx + 1) - 1) % 5 + 1);
+}
+
+// --- Werkzeug je Klasse -------------------------------------------------------
+
+export function zeichneChecklisten(ziel, kontext) {
   const { daten, verbergen, klasse, neuZeichnen } = kontext;
-  const zustand = zustandFuer(klasse);
+  const eintrag = daten.klassen.find((k) => k.klasse === klasse);
+
+  if (!eintrag) {
+    ziel.appendChild(karte(null, [
+      e('div', { klasse: 'leer' }, [
+        e('div', { text: 'Die Klasse „' + klasse + '" ist im Blatt „Klassen" nicht als aktiv eingetragen.' }),
+        e('div', { klasse: 'leiste', style: 'justify-content:center;margin-top:16px' }, [
+          e('button', { text: 'Zu den Checklisten', auf: { click: () => gehe('/checklisten') } })
+        ])
+      ])
+    ]));
+    return;
+  }
+
+  // --- Kopfzeile mit Klassenumschalter --------------------------------------
+  ziel.appendChild(e('div', { klasse: 'leiste' }, [
+    e('div', {}, [
+      e('h1', {}, [
+        e('span', { klasse: 'klassenfarbe-punkt', 'aria-hidden': 'true' }),
+        'Checklisten — ' + eintrag.bezeichnung
+      ])
+    ]),
+    e('div', { klasse: 'schub' }, [
+      e('label', { for: 'klassenwechsel', text: 'Klasse wechseln' }),
+      e('select', {
+        id: 'klassenwechsel',
+        auf: { change: (ev) => gehe('/checklisten/' + encodeURIComponent(ev.target.value)) }
+      }, daten.klassen.map((k) => e('option', {
+        value: k.klasse, text: k.bezeichnung, selected: k.klasse === klasse
+      })))
+    ])
+  ]));
 
   let ausstehend = new Map();
   let zeitgeber = null;
 
   setzeVerlassenPruefung(() => ausstehend.size
-    ? 'Es gibt noch ungespeicherte Änderungen an den Kontrollboards. Wirklich verlassen?'
+    ? 'Es gibt noch ungespeicherte Änderungen an den Checklisten. Wirklich verlassen?'
     : null);
 
   const statusEl = e('span', { klasse: 'feldhilfe', text: '' });
@@ -68,54 +155,40 @@ export function zeichneBoardsWerkzeug(ziel, kontext) {
     }
   }
 
-  /** Fuer strukturelle Aenderungen (Board/Spalten): senden, neu laden, neu zeichnen. */
-  async function strukturAendern(aktion, nutzlast, panel) {
-    if (zeitgeber) { clearTimeout(zeitgeber); await sendeJetzt(); }
-    try {
-      await sende(aktion, nutzlast);
-      leereDaten();
-      await ladeDaten({ neu: true });
+  /** Aktion im Hintergrund senden; bei Fehler die lokale Aenderung rueckgaengig machen. */
+  function hintergrundSenden(aktion, nutzlast, rueckgaengig, fehlermeldung) {
+    sende(aktion, nutzlast).catch((fehler) => {
+      rueckgaengig();
+      window.alert(fehlermeldung + ': ' + fehler.message);
       neuZeichnen();
-    } catch (fehler) {
-      if (panel) panel.appendChild(hinweis({ art: 'schlecht', zeichen: '×', text: fehler.message }));
-      else window.alert(fehler.message);
-    }
+    });
   }
 
-  // `ziel` wird von app.js einmal je Renderdurchlauf geleert und traegt
-  // bereits die Kopfzeile mit dem Klassenumschalter, die zeichneKlasse
-  // gerade angehaengt hat — hier nur noch ergaenzen, nicht erneut leeren.
-  ziel.appendChild(e('h2', { text: 'Kontrollboards', style: 'margin-bottom:16px' }));
-
-  const boards = boardsFuerKlasse(daten, klasse, 'aktiv');
+  const boards = boardeNachStatus(daten, 'aktiv');
   if (!zustand.boardId || !boards.some((b) => b.id === zustand.boardId)) {
     zustand.boardId = boards[0] ? boards[0].id : null;
   }
 
-  // --- Auswahlleiste --------------------------------------------------------
+  // --- Auswahlleiste ----------------------------------------------------------
   const auswahl = e('select', {
-    'aria-label': 'Board auswählen',
-    auf: { change: async (ev) => {
-      if (zeitgeber) { clearTimeout(zeitgeber); await sendeJetzt(); }
-      zustand.boardId = ev.target.value;
-      neuZeichnen();
-    } }
+    'aria-label': 'Checkliste auswählen',
+    auf: { change: (ev) => { zustand.boardId = ev.target.value; neuZeichnen(); } }
   }, boards.map((b) => e('option', { value: b.id, text: b.titel, selected: b.id === zustand.boardId })));
 
-  const neuesBoardPanel = e('div', { klasse: 'karte', hidden: true });
+  const neuePanel = e('div', { klasse: 'karte', hidden: true });
 
   ziel.appendChild(e('div', { klasse: 'leiste' }, [
-    boards.length ? auswahl : e('span', { klasse: 'feldhilfe', text: 'Noch kein Board für diese Klasse.' }),
-    e('button', { klasse: 'wichtig', text: 'Neues Board', auf: { click: () => { neuesBoardPanel.hidden = !neuesBoardPanel.hidden; } } }),
+    boards.length ? auswahl : e('span', { klasse: 'feldhilfe', text: 'Noch keine Checkliste vorhanden.' }),
+    e('button', { klasse: 'wichtig', text: 'Neue Checkliste', auf: { click: () => { neuePanel.hidden = !neuePanel.hidden; } } }),
     e('button', {
       klasse: 'schub' + (zustand.ansicht === 'archiv' ? ' wichtig' : ''),
-      text: zustand.ansicht === 'archiv' ? 'Zu den aktiven Boards' : 'Archiv ansehen',
+      text: zustand.ansicht === 'archiv' ? 'Zu den aktiven Checklisten' : 'Archiv ansehen',
       auf: { click: () => { zustand.ansicht = zustand.ansicht === 'archiv' ? 'aktiv' : 'archiv'; neuZeichnen(); } }
     })
   ]));
 
-  zeichneNeuesBoardPanel(neuesBoardPanel, daten, klasse, strukturAendern);
-  ziel.appendChild(neuesBoardPanel);
+  zeichneNeuePanel(neuePanel, daten, neuZeichnen, zustand);
+  ziel.appendChild(neuePanel);
 
   if (zustand.ansicht === 'archiv') {
     ziel.appendChild(zeichneArchiv(daten, klasse, zustand, verbergen, neuZeichnen));
@@ -124,8 +197,8 @@ export function zeichneBoardsWerkzeug(ziel, kontext) {
 
   if (!boards.length) {
     ziel.appendChild(hinweis({
-      art: 'warn', zeichen: '→', titel: 'Noch kein Board',
-      text: 'Mit „Neues Board" die erste Checkliste dieser Klasse anlegen.'
+      art: 'warn', zeichen: '→', titel: 'Noch keine Checkliste',
+      text: 'Mit „Neue Checkliste" die erste anlegen.'
     }));
     return;
   }
@@ -134,7 +207,7 @@ export function zeichneBoardsWerkzeug(ziel, kontext) {
   const spalten = spaltenFuerBoard(daten, board.id);
   const kinder = sortiereNachListe(daten.schueler.filter((s) => s.klasse === klasse && s.aktiv));
 
-  // --- Kopf: Titel, Untertitel, Labels, Werkzeuge ---------------------------
+  // --- Kopf: Titel, Untertitel, Labels, Werkzeuge -----------------------------
   ziel.appendChild(e('div', { klasse: 'leiste', style: 'align-items:flex-start' }, [
     e('div', {}, [
       e('h3', { klasse: 'board-titel', text: board.titel }),
@@ -149,7 +222,11 @@ export function zeichneBoardsWerkzeug(ziel, kontext) {
         text: 'Zurücksetzen',
         auf: { click: () => {
           if (!window.confirm(`Alle Häkchen in „${board.titel}" werden gelöscht. Fortfahren?`)) return;
-          strukturAendern('boardZuruecksetzen', { id: board.id });
+          const entfernt = leereBoardWerteLokal(daten, board.id);
+          neuZeichnen();
+          hintergrundSenden('boardZuruecksetzen', { id: board.id },
+            () => entfernt.forEach((w) => daten.boardWerte.push(w)),
+            'Zurücksetzen fehlgeschlagen');
         } }
       }),
       e('button', {
@@ -157,8 +234,12 @@ export function zeichneBoardsWerkzeug(ziel, kontext) {
         text: 'Archivieren',
         auf: { click: () => {
           if (!window.confirm(`„${board.titel}" wird archiviert und verschwindet aus der Auswahl. Über „Archiv ansehen" bleibt es einsehbar.`)) return;
+          setzeBoardStatusLokal(daten, board.id, 'archiviert', heutigesDatum());
           zustand.boardId = null;
-          strukturAendern('boardStatus', { id: board.id, status: 'archiviert' });
+          neuZeichnen();
+          hintergrundSenden('boardStatus', { id: board.id, status: 'archiviert' },
+            () => setzeBoardStatusLokal(daten, board.id, 'aktiv', ''),
+            'Archivieren fehlgeschlagen');
         } }
       })
     ])
@@ -183,24 +264,47 @@ export function zeichneBoardsWerkzeug(ziel, kontext) {
     aufSpalteHinzufuegen: () => {
       const name = window.prompt('Name der neuen Spalte:');
       if (!name || !name.trim()) return;
-      strukturAendern('boardSpalteHinzufuegen', { board_id: board.id, bezeichnung: name.trim() });
+      const bezeichnung = name.trim();
+      const id = crypto.randomUUID();
+      const reihenfolge = spalten.length + 1;
+      fuegeSpalteLokalHinzu(daten, { id, board_id: board.id, bezeichnung, reihenfolge });
+      neuZeichnen();
+      hintergrundSenden('boardSpalteHinzufuegen', { id, board_id: board.id, bezeichnung },
+        () => entferneSpalteLokal(daten, id),
+        'Spalte konnte nicht angelegt werden');
     },
     aufSpalteUmbenennen: (spalte) => {
       const name = window.prompt('Neue Bezeichnung:', spalte.bezeichnung);
       if (!name || !name.trim() || name.trim() === spalte.bezeichnung) return;
-      strukturAendern('boardSpalteUmbenennen', { id: spalte.id, bezeichnung: name.trim() });
+      const bezeichnung = name.trim();
+      const vorher = spalte.bezeichnung;
+      benenneSpalteLokalUm(daten, spalte.id, bezeichnung);
+      neuZeichnen();
+      hintergrundSenden('boardSpalteUmbenennen', { id: spalte.id, bezeichnung },
+        () => benenneSpalteLokalUm(daten, spalte.id, vorher),
+        'Umbenennen fehlgeschlagen');
     },
     aufSpalteVerschieben: (spalte, richtung) => {
       const reihenfolge = spalten.map((s) => s.id);
       const i = reihenfolge.indexOf(spalte.id);
       const j = i + richtung;
       if (j < 0 || j >= reihenfolge.length) return;
+      const vorher = spalten.map((s) => ({ id: s.id, reihenfolge: s.reihenfolge }));
       [reihenfolge[i], reihenfolge[j]] = [reihenfolge[j], reihenfolge[i]];
-      strukturAendern('boardSpaltenReihenfolge', { board_id: board.id, reihenfolge });
+      setzeSpaltenReihenfolgeLokal(daten, reihenfolge);
+      neuZeichnen();
+      hintergrundSenden('boardSpaltenReihenfolge', { board_id: board.id, reihenfolge },
+        () => vorher.forEach(({ id, reihenfolge: r }) => { const s = daten.boardSpalten.find((x) => x.id === id); if (s) s.reihenfolge = r; }),
+        'Reihenfolge konnte nicht gespeichert werden');
     },
     aufSpalteLoeschen: (spalte) => {
       if (!window.confirm(`Die Spalte „${spalte.bezeichnung}" und alle ihre Häkchen werden gelöscht. Fortfahren?`)) return;
-      strukturAendern('boardSpalteLoeschen', { id: spalte.id });
+      const { spalte: entfernteSpalte, entfernteWerte } = entferneSpalteLokal(daten, spalte.id);
+      neuZeichnen();
+      hintergrundSenden('boardSpalteLoeschen', { id: spalte.id }, () => {
+        if (entfernteSpalte) fuegeSpalteLokalHinzu(daten, entfernteSpalte);
+        entfernteWerte.forEach((w) => daten.boardWerte.push(w));
+      }, 'Löschen fehlgeschlagen');
     }
   }));
 }
@@ -285,9 +389,9 @@ function aktualisiereZellButton(button, zustand, beschriftung) {
   button.setAttribute('aria-label', `${beschriftung}: ${zustandBeschriftung(zustand)}`);
 }
 
-// --- Neues Board ---------------------------------------------------------
+// --- Neue Checkliste ---------------------------------------------------------
 
-function zeichneNeuesBoardPanel(panel, daten, klasse, strukturAendern) {
+function zeichneNeuePanel(panel, daten, neuZeichnen, zustand) {
   leere(panel);
 
   const titelFeld = e('input', { type: 'text', placeholder: 'z. B. Materialien September', 'aria-label': 'Titel' });
@@ -295,34 +399,32 @@ function zeichneNeuesBoardPanel(panel, daten, klasse, strukturAendern) {
   const labelsFeld = e('input', { type: 'text', placeholder: 'Labels, kommagetrennt (optional)', 'aria-label': 'Labels', list: 'board-labels' });
   const labelsDatalist = e('datalist', { id: 'board-labels' }, alleLabels(daten).map((l) => e('option', { value: l })));
 
-  const vorlagen = daten.boards.filter((b) => b.status === 'aktiv');
-  const vorlageFeld = e('select', { 'aria-label': 'Spalten übernehmen von' }, [
-    e('option', { value: '', text: 'Keine — leer beginnen' }),
-    ...vorlagen.map((b) => e('option', { value: b.id, text: `${b.titel} (${b.klasse})` }))
-  ]);
-
   const meldung = e('div', {});
 
-  panel.appendChild(e('h3', { text: 'Neues Board', style: 'margin-bottom:12px' }));
+  panel.appendChild(e('h3', { text: 'Neue Checkliste', style: 'margin-bottom:12px' }));
   panel.appendChild(e('div', { klasse: 'feld' }, [e('label', { text: 'Titel' }), titelFeld]));
   panel.appendChild(e('div', { klasse: 'feld' }, [e('label', { text: 'Untertitel' }), untertitelFeld]));
   panel.appendChild(e('div', { klasse: 'feld' }, [e('label', { text: 'Labels' }), labelsFeld, labelsDatalist]));
-  panel.appendChild(e('div', { klasse: 'feld' }, [e('label', { text: 'Spalten übernehmen von' }), vorlageFeld]));
   panel.appendChild(e('div', { klasse: 'leiste', style: 'margin-bottom:0' }, [
     e('button', {
       klasse: 'wichtig', text: 'Anlegen',
-      auf: { click: async () => {
+      auf: { click: () => {
         const titel = titelFeld.value.trim();
         if (!titel) { leere(meldung); meldung.appendChild(hinweis({ art: 'warn', zeichen: '!', text: 'Bitte einen Titel eingeben.' })); return; }
-        const quelle = vorlageFeld.value ? daten.boardSpalten
-          .filter((s) => s.board_id === vorlageFeld.value)
-          .sort((a, b) => a.reihenfolge - b.reihenfolge)
-          .map((s) => s.bezeichnung) : [];
-        await strukturAendern('boardErstellen', {
-          klasse, titel, untertitel: untertitelFeld.value.trim(),
-          labels: labelsFeld.value.trim(), spalten: quelle
-        }, meldung);
+        const untertitel = untertitelFeld.value.trim();
+        const labels = labelsFeld.value.trim();
+        const id = crypto.randomUUID();
+        const board = { id, titel, untertitel, labels, status: 'aktiv', erstellt_am: heutigesDatum(), archiviert_am: '' };
+        fuegeBoardLokalHinzu(daten, board);
+        zustand.boardId = id;
         panel.hidden = true;
+        neuZeichnen();
+        sende('boardErstellen', { id, titel, untertitel, labels }).catch((fehler) => {
+          entferneBoardLokal(daten, id);
+          zustand.boardId = null;
+          window.alert('Checkliste konnte nicht angelegt werden: ' + fehler.message);
+          neuZeichnen();
+        });
       } }
     }),
     e('button', { klasse: 'leise', text: 'Abbrechen', auf: { click: () => { panel.hidden = true; } } })
@@ -334,7 +436,7 @@ function zeichneNeuesBoardPanel(panel, daten, klasse, strukturAendern) {
 
 function zeichneArchiv(daten, klasse, zustand, verbergen, neuZeichnen) {
   const container = e('div', {});
-  const archivierte = boardsFuerKlasse(daten, klasse, 'archiviert');
+  const archivierte = boardeNachStatus(daten, 'archiviert');
 
   const labelFeld = e('select', { 'aria-label': 'Nach Label filtern' }, [
     e('option', { value: '', text: 'Alle Labels' }),
@@ -361,7 +463,7 @@ function zeichneArchiv(daten, klasse, zustand, verbergen, neuZeichnen) {
 
   const gefiltert = archivierte.filter(passt);
   if (!gefiltert.length) {
-    container.appendChild(e('div', { klasse: 'leer', text: 'Keine archivierten Boards für diese Auswahl.' }));
+    container.appendChild(e('div', { klasse: 'leer', text: 'Keine archivierten Checklisten für diese Auswahl.' }));
     return container;
   }
 

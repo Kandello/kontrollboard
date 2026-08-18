@@ -36,7 +36,7 @@ pruefe('Klassenknopf zeigt 23 Kinder', (await p.locator('.klassenknopf').first()
 await p.locator('.klassenknopf').first().click(); await p.waitForTimeout(400);
 pruefe('URL enthaelt Klasse', p.url().includes('#/klasse/3L'));
 pruefe('Pfadleiste Start > 3L', (await p.locator('.pfad').innerText()).replace(/\s+/g,' ').includes('Start › 3L'));
-pruefe('3 Werkzeugeinstiege', await p.locator('.werkzeug').count() === 3);
+pruefe('2 Werkzeugeinstiege', await p.locator('.werkzeug').count() === 2);
 pruefe('Klassenliste 23 Zeilen', await p.locator('table.liste tbody tr').count() === 23);
 const ersteZeile = await p.locator('table.liste tbody tr').first().innerText();
 pruefe('Liste beginnt bei Nr. 1', ersteZeile.trim().startsWith('1'), ersteZeile);
@@ -50,13 +50,22 @@ const nurK = kuerzel.filter(k=>/^3L-/.test(k)).map(k=>Number(k.split('-')[1]));
 pruefe('Kuerzel NICHT aufsteigend (Mischung intakt)', JSON.stringify(nurK) !== JSON.stringify([...nurK].sort((a,b)=>a-b)));
 
 // Werkzeug-Unteransicht
-await p.locator('.werkzeug').nth(1).click(); await p.waitForTimeout(400);
-pruefe('URL Werkzeug boards', p.url().includes('/boards'));
-pruefe('Pfad zeigt Kontrollboards', (await p.locator('.pfad').innerText()).includes('Kontrollboards'));
+await p.locator('.werkzeug').nth(0).click(); await p.waitForTimeout(400);
+pruefe('URL Werkzeug noten', p.url().includes('/noten'));
+pruefe('Pfad zeigt Notentracker', (await p.locator('.pfad').innerText()).includes('Notentracker'));
+
+// Checklisten: eigener Kopfleisten-Knopf, nicht klasseninternen
+await p.locator('a.knopf', { hasText: 'Checklisten' }).click(); await p.waitForTimeout(400);
+pruefe('Checklisten-Uebersicht erreicht', p.url().endsWith('#/checklisten'));
+pruefe('3 Klassenknoepfe auf der Checklisten-Uebersicht', await p.locator('.klassenknopf').count() === 3);
+
+await p.locator('.klassenknopf').first().click(); await p.waitForTimeout(400);
+pruefe('URL Checklisten fuer 3L', p.url().includes('#/checklisten/3L'));
+pruefe('Pfad zeigt Checklisten', (await p.locator('.pfad').innerText()).includes('Checklisten'));
 
 // Klassenwechsel ohne Umweg ueber Start
 await p.selectOption('#klassenwechsel', '3OB'); await p.waitForTimeout(400);
-pruefe('Klasse gewechselt, Werkzeug erhalten', p.url().includes('#/klasse/3OB/boards'));
+pruefe('Klasse gewechselt, auf Checklisten geblieben', p.url().includes('#/checklisten/3OB'));
 
 // Zurueck-Knopf
 await p.goBack(); await p.waitForTimeout(400);
