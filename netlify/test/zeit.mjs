@@ -9,7 +9,7 @@
  */
 
 import {
-  heute, uhrzeit, wochentag, wochentagName, istWochenende,
+  heute, uhrzeit, wochentag, wochentagName, istWochenende, morgen,
   isoWoche, kwKennung, alsMinuten, alsIso, alsDeutsch, istErstesHalbjahr
 } from '../js/zeit.js';
 
@@ -64,6 +64,13 @@ pruefe('Name zu 5', wochentagName(5), 'Freitag');
 pruefe('Samstag ist Wochenende', istWochenende(tag('2026-08-22')), true);
 pruefe('Sonntag ist Wochenende', istWochenende(tag('2026-08-23')), true);
 pruefe('Freitag ist kein Wochenende', istWochenende(tag('2026-08-21')), false);
+
+console.log('\n=== morgen() ===');
+pruefe('gewoehnlicher Tag', morgen(tag('2026-08-17')), tag('2026-08-18'));
+pruefe('Monatsende', morgen(tag('2026-08-31')), tag('2026-09-01'));
+pruefe('Jahresende', morgen(tag('2026-12-31')), tag('2027-01-01'));
+pruefe('Schaltjahr, 28. Februar', morgen(tag('2024-02-28')), tag('2024-02-29'));
+pruefe('kein Schaltjahr, 28. Februar', morgen(tag('2026-02-28')), tag('2026-03-01'));
 
 console.log('\n=== Uhrzeiten ===');
 pruefe('09:00', alsMinuten('09:00'), 540);

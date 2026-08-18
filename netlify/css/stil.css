@@ -254,6 +254,8 @@ table.liste td.kuerzel { font-family: ui-monospace, Menlo, Consolas, monospace; 
 .uhr-zeit .sekunden { font-size: .55em; color: var(--text-leise); margin-left: 2px; }
 .uhr-tag { color: var(--text-leise); font-size: 15px; }
 
+.tagesplan-wochentag { font-size: 40px; }
+
 /* --- Startseite: Tagesplan ------------------------------------------------ */
 ul.tagesplan { list-style: none; margin: 0; padding: 0; }
 ul.tagesplan li { border-top: 1px solid var(--linie); }
@@ -325,6 +327,7 @@ ul.tagesplan li:first-child { border-top: 0; }
   .tagesplan .eintrag { flex-wrap: wrap; gap: var(--s2); }
   .tagesplan .zeit { min-width: 0; }
   .uhr-zeit { font-size: 38px; }
+  .tagesplan-wochentag { font-size: 34px; }
 }
 
 /* --- Klassenfarben --------------------------------------------------------

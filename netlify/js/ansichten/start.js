@@ -10,9 +10,12 @@ import { e, karte, setzeMeldung, hinweis } from '../ui.js';
 import { klassenlehrkraftEintrag } from '../zuordnung.js';
 import { sende, leereDaten, ladeDaten } from '../server.js';
 import {
-  heute, uhrzeit, wochentag, wochentagName, istWochenende,
+  heute, morgen, uhrzeit, wochentag, wochentagName, istWochenende,
   kwKennung, alsMinuten, alsDeutsch
 } from '../zeit.js';
+
+/** Ab dieser Stunde zeigt der Tagesplan schon den Folgetag. */
+const TAGESPLAN_VORSCHAU_AB_STUNDE = 17;
 
 /** Arten, die auf die Klassenseite fuehren. */
 const KLICKBAR = ['DEUTSCH', 'LESEN'];
@@ -38,11 +41,13 @@ export function zeichneStart(ziel, { daten, verbergen, neuZeichnen }) {
   const ferien = istWahr(daten.meta.ferienmodus);
   const tag = heute();
   const kw = kwKennung(tag);
+  const istVorschau = uhrzeit().stunde >= TAGESPLAN_VORSCHAU_AB_STUNDE;
+  const tagesplanTag = istVorschau ? morgen(tag) : tag;
 
   ziel.appendChild(uhrWidget(tag, ferien));
 
   if (!ferien) {
-    ziel.appendChild(tagesplan(daten, tag));
+    ziel.appendChild(tagesplan(daten, tagesplanTag, !istVorschau));
   }
 
   ziel.appendChild(e('div', { klasse: 'kachelreihe' }, [
@@ -94,13 +99,28 @@ function uhrWidget(tag, ferien) {
 
 // --- Tagesplan -------------------------------------------------------------
 
-function tagesplan(daten, tag) {
+/** Ueberschrift „Tagesplan am ⟨Wochentag⟩" — der Wochentag in groesserer Schrift. */
+function tagesplanUeberschrift(tag) {
+  return e('h2', { klasse: 'tagesplan-kopf', style: 'margin-bottom:12px' }, [
+    'Tagesplan am ',
+    e('span', { klasse: 'tagesplan-wochentag', text: wochentagName(wochentag(tag)) })
+  ]);
+}
+
+function tagesplanKarte(tag, kinder) {
+  return e('div', { klasse: 'karte' }, [
+    tagesplanUeberschrift(tag),
+    ...(Array.isArray(kinder) ? kinder : [kinder])
+  ]);
+}
+
+function tagesplan(daten, tag, istHeute = true) {
   const wt = wochentag(tag);
 
   if (istWochenende(tag)) {
-    return karte('Tagesplan', [
+    return tagesplanKarte(tag, [
       e('div', { klasse: 'leer', style: 'padding:24px 16px',
-                 text: wt === 6 ? 'Samstag — heute kein Unterricht.' : 'Sonntag — heute kein Unterricht.' })
+                 text: wt === 6 ? 'Samstag — kein Unterricht.' : 'Sonntag — kein Unterricht.' })
     ]);
   }
 
@@ -110,19 +130,21 @@ function tagesplan(daten, tag) {
     .sort((a, b) => (alsMinuten(a.von) ?? 0) - (alsMinuten(b.von) ?? 0));
 
   if (!stunden.length) {
-    return karte('Tagesplan', [
+    return tagesplanKarte(tag, [
       e('div', { klasse: 'leer', style: 'padding:24px 16px',
-                 text: 'Für heute steht nichts im Stundenplan.' })
+                 text: 'Für diesen Tag steht nichts im Stundenplan.' })
     ]);
   }
 
-  const jetzt = uhrzeit().minuten;
-  const laufend = stunden.findIndex((s) => {
+  // Bei einer Vorschau auf den Folgetag ergeben "läuft"/"als Nächstes" keinen
+  // Sinn — die aktuelle Uhrzeit gehoert ja noch zum heutigen Tag.
+  const jetzt = istHeute ? uhrzeit().minuten : -1;
+  const laufend = istHeute ? stunden.findIndex((s) => {
     const von = alsMinuten(s.von);
     const bis = alsMinuten(s.bis);
     return von !== null && bis !== null && jetzt >= von && jetzt < bis;
-  });
-  const naechste = laufend === -1
+  }) : -1;
+  const naechste = istHeute && laufend === -1
     ? stunden.findIndex((s) => (alsMinuten(s.von) ?? 0) > jetzt)
     : -1;
 
@@ -167,7 +189,7 @@ function tagesplan(daten, tag) {
     }, [zeile]);
   }));
 
-  return karte('Tagesplan', [liste]);
+  return tagesplanKarte(tag, [liste]);
 }
 
 function bezeichneArt(s) {

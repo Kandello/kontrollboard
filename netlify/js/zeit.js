@@ -59,6 +59,13 @@ export function istWochenende(tagesobjekt) {
   return wochentag(tagesobjekt) >= 6;
 }
 
+/** Der Kalendertag danach — rechnet ueber Monats- und Jahresgrenzen hinweg. */
+export function morgen(tagesobjekt) {
+  const d = alsUtc(tagesobjekt);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return { jahr: d.getUTCFullYear(), monat: d.getUTCMonth() + 1, tag: d.getUTCDate() };
+}
+
 /**
  * Rechnet auf einem UTC-Datum, nicht auf einem lokalen. Ein lokales Datum
  * verschoebe sich bei der Sommerzeitumstellung um eine Stunde und koennte

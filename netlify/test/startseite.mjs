@@ -72,6 +72,8 @@ console.log('=== Montag 09:20, laufende Stunde ===');
   pruefe('Uhr zeigt Berliner Zeit mit Sekunden',
     /^09:20:\d{2}$/.test((await p.locator('.uhr-zeit').innerText()).replace(/\s/g, '')), true);
   pruefe('Datum und Wochentag', await p.locator('.uhr-tag').innerText(), 'Montag, 17.08.2026');
+  pruefe('Tagesplan-Überschrift nennt den Wochentag',
+    (await p.locator('.tagesplan-kopf').innerText()).trim(), 'Tagesplan am Montag');
 
   const zeilen = await p.locator('ul.tagesplan li').count();
   pruefe('sechs Einträge am Montag', zeilen, 6);
@@ -121,6 +123,35 @@ console.log('\n=== Montag 10:45, Pause ===');
   pruefe('genau eine nächste Stunde', await p.locator('li.ist-naechste').count(), 1);
   pruefe('nächste ist die um 11:30',
     (await p.locator('li.ist-naechste').innerText()).includes('11:30'), true);
+  await ctx.close();
+}
+
+// ---------------------------------------------------------------------------
+// Montag 16:59 — noch der heutige Plan, samt laufender/naechster Markierung.
+// ---------------------------------------------------------------------------
+console.log('\n=== Montag 16:59, kurz vor der Umschaltung ===');
+{
+  const { p, ctx } = await oeffne('2026-08-17T14:59:00Z');
+  pruefe('Überschrift zeigt noch Montag',
+    (await p.locator('.tagesplan-kopf').innerText()).trim(), 'Tagesplan am Montag');
+  pruefe('noch sechs Einträge (heutiger Plan)', await p.locator('ul.tagesplan li').count(), 6);
+  await ctx.close();
+}
+
+// ---------------------------------------------------------------------------
+// Montag 17:00 — ab hier zeigt der Tagesplan schon den Dienstag voraus.
+// ---------------------------------------------------------------------------
+console.log('\n=== Montag 17:00, Vorschau auf Dienstag ===');
+{
+  const { p, ctx } = await oeffne('2026-08-17T15:00:00Z');
+  pruefe('Überschrift wechselt bereits auf Dienstag',
+    (await p.locator('.tagesplan-kopf').innerText()).trim(), 'Tagesplan am Dienstag');
+  pruefe('Uhr zeigt aber weiterhin Montag',
+    (await p.locator('.uhr-tag').innerText()).startsWith('Montag'), true);
+  pruefe('vier Einträge (Dienstagsplan)', await p.locator('ul.tagesplan li').count(), 4);
+  pruefe('in der Vorschau läuft nichts', await p.locator('li.ist-laufend').count(), 0);
+  pruefe('in der Vorschau auch keine „als Nächstes"-Marke',
+    await p.locator('li.ist-naechste').count(), 0);
   await ctx.close();
 }
 
@@ -185,6 +216,18 @@ console.log('\n=== Freitag ===');
   pruefe('offene Aufgaben bleiben ganzwöchig markiert',
     (await p.locator('.kachel.offen').count()) >= 1, true);
   pruefe('vier Stunden am Freitag', await p.locator('ul.tagesplan li').count(), 4);
+  await ctx.close();
+}
+
+// ---------------------------------------------------------------------------
+// Freitag 17:00 — die Vorschau springt uebers Wochenende auf den Samstag.
+// ---------------------------------------------------------------------------
+console.log('\n=== Freitag 17:00, Vorschau aufs Wochenende ===');
+{
+  const { p, ctx } = await oeffne('2026-08-21T15:00:00Z');
+  pruefe('Überschrift zeigt Samstag',
+    (await p.locator('.tagesplan-kopf').innerText()).trim(), 'Tagesplan am Samstag');
+  pruefe('ruhiger Hinweis statt Stundenliste', await p.locator('ul.tagesplan').count(), 0);
   await ctx.close();
 }
 
