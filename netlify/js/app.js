@@ -9,7 +9,7 @@ import { istEingerichtet, ladeDaten, holeDaten } from './server.js';
 import * as zuordnung from './zuordnung.js';
 import { zeichneStart, raeumeStartAuf } from './ansichten/start.js';
 import { zeichneKlasse } from './ansichten/klasse.js';
-import { zeichneChecklistenUebersicht, zeichneChecklisten } from './ansichten/checklisten.js';
+import { zeichneChecklisten } from './ansichten/checklisten.js';
 import { zeichneEinstellungen } from './ansichten/einstellungen.js';
 import { zeichneZuordnung } from './ansichten/zuordnungAnsicht.js';
 
@@ -209,7 +209,16 @@ registriere('/klasse/:klasse/:werkzeug', ansicht((ziel, k) => {
 
 registriere('/checklisten', ansicht((ziel, k) => {
   if (!k.daten) return;
-  zeichneChecklistenUebersicht(ziel, k);
+  if (!k.daten.klassen.length) {
+    ziel.appendChild(hinweis({
+      art: 'warn', zeichen: '→', titel: 'Keine Klasse eingetragen',
+      text: 'Im Blatt „Klassen" ist noch keine aktive Klasse eingetragen.'
+    }));
+    return;
+  }
+  // Anlegen und Spalten befuellen sollen ohne Umweg über eine Klassenwahl
+  // möglich sein — #/checklisten leitet deshalb direkt in die erste Klasse.
+  gehe('/checklisten/' + encodeURIComponent(k.daten.klassen[0].klasse), { ersetzen: true });
 }));
 
 registriere('/checklisten/:klasse', ansicht((ziel, k) => {

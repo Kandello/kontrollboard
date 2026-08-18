@@ -54,17 +54,18 @@ await p.locator('.werkzeug').nth(0).click(); await p.waitForTimeout(400);
 pruefe('URL Werkzeug noten', p.url().includes('/noten'));
 pruefe('Pfad zeigt Notentracker', (await p.locator('.pfad').innerText()).includes('Notentracker'));
 
-// Checklisten: eigener Kopfleisten-Knopf, nicht klasseninternen
+// Checklisten: eigener Kopfleisten-Knopf, landet ohne Umweg über eine
+// Klassenwahl direkt in einer Klasse — "Neue Checkliste" ist sofort da.
 await p.locator('a.knopf', { hasText: 'Checklisten' }).click(); await p.waitForTimeout(400);
-pruefe('Checklisten-Uebersicht erreicht', p.url().endsWith('#/checklisten'));
-pruefe('3 Klassenknoepfe auf der Checklisten-Uebersicht', await p.locator('.klassenknopf').count() === 3);
-
-await p.locator('.klassenknopf').first().click(); await p.waitForTimeout(400);
-pruefe('URL Checklisten fuer 3L', p.url().includes('#/checklisten/3L'));
+pruefe('landet direkt in der ersten Klasse, kein Zwischenschritt', p.url().includes('#/checklisten/3L'));
 pruefe('Pfad zeigt Checklisten', (await p.locator('.pfad').innerText()).includes('Checklisten'));
+pruefe('"Neue Checkliste" sofort verfügbar, ohne erst eine Klasse zu wählen',
+  await p.locator('button', { hasText: 'Neue Checkliste' }).count() > 0, true);
 
-// Klassenwechsel ohne Umweg ueber Start
-await p.selectOption('#klassenwechsel', '3OB'); await p.waitForTimeout(400);
+// Klassenwechsel über die drei kleinen Knöpfe im Kopf, nicht per Dropdown.
+const klassenGruppe = p.locator('[role="group"][aria-label="Klasse wechseln"]');
+pruefe('drei kleine Klassenknöpfe im Kopf', await klassenGruppe.locator('button').count(), 3);
+await klassenGruppe.locator('button', { hasText: '3OB' }).click(); await p.waitForTimeout(400);
 pruefe('Klasse gewechselt, auf Checklisten geblieben', p.url().includes('#/checklisten/3OB'));
 
 // Zurueck-Knopf

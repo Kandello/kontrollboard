@@ -2,8 +2,11 @@
  * ansichten/checklisten.js — Checklisten.
  *
  * Eigener Einstieg oben in der Kopfleiste, nicht unter einer Klasse
- * versteckt: Klick fuehrt auf die Klassenknoepfe (#/checklisten), Klick auf
- * einen davon auf die eigentliche Checkliste (#/checklisten/:klasse).
+ * versteckt: Klick fuehrt direkt auf die Checklisten-Verwaltung einer
+ * Klasse (#/checklisten leitet auf #/checklisten/:klasse der ersten
+ * Klasse weiter), damit Anlegen und Spalten befuellen ohne Umweg ueber
+ * eine Klassenwahl moeglich sind. Drei kleine Knoepfe im Kopf wechseln
+ * danach zwischen den Klassen, ohne die gewaehlte Checkliste zu verlieren.
  *
  * Eine Checkliste ist fuer alle Klassen gemeinsam angelegt — Parallelklassen
  * bekommen ohnehin dieselben Listen zur selben Zeit. Getrennt bleiben nur
@@ -40,49 +43,6 @@ import {
  */
 const zustand = { boardId: null, ansicht: 'aktiv', archivLabel: '', archivVon: '', archivBis: '', archivAnsicht: null };
 
-// --- Landing: Klassenknoepfe -------------------------------------------------
-
-export function zeichneChecklistenUebersicht(ziel, { daten }) {
-  ziel.appendChild(e('h1', { text: 'Checklisten' }));
-  ziel.appendChild(e('div', { klasse: 'feldhilfe', style: 'margin-bottom:16px',
-    text: 'Eine Checkliste gilt für alle Klassen gleichzeitig. Klasse wählen, um sie anzusehen oder abzuhaken.' }));
-
-  const raster = e('div', { klasse: 'klassenraster' });
-  if (!daten.klassen.length) {
-    raster.appendChild(e('div', { klasse: 'leer',
-      text: 'Im Blatt „Klassen" ist noch keine aktive Klasse eingetragen.' }));
-  } else {
-    daten.klassen.forEach((k, i) => {
-      const anzahl = daten.schueler.filter((s) => s.klasse === k.klasse && s.aktiv).length;
-      raster.appendChild(e('a', {
-        href: '#/checklisten/' + encodeURIComponent(k.klasse),
-        klasse: 'klassenknopf ' + farbklasse(k, i, daten),
-        style: (k.farbe ? `--klassenfarbe:${k.farbe};` : '') + 'text-decoration:none;color:inherit;display:block',
-        'aria-label': 'Checklisten für ' + k.bezeichnung + ' öffnen'
-      }, [
-        e('span', { klasse: 'name', text: k.bezeichnung }),
-        e('span', { klasse: 'zusatz', text: anzahl + (anzahl === 1 ? ' Kind' : ' Kinder') })
-      ]));
-    });
-  }
-  ziel.appendChild(raster);
-
-  const aktive = boardeNachStatus(daten, 'aktiv');
-  if (aktive.length) {
-    ziel.appendChild(e('div', { klasse: 'abschnitt-titel', text: 'Vorhandene Checklisten' }));
-    ziel.appendChild(e('div', { klasse: 'werkzeuge' }, aktive.map((b) => e('span', { klasse: 'werkzeug', style: 'cursor:default' }, [
-      e('span', { klasse: 'titel', text: b.titel }),
-      b.untertitel ? e('span', { klasse: 'beschreibung', text: b.untertitel }) : null
-    ]))));
-  }
-}
-
-function farbklasse(k, i, daten) {
-  if (k.farbe) return '';
-  const idx = daten.klassen.findIndex((x) => x.klasse === k.klasse);
-  return 'k-farbe-' + (((k.reihenfolge || idx + 1) - 1) % 5 + 1);
-}
-
 // --- Werkzeug je Klasse -------------------------------------------------------
 
 export function zeichneChecklisten(ziel, kontext) {
@@ -106,18 +66,16 @@ export function zeichneChecklisten(ziel, kontext) {
     e('div', {}, [
       e('h1', {}, [
         e('span', { klasse: 'klassenfarbe-punkt', 'aria-hidden': 'true' }),
-        'Checklisten — ' + eintrag.bezeichnung
+        'Checklisten'
       ])
     ]),
-    e('div', { klasse: 'schub' }, [
-      e('label', { for: 'klassenwechsel', text: 'Klasse wechseln' }),
-      e('select', {
-        id: 'klassenwechsel',
-        auf: { change: (ev) => gehe('/checklisten/' + encodeURIComponent(ev.target.value)) }
-      }, daten.klassen.map((k) => e('option', {
-        value: k.klasse, text: k.bezeichnung, selected: k.klasse === klasse
+    e('div', { klasse: 'schub', style: 'display:flex;gap:6px;flex-wrap:wrap', role: 'group', 'aria-label': 'Klasse wechseln' },
+      daten.klassen.map((k) => e('button', {
+        klasse: 'klein' + (k.klasse === klasse ? ' wichtig' : ''),
+        text: k.bezeichnung,
+        'aria-current': k.klasse === klasse ? 'true' : null,
+        auf: { click: () => { if (k.klasse !== klasse) gehe('/checklisten/' + encodeURIComponent(k.klasse)); } }
       })))
-    ])
   ]));
 
   let ausstehend = new Map();
