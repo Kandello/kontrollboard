@@ -29,10 +29,10 @@ import { sende, leereDaten, ladeDaten } from '../server.js';
 import { setzeVerlassenPruefung, gehe } from '../router.js';
 import {
   naechsterZustand, zustandSymbol, zustandBeschriftung,
-  boardeNachStatus, spaltenFuerBoard, wertFuer, alleLabels, labelListe, setzeWertLokal,
-  heutigesDatum, fuegeBoardLokalHinzu, entferneBoardLokal, setzeBoardStatusLokal,
+  boardeFuerKlasse, archiviertAmFuerKlasse, spaltenFuerBoard, wertFuer, alleLabels, labelListe, setzeWertLokal,
+  heutigesDatum, fuegeBoardLokalHinzu, entferneBoardLokal, setzeBoardKlassenStatusLokal,
   fuegeSpalteLokalHinzu, entferneSpalteLokal, benenneSpalteLokalUm,
-  setzeSpaltenReihenfolgeLokal, leereBoardWerteLokal
+  setzeSpaltenReihenfolgeLokal, leereBoardWerteLokalFuerKlasse
 } from '../board.js';
 
 /**
@@ -122,7 +122,7 @@ export function zeichneChecklisten(ziel, kontext) {
     });
   }
 
-  const boards = boardeNachStatus(daten, 'aktiv');
+  const boards = boardeFuerKlasse(daten, klasse, 'aktiv');
   if (!zustand.boardId || !boards.some((b) => b.id === zustand.boardId)) {
     zustand.boardId = boards[0] ? boards[0].id : null;
   }
@@ -179,10 +179,9 @@ export function zeichneChecklisten(ziel, kontext) {
       e('button', {
         text: 'Zurücksetzen',
         auf: { click: () => {
-          if (!window.confirm(`Alle Häkchen in „${board.titel}" werden gelöscht. Fortfahren?`)) return;
-          const entfernt = leereBoardWerteLokal(daten, board.id);
+          const entfernt = leereBoardWerteLokalFuerKlasse(daten, board.id, klasse);
           neuZeichnen();
-          hintergrundSenden('boardZuruecksetzen', { id: board.id },
+          hintergrundSenden('boardZuruecksetzen', { id: board.id, klasse },
             () => entfernt.forEach((w) => daten.boardWerte.push(w)),
             'Zurücksetzen fehlgeschlagen');
         } }
@@ -191,12 +190,12 @@ export function zeichneChecklisten(ziel, kontext) {
         klasse: 'gefahr',
         text: 'Archivieren',
         auf: { click: () => {
-          if (!window.confirm(`„${board.titel}" wird archiviert und verschwindet aus der Auswahl. Über „Archiv ansehen" bleibt es einsehbar.`)) return;
-          setzeBoardStatusLokal(daten, board.id, 'archiviert', heutigesDatum());
+          if (!window.confirm(`„${board.titel}" wird für ${eintrag.bezeichnung} archiviert und verschwindet dort aus der Auswahl. Andere Klassen sind davon nicht betroffen; über „Archiv ansehen" bleibt sie hier einsehbar.`)) return;
+          setzeBoardKlassenStatusLokal(daten, board.id, klasse, 'archiviert', heutigesDatum());
           zustand.boardId = null;
           neuZeichnen();
-          hintergrundSenden('boardStatus', { id: board.id, status: 'archiviert' },
-            () => setzeBoardStatusLokal(daten, board.id, 'aktiv', ''),
+          hintergrundSenden('boardStatus', { id: board.id, klasse, status: 'archiviert' },
+            () => setzeBoardKlassenStatusLokal(daten, board.id, klasse, 'aktiv', ''),
             'Archivieren fehlgeschlagen');
         } }
       })
@@ -394,7 +393,7 @@ function zeichneNeuePanel(panel, daten, neuZeichnen, zustand) {
 
 function zeichneArchiv(daten, klasse, zustand, verbergen, neuZeichnen) {
   const container = e('div', {});
-  const archivierte = boardeNachStatus(daten, 'archiviert');
+  const archivierte = boardeFuerKlasse(daten, klasse, 'archiviert');
 
   const labelFeld = e('select', { 'aria-label': 'Nach Label filtern' }, [
     e('option', { value: '', text: 'Alle Labels' }),
@@ -404,9 +403,10 @@ function zeichneArchiv(daten, klasse, zustand, verbergen, neuZeichnen) {
   const bisFeld = e('input', { type: 'date', 'aria-label': 'Bis', value: zustand.archivBis });
 
   function passt(board) {
+    const archiviertAm = archiviertAmFuerKlasse(daten, board.id, klasse);
     if (zustand.archivLabel && !labelListe(board.labels).includes(zustand.archivLabel)) return false;
-    if (zustand.archivVon && board.archiviert_am < zustand.archivVon) return false;
-    if (zustand.archivBis && board.archiviert_am > zustand.archivBis) return false;
+    if (zustand.archivVon && archiviertAm < zustand.archivVon) return false;
+    if (zustand.archivBis && archiviertAm > zustand.archivBis) return false;
     return true;
   }
 
@@ -431,7 +431,7 @@ function zeichneArchiv(daten, klasse, zustand, verbergen, neuZeichnen) {
     auf: { click: () => { zustand.archivAnsicht = zustand.archivAnsicht === b.id ? null : b.id; neuZeichnen(); } }
   }, [
     e('span', { klasse: 'titel', text: b.titel }),
-    e('span', { klasse: 'beschreibung', text: 'archiviert am ' + b.archiviert_am + (b.labels ? ' · ' + b.labels : '') })
+    e('span', { klasse: 'beschreibung', text: 'archiviert am ' + archiviertAmFuerKlasse(daten, b.id, klasse) + (b.labels ? ' · ' + b.labels : '') })
   ]))));
 
   if (zustand.archivAnsicht) {

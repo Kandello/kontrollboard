@@ -320,6 +320,19 @@ function ladeAlles() {
         };
       }),
 
+    // Archivierungsstatus je Klasse: eine Checkliste ist fuer alle Klassen
+    // angelegt, kann aber pro Klasse einzeln aufgeraeumt werden. Fehlt eine
+    // Zeile fuer eine Kombination aus Checkliste und Klasse, gilt sie dort
+    // als aktiv.
+    boardKlassenStatus: liesBlatt_('BoardKlassenStatus').map(function (z) {
+      return {
+        board_id: alsText_(z.board_id),
+        klasse: alsText_(z.klasse),
+        status: alsText_(z.status) || 'aktiv',
+        archiviert_am: alsText_(z.archiviert_am)
+      };
+    }),
+
     einheiten: liesBlatt_('Einheiten')
       .filter(function (z) { return istWahr_(z.aktiv); })
       .map(function (z) {

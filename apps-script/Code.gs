@@ -104,10 +104,10 @@ function doPost(e) {
           boardAktualisieren(rumpf.id, rumpf.titel, rumpf.untertitel, rumpf.labels) });
 
       case 'boardStatus':
-        return antwort_({ ok: true, ergebnis: boardStatus(rumpf.id, rumpf.status) });
+        return antwort_({ ok: true, ergebnis: boardStatus(rumpf.id, rumpf.klasse, rumpf.status) });
 
       case 'boardZuruecksetzen':
-        return antwort_({ ok: true, ergebnis: boardZuruecksetzen(rumpf.id) });
+        return antwort_({ ok: true, ergebnis: boardZuruecksetzen(rumpf.id, rumpf.klasse) });
 
       case 'boardSpalteHinzufuegen':
         return antwort_({ ok: true, ergebnis:

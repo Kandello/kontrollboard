@@ -229,19 +229,29 @@ console.log('\n=== Spalte löschen fragt nach, kaskadiert und ist sofort sichtba
   pruefe('nach Bestätigung sofort gelöscht', await p.locator('.board-kopf-name').allInnerTexts(), ['Schulheft']);
 }
 
-console.log('\n=== Zurücksetzen fragt nach, leert nur die Werte und ist sofort sichtbar ===');
+console.log('\n=== Zurücksetzen: ohne Rückfrage, sofort sichtbar, nur für die eigene Klasse ===');
 {
   const zelle = p.locator('td.board-zelle button.zellzustand').first();
   pruefe('Zelle noch belegt vor dem Zurücksetzen', await zelle.getAttribute('class'), 'zellzustand zustand-haken');
+  // Dieselbe Spalte trägt seit "Geteilt über alle Klassen" oben auch für 3M
+  // einen Haken — der darf durch das Zurücksetzen auf 3L nicht verschwinden.
 
-  p.once('dialog', (d) => d.dismiss());
-  await knopf('Zurücksetzen').click(); await p.waitForTimeout(150);
-  pruefe('bei Abbruch unverändert', await p.locator('td.board-zelle button.zellzustand').first().getAttribute('class'), 'zellzustand zustand-haken');
-
-  p.once('dialog', (d) => d.accept());
+  let dialogAufgetreten = false;
+  const merkeDialog = (d) => { dialogAufgetreten = true; d.accept(); };
+  p.on('dialog', merkeDialog);
   await knopf('Zurücksetzen').click(); await p.waitForTimeout(80);
-  pruefe('nach Bestätigung sofort leer', await p.locator('td.board-zelle button.zellzustand').first().getAttribute('class'), 'zellzustand');
+  p.off('dialog', merkeDialog);
+  pruefe('keine Rückfrage mehr — sofort ausgeführt', dialogAufgetreten, false);
+  pruefe('3L sofort leer', await p.locator('td.board-zelle button.zellzustand').first().getAttribute('class'), 'zellzustand');
   pruefe('Spalte bleibt erhalten', await p.locator('.board-kopf-name').count(), 1);
+
+  await p.goto(B + '#/checklisten/3M'); await p.waitForTimeout(400);
+  await waehleCheckliste('Materialien September');
+  pruefe('3M weiterhin gesetzt — Zurücksetzen betraf nur 3L',
+    await p.locator('td.board-zelle button.zellzustand').first().getAttribute('class'), 'zellzustand zustand-haken');
+
+  await p.goto(B + '#/checklisten/3L'); await p.waitForTimeout(400);
+  await waehleCheckliste('Materialien September');
 }
 
 console.log('\n=== Kein Gesamtzähler ===');
@@ -297,10 +307,15 @@ console.log('\n=== Archivansicht: schreibgeschützt, filterbar, auch unter ander
   await knopf('Zu den aktiven Checklisten').click(); await p.waitForTimeout(400);
   pruefe('zurück bei den aktiven Checklisten', await p.locator('h3.board-titel').innerText(), 'Lesepass');
 
-  // Auch unter einer anderen Klasse ist dieselbe Checkliste archiviert sichtbar.
+  // Archivieren betraf nur 3L — unter einer anderen Klasse bleibt dieselbe
+  // Checkliste aktiv und taucht dort NICHT im Archiv auf.
   await p.goto(B + '#/checklisten/3OB'); await p.waitForTimeout(400);
+  pruefe('unter 3OB weiterhin beide Checklisten aktiv',
+    await p.locator('select[aria-label="Checkliste auswählen"] option').allInnerTexts(),
+    ['Lesepass', 'Materialien September']);
   await knopf('Archiv ansehen').click(); await p.waitForTimeout(400);
-  pruefe('archivierte Checkliste auch unter 3OB sichtbar', (await p.locator('.werkzeug .titel').allInnerTexts()).includes('Materialien September'), true);
+  pruefe('unter 3OB nicht archiviert — Archivieren betraf nur 3L',
+    (await p.locator('.werkzeug .titel').allInnerTexts()).includes('Materialien September'), false);
 }
 
 console.log('\n=== Ungültiges Kürzel wird serverseitig abgewiesen ===');

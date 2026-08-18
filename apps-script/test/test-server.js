@@ -86,7 +86,7 @@ const pruefe = (name, ist, soll) => {
 
 console.log('=== setupSheets ===');
 const b1 = setupSheets();
-pruefe('alle 15 Blaetter angelegt', b1.angelegt.length, 15);
+pruefe('alle 16 Blaetter angelegt', b1.angelegt.length, 16);
 pruefe('Stundenplan 22 Zeilen', holeBlatt_('Stundenplan').getLastRow() - 1, 22);
 pruefe('Kategorien 4 Zeilen', holeBlatt_('Kategorien').getLastRow() - 1, 4);
 pruefe('Notenschluessel 6 Zeilen', holeBlatt_('Notenschluessel').getLastRow() - 1, 6);
@@ -94,7 +94,7 @@ pruefe('Notenschluessel 6 Zeilen', holeBlatt_('Notenschluessel').getLastRow() - 
 console.log('\n=== setupSheets erneut (darf nichts zerstoeren) ===');
 const b2 = setupSheets();
 pruefe('nichts neu angelegt', b2.angelegt.length, 0);
-pruefe('alle unveraendert', b2.unveraendert.length, 15);
+pruefe('alle unveraendert', b2.unveraendert.length, 16);
 pruefe('Stundenplan weiterhin 22', holeBlatt_('Stundenplan').getLastRow() - 1, 22);
 
 console.log('\n=== importSchuelerAusText ===');
@@ -432,36 +432,53 @@ console.log('\n=== Boards: Spalte loeschen kaskadiert Werte ===');
   pruefe('unbekannte Spalte abgewiesen', /nicht gefunden/.test(m), true);
 }
 
-console.log('\n=== Boards: zuruecksetzen leert nur die Werte ===');
+console.log('\n=== Boards: zuruecksetzen betrifft nur die eigene Klasse ===');
 {
   const board = ladeAlles().boards[0];
-  pruefe('Board hat noch Werte vor dem Zuruecksetzen',
-    ladeAlles().boardWerte.some(w => w.board_id === board.id), true);
+  const heft = ladeAlles().boardSpalten.find(s => s.board_id === board.id && s.bezeichnung === 'Heft');
+  boardWerteSpeichern([{ board_id: board.id, spalte_id: heft.id, kuerzel: '3M-05', zustand: 'haken' }]);
+  pruefe('3L hat noch Werte vor dem Zuruecksetzen',
+    ladeAlles().boardWerte.some(w => w.board_id === board.id && w.kuerzel === '3L-02'), true);
+  pruefe('3M hat einen Wert vor dem Zuruecksetzen',
+    ladeAlles().boardWerte.some(w => w.board_id === board.id && w.kuerzel === '3M-05'), true);
   const spaltenVorher = ladeAlles().boardSpalten.filter(s => s.board_id === board.id).length;
 
-  const r = boardZuruecksetzen(board.id);
+  const r = boardZuruecksetzen(board.id, '3L');
   pruefe('Werte entfernt', r.entfernt > 0, true);
-  pruefe('keine Werte mehr fuer dieses Board', ladeAlles().boardWerte.some(w => w.board_id === board.id), false);
+  pruefe('keine 3L-Werte mehr fuer dieses Board',
+    ladeAlles().boardWerte.some(w => w.board_id === board.id && w.kuerzel === '3L-02'), false);
+  pruefe('3M-Wert bleibt unberuehrt',
+    ladeAlles().boardWerte.some(w => w.board_id === board.id && w.kuerzel === '3M-05'), true);
   pruefe('Spalten bleiben erhalten', ladeAlles().boardSpalten.filter(s => s.board_id === board.id).length, spaltenVorher);
+
+  let m = '';
+  try { boardZuruecksetzen(board.id, ''); } catch (e) { m = e.message; }
+  pruefe('ohne Klasse abgewiesen', /Klasse/.test(m), true);
 }
 
-console.log('\n=== Boards: archivieren ===');
+console.log('\n=== Boards: archivieren betrifft nur die eigene Klasse ===');
 {
   const board = ladeAlles().boards[0];
-  const r = boardStatus(board.id, 'archiviert');
+  const r = boardStatus(board.id, '3L', 'archiviert');
   pruefe('Status archiviert', r.status, 'archiviert');
-  const nach = ladeAlles().boards.find(b => b.id === board.id);
-  pruefe('Status in der Tabelle archiviert', nach.status, 'archiviert');
-  pruefe('archiviert_am gesetzt', /^\d{4}-\d{2}-\d{2}$/.test(nach.archiviert_am), true);
+  pruefe('fuer 3L archiviert', ladeAlles().boardKlassenStatus
+    .find(s => s.board_id === board.id && s.klasse === '3L').status, 'archiviert');
+  pruefe('archiviert_am gesetzt', /^\d{4}-\d{2}-\d{2}$/.test(ladeAlles().boardKlassenStatus
+    .find(s => s.board_id === board.id && s.klasse === '3L').archiviert_am), true);
+  pruefe('fuer 3M weiterhin keine Statuszeile (gilt als aktiv)', ladeAlles().boardKlassenStatus
+    .some(s => s.board_id === board.id && s.klasse === '3M'), false);
 
-  boardStatus(board.id, 'aktiv');
-  const wieder = ladeAlles().boards.find(b => b.id === board.id);
+  boardStatus(board.id, '3L', 'aktiv');
+  const wieder = ladeAlles().boardKlassenStatus.find(s => s.board_id === board.id && s.klasse === '3L');
   pruefe('zurueckgesetzt auf aktiv', wieder.status, 'aktiv');
   pruefe('archiviert_am geleert', wieder.archiviert_am, '');
 
   let m = '';
-  try { boardStatus(board.id, 'unsinn'); } catch (e) { m = e.message; }
+  try { boardStatus(board.id, '3L', 'unsinn'); } catch (e) { m = e.message; }
   pruefe('unbekannter Status abgewiesen', /Unbekannter Status/.test(m), true);
+  m = '';
+  try { boardStatus(board.id, '', 'archiviert'); } catch (e) { m = e.message; }
+  pruefe('ohne Klasse abgewiesen', /Klasse/.test(m), true);
 }
 
 console.log('\n=== Boards: ueber doPost erreichbar, mit Token-Pruefung ===');

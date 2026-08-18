@@ -29,13 +29,26 @@ export function zustandBeschriftung(zustand) {
 }
 
 /**
- * Checklisten sind geteilt — nicht je Klasse einzeln. Die Trennung nach
- * Klasse entsteht erst in der Tabelle (nur die Kinder dieser Klasse) und
- * in BoardWerte (Kuerzel tragen die Klasse), nie in der Liste der Boards.
+ * Checklisten sind geteilt — nicht je Klasse einzeln angelegt. Aktiv/
+ * archiviert gilt aber sehr wohl je Klasse: Parallelklassen brauchen eine
+ * geteilte Liste nicht zwangslaeufig gleich lang, deshalb steht der Status
+ * in BoardKlassenStatus statt am Board selbst. Fehlt dort eine Zeile fuer
+ * diese Kombination, gilt die Klasse als aktiv.
  */
-export function boardeNachStatus(daten, status = 'aktiv') {
+export function statusFuerKlasse(daten, boardId, klasse) {
+  const eintrag = daten.boardKlassenStatus.find((s) => s.board_id === boardId && s.klasse === klasse);
+  return eintrag ? eintrag.status : 'aktiv';
+}
+
+/** Datum, an dem eine Checkliste fuer diese Klasse archiviert wurde ('' wenn aktiv). */
+export function archiviertAmFuerKlasse(daten, boardId, klasse) {
+  const eintrag = daten.boardKlassenStatus.find((s) => s.board_id === boardId && s.klasse === klasse);
+  return eintrag ? eintrag.archiviert_am : '';
+}
+
+export function boardeFuerKlasse(daten, klasse, status = 'aktiv') {
   return daten.boards
-    .filter((b) => b.status === status)
+    .filter((b) => statusFuerKlasse(daten, b.id, klasse) === status)
     .sort((a, b) => a.titel.localeCompare(b.titel, 'de'));
 }
 
@@ -105,9 +118,10 @@ export function entferneBoardLokal(daten, id) {
   if (i !== -1) daten.boards.splice(i, 1);
 }
 
-export function setzeBoardStatusLokal(daten, id, status, archiviertAm = '') {
-  const board = daten.boards.find((b) => b.id === id);
-  if (board) { board.status = status; board.archiviert_am = archiviertAm; }
+export function setzeBoardKlassenStatusLokal(daten, boardId, klasse, status, archiviertAm = '') {
+  const eintrag = daten.boardKlassenStatus.find((s) => s.board_id === boardId && s.klasse === klasse);
+  if (eintrag) { eintrag.status = status; eintrag.archiviert_am = archiviertAm; }
+  else daten.boardKlassenStatus.push({ board_id: boardId, klasse, status, archiviert_am: archiviertAm });
 }
 
 export function fuegeSpalteLokalHinzu(daten, spalte) {
@@ -137,11 +151,20 @@ export function setzeSpaltenReihenfolgeLokal(daten, reihenfolge) {
   });
 }
 
-/** Leert alle Zustaende eines Boards; gibt die entfernten Werte fuer ein Rueckgaengig zurueck. */
-export function leereBoardWerteLokal(daten, boardId) {
+/**
+ * Leert die Zustaende eines Boards fuer eine einzelne Klasse; gibt die
+ * entfernten Werte fuer ein Rueckgaengig zurueck. Werte anderer Klassen
+ * bleiben unberuehrt — dieselbe Checkliste kann pro Klasse unabhaengig
+ * aufgeraeumt werden.
+ */
+export function leereBoardWerteLokalFuerKlasse(daten, boardId, klasse) {
+  const kuerzelDieserKlasse = new Set(
+    daten.schueler.filter((s) => s.klasse === klasse).map((s) => s.kuerzel)
+  );
   const entfernt = [];
   for (let i = daten.boardWerte.length - 1; i >= 0; i--) {
-    if (daten.boardWerte[i].board_id === boardId) entfernt.push(...daten.boardWerte.splice(i, 1));
+    const w = daten.boardWerte[i];
+    if (w.board_id === boardId && kuerzelDieserKlasse.has(w.kuerzel)) entfernt.push(...daten.boardWerte.splice(i, 1));
   }
   return entfernt;
 }

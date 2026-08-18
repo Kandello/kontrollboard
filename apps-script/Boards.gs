@@ -60,32 +60,49 @@ function boardAktualisieren(id, titel, untertitel, labels) {
   });
 }
 
-/** Aktiv <-> archiviert. Archivierte Checklisten sind schreibgeschuetzt (Client). */
-function boardStatus(id, status) {
+/**
+ * Aktiv <-> archiviert — je Klasse einzeln, nicht fuer die Checkliste als
+ * Ganzes: Parallelklassen brauchen eine geteilte Liste nicht zwangslaeufig
+ * gleich lang. Fehlt eine Zeile in BoardKlassenStatus fuer diese Kombination,
+ * gilt die Klasse als aktiv (siehe Daten.gs).
+ */
+function boardStatus(id, klasse, status) {
   id = String(id || '').trim();
+  klasse = String(klasse || '').trim();
   status = String(status || '').trim().toLowerCase();
+  if (!klasse) throw new Error('Keine Klasse angegeben.');
   if (status !== 'aktiv' && status !== 'archiviert') throw new Error('Unbekannter Status.');
 
   return mitSperre_(function () {
-    var vorhanden = findeBoard_(id);
+    findeBoard_(id); // wirft, falls die Checkliste nicht existiert.
     var jetzt = Utilities.formatDate(new Date(), 'Europe/Berlin', 'yyyy-MM-dd');
-    schreibeNachSchluessel_('Boards', [{
-      id: id, fach: vorhanden.fach, titel: vorhanden.titel,
-      untertitel: vorhanden.untertitel, labels: vorhanden.labels,
-      status: status, erstellt_am: vorhanden.erstellt_am,
+    schreibeNachSchluessel_('BoardKlassenStatus', [{
+      board_id: id, klasse: klasse, status: status,
       archiviert_am: status === 'archiviert' ? jetzt : ''
-    }], ['id']);
-    return { id: id, status: status };
+    }], ['board_id', 'klasse']);
+    return { id: id, klasse: klasse, status: status };
   });
 }
 
-/** Leert alle Zustaende eines Boards. Die Spalten bleiben erhalten. */
-function boardZuruecksetzen(id) {
+/**
+ * Leert die Zustaende eines Boards fuer eine einzelne Klasse. Die Spalten
+ * und die Zustaende der anderen Klassen bleiben erhalten — eine geteilte
+ * Checkliste darf pro Klasse unabhaengig aufgeraeumt werden.
+ */
+function boardZuruecksetzen(id, klasse) {
   id = String(id || '').trim();
+  klasse = String(klasse || '').trim();
   if (!id) throw new Error('Keine Checkliste angegeben.');
+  if (!klasse) throw new Error('Keine Klasse angegeben.');
 
   return mitSperre_(function () {
-    var werte = liesBlatt_('BoardWerte').filter(function (z) { return alsText_(z.board_id) === id; });
+    var kuerzelDieserKlasse = {};
+    liesBlatt_('Schueler').forEach(function (s) {
+      if (alsText_(s.klasse) === klasse) kuerzelDieserKlasse[alsText_(s.kuerzel)] = true;
+    });
+    var werte = liesBlatt_('BoardWerte').filter(function (z) {
+      return alsText_(z.board_id) === id && kuerzelDieserKlasse[alsText_(z.kuerzel)];
+    });
     var schluessel = werte.map(function (z) {
       return [alsText_(z.board_id), alsText_(z.spalte_id), alsText_(z.kuerzel)];
     });
