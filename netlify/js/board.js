@@ -124,6 +124,39 @@ export function setzeBoardKlassenStatusLokal(daten, boardId, klasse, status, arc
   else daten.boardKlassenStatus.push({ board_id: boardId, klasse, status, archiviert_am: archiviertAm });
 }
 
+/**
+ * Entfernt eine Checkliste vollstaendig (Board, alle Spalten, alle Werte
+ * aller Klassen, aller Klassenstatus); gibt alles fuer ein Rueckgaengig
+ * zurueck. Anders als Zuruecksetzen/Archivieren betrifft das keine
+ * einzelne Klasse, sondern die geteilte Checkliste als Ganzes.
+ */
+export function entferneBoardVollstaendigLokal(daten, id) {
+  const bi = daten.boards.findIndex((b) => b.id === id);
+  const board = bi !== -1 ? daten.boards.splice(bi, 1)[0] : null;
+
+  const spalten = [];
+  for (let i = daten.boardSpalten.length - 1; i >= 0; i--) {
+    if (daten.boardSpalten[i].board_id === id) spalten.push(...daten.boardSpalten.splice(i, 1));
+  }
+  const werte = [];
+  for (let i = daten.boardWerte.length - 1; i >= 0; i--) {
+    if (daten.boardWerte[i].board_id === id) werte.push(...daten.boardWerte.splice(i, 1));
+  }
+  const klassenStatus = [];
+  for (let i = daten.boardKlassenStatus.length - 1; i >= 0; i--) {
+    if (daten.boardKlassenStatus[i].board_id === id) klassenStatus.push(...daten.boardKlassenStatus.splice(i, 1));
+  }
+  return { board, spalten, werte, klassenStatus };
+}
+
+/** Macht entferneBoardVollstaendigLokal() rueckgaengig — fuer den Fehlerfall. */
+export function stelleBoardWiederHer(daten, entfernung) {
+  if (entfernung.board) daten.boards.push(entfernung.board);
+  entfernung.spalten.forEach((s) => daten.boardSpalten.push(s));
+  entfernung.werte.forEach((w) => daten.boardWerte.push(w));
+  entfernung.klassenStatus.forEach((s) => daten.boardKlassenStatus.push(s));
+}
+
 export function fuegeSpalteLokalHinzu(daten, spalte) {
   daten.boardSpalten.push(spalte);
 }

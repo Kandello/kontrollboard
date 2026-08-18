@@ -31,6 +31,7 @@ import {
   naechsterZustand, zustandSymbol, zustandBeschriftung,
   boardeFuerKlasse, archiviertAmFuerKlasse, spaltenFuerBoard, wertFuer, alleLabels, labelListe, setzeWertLokal,
   heutigesDatum, fuegeBoardLokalHinzu, entferneBoardLokal, setzeBoardKlassenStatusLokal,
+  entferneBoardVollstaendigLokal, stelleBoardWiederHer,
   fuegeSpalteLokalHinzu, entferneSpalteLokal, benenneSpalteLokalUm,
   setzeSpaltenReihenfolgeLokal, leereBoardWerteLokalFuerKlasse
 } from '../board.js';
@@ -187,16 +188,26 @@ export function zeichneChecklisten(ziel, kontext) {
         } }
       }),
       e('button', {
-        klasse: 'gefahr',
         text: 'Archivieren',
         auf: { click: () => {
-          if (!window.confirm(`„${board.titel}" wird für ${eintrag.bezeichnung} archiviert und verschwindet dort aus der Auswahl. Andere Klassen sind davon nicht betroffen; über „Archiv ansehen" bleibt sie hier einsehbar.`)) return;
           setzeBoardKlassenStatusLokal(daten, board.id, klasse, 'archiviert', heutigesDatum());
           zustand.boardId = null;
           neuZeichnen();
           hintergrundSenden('boardStatus', { id: board.id, klasse, status: 'archiviert' },
             () => setzeBoardKlassenStatusLokal(daten, board.id, klasse, 'aktiv', ''),
             'Archivieren fehlgeschlagen');
+        } }
+      }),
+      e('button', {
+        klasse: 'gefahr',
+        text: 'Löschen',
+        auf: { click: () => {
+          const entfernung = entferneBoardVollstaendigLokal(daten, board.id);
+          zustand.boardId = null;
+          neuZeichnen();
+          hintergrundSenden('boardLoeschen', { id: board.id },
+            () => stelleBoardWiederHer(daten, entfernung),
+            'Löschen fehlgeschlagen');
         } }
       })
     ])

@@ -85,6 +85,37 @@ function boardStatus(id, klasse, status) {
 }
 
 /**
+ * Loescht eine Checkliste vollstaendig und unwiderruflich — Board, alle
+ * Spalten, alle Zustaende aller Klassen und der Archivierungsstatus.
+ * Anders als Archivieren betrifft das keine einzelne Klasse, sondern die
+ * geteilte Checkliste als Ganzes.
+ */
+function boardLoeschen(id) {
+  id = String(id || '').trim();
+  if (!id) throw new Error('Keine Checkliste angegeben.');
+
+  return mitSperre_(function () {
+    var entferntBoard = loescheNachSchluessel_('Boards', ['id'], [[id]]);
+    if (!entferntBoard) throw new Error('Die Checkliste wurde nicht gefunden.');
+
+    var spalten = liesBlatt_('BoardSpalten').filter(function (z) { return alsText_(z.board_id) === id; });
+    loescheNachSchluessel_('BoardSpalten', ['id'], spalten.map(function (z) { return [alsText_(z.id)]; }));
+
+    var werte = liesBlatt_('BoardWerte').filter(function (z) { return alsText_(z.board_id) === id; });
+    loescheNachSchluessel_('BoardWerte', ['board_id', 'spalte_id', 'kuerzel'], werte.map(function (z) {
+      return [alsText_(z.board_id), alsText_(z.spalte_id), alsText_(z.kuerzel)];
+    }));
+
+    var statusZeilen = liesBlatt_('BoardKlassenStatus').filter(function (z) { return alsText_(z.board_id) === id; });
+    loescheNachSchluessel_('BoardKlassenStatus', ['board_id', 'klasse'], statusZeilen.map(function (z) {
+      return [alsText_(z.board_id), alsText_(z.klasse)];
+    }));
+
+    return { id: id, geloeschteSpalten: spalten.length, geloeschteWerte: werte.length };
+  });
+}
+
+/**
  * Leert die Zustaende eines Boards fuer eine einzelne Klasse. Die Spalten
  * und die Zustaende der anderen Klassen bleiben erhalten — eine geteilte
  * Checkliste darf pro Klasse unabhaengig aufgeraeumt werden.

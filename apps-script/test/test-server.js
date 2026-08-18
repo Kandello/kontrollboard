@@ -481,18 +481,44 @@ console.log('\n=== Boards: archivieren betrifft nur die eigene Klasse ===');
   pruefe('ohne Klasse abgewiesen', /Klasse/.test(m), true);
 }
 
+console.log('\n=== Boards: loeschen entfernt Board, Spalten, Werte und Klassenstatus vollstaendig ===');
+{
+  const board = ladeAlles().boards[0];
+  pruefe('Board hat noch Spalten vor dem Loeschen',
+    ladeAlles().boardSpalten.some(s => s.board_id === board.id), true);
+  pruefe('Board hat noch Werte vor dem Loeschen',
+    ladeAlles().boardWerte.some(w => w.board_id === board.id), true);
+  pruefe('Board hat noch einen Klassenstatus vor dem Loeschen',
+    ladeAlles().boardKlassenStatus.some(s => s.board_id === board.id), true);
+
+  const r = boardLoeschen(board.id);
+  pruefe('Spalten- und Wertezahl gemeldet', r.geloeschteSpalten > 0 && r.geloeschteWerte > 0, true);
+  pruefe('Board verschwunden', ladeAlles().boards.some(b => b.id === board.id), false);
+  pruefe('nur noch ein Board uebrig', ladeAlles().boards.length, 1);
+  pruefe('keine Spalten mehr', ladeAlles().boardSpalten.some(s => s.board_id === board.id), false);
+  pruefe('keine Werte mehr', ladeAlles().boardWerte.some(w => w.board_id === board.id), false);
+  pruefe('kein Klassenstatus mehr', ladeAlles().boardKlassenStatus.some(s => s.board_id === board.id), false);
+
+  let m = '';
+  try { boardLoeschen(board.id); } catch (e) { m = e.message; }
+  pruefe('erneutes Loeschen abgewiesen', /nicht gefunden/.test(m), true);
+  m = '';
+  try { boardLoeschen(''); } catch (e) { m = e.message; }
+  pruefe('ohne id abgewiesen', /Keine Checkliste/.test(m), true);
+}
+
 console.log('\n=== Boards: ueber doPost erreichbar, mit Token-Pruefung ===');
 {
   const t = holeToken_();
   const p1 = JSON.parse(doPost({ postData: { contents: JSON.stringify(
     { token: t, aktion: 'boardErstellen', titel: 'Lesestunde' }) } }).text);
   pruefe('boardErstellen ueber doPost', p1.ok, true);
-  pruefe('drei Boards insgesamt', ladeAlles().boards.length, 3);
+  pruefe('zwei Boards insgesamt', ladeAlles().boards.length, 2);
 
   const p2 = JSON.parse(doPost({ postData: { contents: JSON.stringify(
     { token: 'falsch', aktion: 'boardErstellen', titel: 'X' }) } }).text);
   pruefe('falscher Token abgewiesen', p2.ok, false);
-  pruefe('weiterhin nur drei Boards', ladeAlles().boards.length, 3);
+  pruefe('weiterhin nur zwei Boards', ladeAlles().boards.length, 2);
 }
 
 console.log('\n=== Boards: keine Klarnamen im Datenpaket ===');

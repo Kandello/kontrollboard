@@ -263,16 +263,14 @@ console.log('\n=== Nummer zeigt listennummer, nicht die Kürzelzahl ===');
   pruefe('erste Zeile ist Listenplatz 1', ersteNr, '1');
 }
 
-console.log('\n=== Archivieren: sofort aus der Auswahl verschwunden ===');
+console.log('\n=== Archivieren: ohne Rückfrage, sofort aus der Auswahl verschwunden ===');
 {
-  let dialogGesehen = false;
-  p.once('dialog', (d) => { dialogGesehen = true; d.dismiss(); });
-  await knopf('Archivieren').click(); await p.waitForTimeout(150);
-  pruefe('Rückfrage vor dem Archivieren', dialogGesehen, true);
-  pruefe('bei Abbruch weiterhin in der Auswahl', await p.locator('select[aria-label="Checkliste auswählen"] option').count(), 2);
-
-  p.once('dialog', (d) => d.accept());
+  let dialogAufgetreten = false;
+  const merkeDialog = (d) => { dialogAufgetreten = true; d.accept(); };
+  p.on('dialog', merkeDialog);
   await knopf('Archivieren').click(); await p.waitForTimeout(80);
+  p.off('dialog', merkeDialog);
+  pruefe('keine Rückfrage mehr — sofort ausgeführt', dialogAufgetreten, false);
   pruefe('verschwindet sofort aus der aktiven Auswahl', await p.locator('select[aria-label="Checkliste auswählen"] option').count(), 1);
   const uebrig = await p.locator('select[aria-label="Checkliste auswählen"] option').first().innerText();
   pruefe('die andere Checkliste bleibt aktiv', uebrig, 'Lesepass');
@@ -315,6 +313,32 @@ console.log('\n=== Archivansicht: schreibgeschützt, filterbar, auch unter ander
     ['Lesepass', 'Materialien September']);
   await knopf('Archiv ansehen').click(); await p.waitForTimeout(400);
   pruefe('unter 3OB nicht archiviert — Archivieren betraf nur 3L',
+    (await p.locator('.werkzeug .titel').allInnerTexts()).includes('Materialien September'), false);
+}
+
+console.log('\n=== Löschen: ohne Rückfrage, sofort und vollständig — anders als Archivieren betrifft es alle Klassen ===');
+{
+  await knopf('Zu den aktiven Checklisten').click(); await p.waitForTimeout(400);
+  await waehleCheckliste('Materialien September');
+
+  let dialogAufgetreten = false;
+  const merkeDialog = (d) => { dialogAufgetreten = true; d.accept(); };
+  p.on('dialog', merkeDialog);
+  await knopf('Löschen').click(); await p.waitForTimeout(80);
+  p.off('dialog', merkeDialog);
+  pruefe('keine Rückfrage beim Löschen', dialogAufgetreten, false);
+  pruefe('sofort aus der Auswahl verschwunden (3OB)',
+    await p.locator('select[aria-label="Checkliste auswählen"] option').allInnerTexts(), ['Lesepass']);
+
+  await p.goto(B + '#/checklisten/3M'); await p.waitForTimeout(400);
+  pruefe('auch unter 3M verschwunden',
+    await p.locator('select[aria-label="Checkliste auswählen"] option').allInnerTexts(), ['Lesepass']);
+
+  // War auf 3L archiviert (nicht nur aktiv) — muss auch dort aus dem Archiv
+  // verschwinden, statt bloß irgendwo hängen zu bleiben.
+  await p.goto(B + '#/checklisten/3L'); await p.waitForTimeout(400);
+  await knopf('Archiv ansehen').click(); await p.waitForTimeout(400);
+  pruefe('auch aus 3Ls Archiv verschwunden — gelöscht, nicht nur reaktiviert',
     (await p.locator('.werkzeug .titel').allInnerTexts()).includes('Materialien September'), false);
 }
 

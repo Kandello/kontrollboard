@@ -109,6 +109,9 @@ function doPost(e) {
       case 'boardZuruecksetzen':
         return antwort_({ ok: true, ergebnis: boardZuruecksetzen(rumpf.id, rumpf.klasse) });
 
+      case 'boardLoeschen':
+        return antwort_({ ok: true, ergebnis: boardLoeschen(rumpf.id) });
+
       case 'boardSpalteHinzufuegen':
         return antwort_({ ok: true, ergebnis:
           boardSpalteHinzufuegen(rumpf.board_id, rumpf.bezeichnung, rumpf.id) });
