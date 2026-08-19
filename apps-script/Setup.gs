@@ -339,7 +339,7 @@ function onOpen() {
     .addItem('Konfiguration prüfen', 'menuePruefung')
     .addSeparator()
     .addItem('Zugangsschlüssel anzeigen', 'menueToken')
-    .toUi();
+    .addToUi();
 }
 
 function menueSetup() {

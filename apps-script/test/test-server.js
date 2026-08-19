@@ -53,7 +53,20 @@ class FakeSS {
 }
 
 const ss = new FakeSS();
-global.SpreadsheetApp = { getActiveSpreadsheet: () => ss, getUi: () => { throw new Error('keine UI im Test'); } };
+const menueProtokoll = [];
+function fakeMenu(titel) {
+  const m = { titel, eintraege: [] };
+  const kette = {
+    addItem(text, fn) { m.eintraege.push({ text, fn }); return kette; },
+    addSeparator() { m.eintraege.push({ trenner: true }); return kette; },
+    addToUi() { menueProtokoll.push(m); return undefined; }
+  };
+  return kette;
+}
+global.SpreadsheetApp = {
+  getActiveSpreadsheet: () => ss,
+  getUi: () => ({ createMenu: fakeMenu, alert: () => 'ok', ButtonSet: { OK: 'OK', YES_NO: 'YES_NO' }, Button: { YES: 'YES' } })
+};
 global.LockService = { getScriptLock: () => ({ tryLock: () => true, releaseLock() {} }) };
 let uuid = 0;
 global.Utilities = {
@@ -943,6 +956,34 @@ console.log('\n=== Jahresplan zuruecksetzen ===');
   pruefe('Seitenangaben nennen das Heft', /\(gr[üu]n, S\. /.test(alleThemen), true);
   pruefe('… auch das pinke', /\(pink, S\. /.test(alleThemen), true);
   pruefe('keine rohen Kuerzel mehr', /\((RS|GR) \d/.test(alleThemen), false);
+}
+
+console.log('\n=== Menue in der Tabelle ===');
+{
+  // Das Menue baut sich nur auf, wenn onOpen fehlerfrei durchlaeuft. Genau
+  // das blieb lange unbemerkt: die Kette endete auf toUi() statt addToUi(),
+  // und weil getUi() im Test warf, fiel es hier nie auf.
+  menueProtokoll.length = 0;
+  let geworfen = '';
+  try { onOpen(); } catch (e) { geworfen = e.message; }
+  pruefe('onOpen laeuft ohne Fehler', geworfen, '');
+  pruefe('genau ein Menue angelegt', menueProtokoll.length, 1);
+  pruefe('es heisst Kommandozentrale', menueProtokoll[0] && menueProtokoll[0].titel, 'Kommandozentrale');
+
+  const texte = (menueProtokoll[0] ? menueProtokoll[0].eintraege : [])
+    .filter(e => !e.trenner).map(e => e.text);
+  pruefe('alle Menuepunkte vorhanden', texte, [
+    'Blätter anlegen / prüfen', 'Schülerliste einlesen', 'Jahresplan einfügen',
+    'Jahresplan zurücksetzen', 'Konfiguration prüfen', 'Zugangsschlüssel anzeigen'
+  ]);
+
+  // Jeder Menuepunkt muss auf eine Funktion zeigen, die es wirklich gibt —
+  // sonst bricht der Klick spaeter mit einer unverstaendlichen Meldung ab.
+  const fehlende = (menueProtokoll[0] ? menueProtokoll[0].eintraege : [])
+    .filter(e => !e.trenner)
+    .map(e => e.fn)
+    .filter(name => typeof global[name] !== 'function');
+  pruefe('jeder Menuepunkt zeigt auf eine vorhandene Funktion', fehlende, []);
 }
 
 console.log(fehler === 0 ? '\nALLE TESTS BESTANDEN' : `\n${fehler} TEST(S) FEHLGESCHLAGEN`);
