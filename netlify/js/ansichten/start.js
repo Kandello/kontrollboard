@@ -11,7 +11,7 @@ import { klassenlehrkraftEintrag } from '../zuordnung.js';
 import { sende, leereDaten, ladeDaten } from '../server.js';
 import {
   heute, morgen, uhrzeit, wochentag, wochentagName, istWochenende,
-  kwKennung, alsMinuten, alsDeutsch
+  kwKennung, alsMinuten, alsDeutsch, alsIso
 } from '../zeit.js';
 
 /** Ab dieser Stunde zeigt der Tagesplan schon den Folgetag. */
@@ -35,20 +35,42 @@ const AUFGABEN = {
 
 let uhrGeber = null;
 
+/** Welcher Tag im Tagesplan stehen muss — ab 17 Uhr schon der folgende. */
+function planTag(jetzt = new Date()) {
+  const tag = heute(jetzt);
+  const vorschau = uhrzeit(jetzt).stunde >= TAGESPLAN_VORSCHAU_AB_STUNDE;
+  return { tag: vorschau ? morgen(tag) : tag, istHeute: !vorschau };
+}
+
 export function zeichneStart(ziel, { daten, verbergen, neuZeichnen }) {
   if (uhrGeber) { clearInterval(uhrGeber); uhrGeber = null; }
 
   const ferien = istWahr(daten.meta.ferienmodus);
   const tag = heute();
   const kw = kwKennung(tag);
-  const istVorschau = uhrzeit().stunde >= TAGESPLAN_VORSCHAU_AB_STUNDE;
-  const tagesplanTag = istVorschau ? morgen(tag) : tag;
+  const plan = planTag();
 
-  ziel.appendChild(uhrWidget(tag, ferien));
+  const uhr = uhrWidget(tag, ferien);
+  ziel.appendChild(uhr.element);
 
+  let planAktualisieren = null;
   if (!ferien) {
-    ziel.appendChild(tagesplan(daten, tagesplanTag, !istVorschau));
+    const p = tagesplan(daten, plan.tag, plan.istHeute);
+    ziel.appendChild(p.element);
+    planAktualisieren = p.aktualisiere;
   }
+
+  // Die Seite bleibt oft stundenlang offen. Ohne diesen Takt bliebe die
+  // Markierung „läuft"/„als Nächstes" an der Stunde kleben, die beim
+  // Zeichnen gerade dran war, und der Tageswechsel um 17 Uhr bzw. um
+  // Mitternacht kaeme erst beim naechsten Neuladen an.
+  const gezeichneterTag = alsIso(plan.tag);
+  uhrGeber = setInterval(() => {
+    uhr.stellen();
+    const jetzt = planTag();
+    if (alsIso(jetzt.tag) !== gezeichneterTag) { neuZeichnen(); return; }
+    if (planAktualisieren) planAktualisieren();
+  }, 1000);
 
   ziel.appendChild(e('div', { klasse: 'kachelreihe' }, [
     wochenkachel('PEAK', daten, kw, tag, ferien, neuZeichnen),
@@ -89,12 +111,16 @@ function uhrWidget(tag, ferien) {
     tagZeile.textContent = `${wochentagName(wochentag(t))}, ${alsDeutsch(t)}`;
   }
   stellen();
-  uhrGeber = setInterval(stellen, 1000);
 
-  return e('div', { klasse: 'karte uhr' }, [
-    zeitZeile, tagZeile,
-    ferien ? e('span', { klasse: 'marke ruhend', text: 'Ferienmodus' }) : null
-  ]);
+  // Den Takt setzt zeichneStart, damit Uhr und Tagesplan im selben
+  // Zeitgeber laufen und nicht um Sekundenbruchteile auseinanderfallen.
+  return {
+    element: e('div', { klasse: 'karte uhr' }, [
+      zeitZeile, tagZeile,
+      ferien ? e('span', { klasse: 'marke ruhend', text: 'Ferienmodus' }) : null
+    ]),
+    stellen
+  };
 }
 
 // --- Tagesplan -------------------------------------------------------------
@@ -114,14 +140,32 @@ function tagesplanKarte(tag, kinder) {
   ]);
 }
 
+/**
+ * Welche Stunde laeuft gerade, welche kommt als Naechste? Bei einer
+ * Vorschau auf den Folgetag keine von beiden — die aktuelle Uhrzeit gehoert
+ * ja noch zum heutigen Tag.
+ */
+export function markierteStunden(stunden, istHeute, jetztMinuten) {
+  if (!istHeute) return { laufend: -1, naechste: -1 };
+  const laufend = stunden.findIndex((s) => {
+    const von = alsMinuten(s.von);
+    const bis = alsMinuten(s.bis);
+    return von !== null && bis !== null && jetztMinuten >= von && jetztMinuten < bis;
+  });
+  const naechste = laufend === -1
+    ? stunden.findIndex((s) => (alsMinuten(s.von) ?? 0) > jetztMinuten)
+    : -1;
+  return { laufend, naechste };
+}
+
 function tagesplan(daten, tag, istHeute = true) {
   const wt = wochentag(tag);
 
   if (istWochenende(tag)) {
-    return tagesplanKarte(tag, [
+    return { aktualisiere: null, element: tagesplanKarte(tag, [
       e('div', { klasse: 'leer', style: 'padding:24px 16px',
                  text: wt === 6 ? 'Samstag — kein Unterricht.' : 'Sonntag — kein Unterricht.' })
-    ]);
+    ]) };
   }
 
   const stunden = daten.stundenplan
@@ -130,23 +174,17 @@ function tagesplan(daten, tag, istHeute = true) {
     .sort((a, b) => (alsMinuten(a.von) ?? 0) - (alsMinuten(b.von) ?? 0));
 
   if (!stunden.length) {
-    return tagesplanKarte(tag, [
+    return { aktualisiere: null, element: tagesplanKarte(tag, [
       e('div', { klasse: 'leer', style: 'padding:24px 16px',
                  text: 'Für diesen Tag steht nichts im Stundenplan.' })
-    ]);
+    ]) };
   }
 
-  // Bei einer Vorschau auf den Folgetag ergeben "läuft"/"als Nächstes" keinen
-  // Sinn — die aktuelle Uhrzeit gehoert ja noch zum heutigen Tag.
-  const jetzt = istHeute ? uhrzeit().minuten : -1;
-  const laufend = istHeute ? stunden.findIndex((s) => {
-    const von = alsMinuten(s.von);
-    const bis = alsMinuten(s.bis);
-    return von !== null && bis !== null && jetzt >= von && jetzt < bis;
-  }) : -1;
-  const naechste = istHeute && laufend === -1
-    ? stunden.findIndex((s) => (alsMinuten(s.von) ?? 0) > jetzt)
-    : -1;
+  const { laufend, naechste } = markierteStunden(stunden, istHeute, uhrzeit().minuten);
+
+  // Zeile und Markenplatz jeder Stunde merken: die Markierung wandert im
+  // Sekundentakt weiter, ohne dass die Seite neu gezeichnet wird.
+  const zeilen = [];
 
   const liste = e('ul', { klasse: 'tagesplan' }, stunden.map((s, i) => {
     // Anklickbar nur, wenn die Klasse auch wirklich im Blatt Klassen steht.
@@ -163,6 +201,14 @@ function tagesplan(daten, tag, istHeute = true) {
     const hatEigeneKlasse = Boolean(klasse || s.klasse);
     const artSpanText = hatEigeneKlasse ? artText(s) : (s.zusatz || null);
 
+    // Der Markenplatz wird immer angelegt, auch leer: so kann die Markierung
+    // spaeter hierher wandern, ohne die Zeile neu zu bauen.
+    const marke = e('span', {
+      klasse: laufend === i ? 'marke laufend' : (naechste === i ? 'marke naechste' : 'marke'),
+      text: laufend === i ? 'läuft' : (naechste === i ? 'als Nächstes' : ''),
+      hidden: laufend !== i && naechste !== i
+    });
+
     const inhalt = [
       e('span', { klasse: 'zeit', text: `${s.von}–${s.bis}` }),
       e('span', { klasse: 'was' }, [
@@ -175,8 +221,7 @@ function tagesplan(daten, tag, istHeute = true) {
         ]),
         artSpanText ? e('span', { klasse: 'art', text: artSpanText }) : null
       ]),
-      laufend === i ? e('span', { klasse: 'marke laufend', text: 'läuft' })
-                    : (naechste === i ? e('span', { klasse: 'marke naechste', text: 'als Nächstes' }) : null)
+      marke
     ];
 
     const zeile = anklickbar
@@ -184,12 +229,36 @@ function tagesplan(daten, tag, istHeute = true) {
                  'aria-label': `${klasse.bezeichnung} öffnen, ${s.von} bis ${s.bis}` }, inhalt)
       : e('div', { klasse: 'eintrag' }, inhalt);
 
-    return e('li', {
+    const li = e('li', {
       klasse: laufend === i ? 'ist-laufend' : (naechste === i ? 'ist-naechste' : '')
     }, [zeile]);
+
+    zeilen.push({ li, marke });
+    return li;
   }));
 
-  return tagesplanKarte(tag, [liste]);
+  /**
+   * Setzt die Markierung neu, ohne die Seite zu zeichnen. Nur wirklich
+   * geaenderte Zeilen werden angefasst — sonst flimmerte im Sekundentakt
+   * die ganze Liste.
+   */
+  function aktualisiere() {
+    const stand = markierteStunden(stunden, istHeute, uhrzeit().minuten);
+    zeilen.forEach(({ li, marke }, i) => {
+      const liKlasse = stand.laufend === i ? 'ist-laufend'
+                     : (stand.naechste === i ? 'ist-naechste' : '');
+      if (li.className !== liKlasse) li.className = liKlasse;
+
+      const text = stand.laufend === i ? 'läuft' : (stand.naechste === i ? 'als Nächstes' : '');
+      const markeKlasse = stand.laufend === i ? 'marke laufend'
+                        : (stand.naechste === i ? 'marke naechste' : 'marke');
+      if (marke.textContent !== text) marke.textContent = text;
+      if (marke.className !== markeKlasse) marke.className = markeKlasse;
+      marke.hidden = !text;
+    });
+  }
+
+  return { element: tagesplanKarte(tag, [liste]), aktualisiere };
 }
 
 function bezeichneArt(s) {

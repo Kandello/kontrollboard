@@ -27,7 +27,7 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
 const fehler = [];
 
 /** Oeffnet die Startseite zu einem festen Zeitpunkt. */
-async function oeffne(utcZeitpunkt) {
+async function oeffne(utcZeitpunkt, { steuerbareUhr = false } = {}) {
   const ctx = await browser.newContext({
     viewport: { width: 1000, height: 1000 }, locale: 'de-DE', timezoneId: 'Europe/Berlin'
   });
@@ -37,7 +37,9 @@ async function oeffne(utcZeitpunkt) {
 
   // setFixedTime statt install: Date liefert einen festen Wert, die
   // Zeitgeber laufen aber weiter — sonst blieben fetch-Ketten haengen.
-  await p.clock.setFixedTime(new Date(utcZeitpunkt));
+  // Fuer den Lauf ohne Neuladen brauchen wir dagegen eine vorspulbare Uhr.
+  if (steuerbareUhr) await p.clock.install({ time: new Date(utcZeitpunkt) });
+  else await p.clock.setFixedTime(new Date(utcZeitpunkt));
   await p.goto(ADRESSE + '/');
   await p.evaluate((t) => localStorage.setItem('kz.verbindung',
     JSON.stringify({ url: 'http://localhost:8901/exec', token: t })), TOKEN);
@@ -129,6 +131,44 @@ console.log('\n=== Montag 10:45, Pause ===');
 // ---------------------------------------------------------------------------
 // Montag 16:59 — noch der heutige Plan, samt laufender/naechster Markierung.
 // ---------------------------------------------------------------------------
+console.log('\n=== Montag, Seite bleibt offen (ohne Neuladen) ===');
+{
+  const { p, ctx } = await oeffne('2026-08-17T07:20:00Z', { steuerbareUhr: true });
+
+  pruefe('09:20 — erste Stunde läuft',
+    await p.locator('ul.tagesplan li').first().getAttribute('class'), 'ist-laufend');
+
+  // Vorspulen auf 10:45 Berliner Zeit: keine Stunde laeuft, die um 11:30
+  // ist als Naechste dran — ganz ohne Neuladen.
+  await p.clock.fastForward('01:25:30');
+  await p.waitForTimeout(200);
+  pruefe('10:45 — keine laufende Stunde mehr', await p.locator('li.ist-laufend').count(), 0);
+  pruefe('10:45 — die 11:30 ist als Nächstes markiert',
+    (await p.locator('li.ist-naechste').innerText()).includes('11:30'), true);
+  pruefe('Markierung klebt nicht mehr an der ersten Stunde',
+    await p.locator('ul.tagesplan li').first().getAttribute('class'), '');
+  pruefe('Uhr ist mitgelaufen',
+    (await p.locator('.uhr-zeit').innerText()).replace(/\s/g, '').startsWith('10:45'), true);
+
+  // Weiter bis 12:00: jetzt laeuft die Stunde von 11:30 bis 12:15.
+  await p.clock.fastForward('01:15:00');
+  await p.waitForTimeout(200);
+  pruefe('12:00 — die 11:30 läuft jetzt',
+    (await p.locator('li.ist-laufend').innerText()).includes('11:30'), true);
+  pruefe('genau eine laufende Stunde', await p.locator('li.ist-laufend').count(), 1);
+  pruefe('keine „als Nächstes"-Marke solange eine läuft',
+    await p.locator('li.ist-naechste').count(), 0);
+
+  // Und ueber 17 Uhr hinaus: der Tagesplan wechselt von selbst auf morgen.
+  await p.clock.fastForward('05:05:00');
+  await p.waitForTimeout(500);
+  pruefe('nach 17 Uhr springt die Überschrift auf Dienstag',
+    (await p.locator('.tagesplan-kopf').innerText()).trim(), 'Tagesplan am Dienstag');
+  pruefe('… und der Dienstagsplan steht da', await p.locator('ul.tagesplan li').count(), 4);
+
+  await ctx.close();
+}
+
 console.log('\n=== Montag 16:59, kurz vor der Umschaltung ===');
 {
   const { p, ctx } = await oeffne('2026-08-17T14:59:00Z');
