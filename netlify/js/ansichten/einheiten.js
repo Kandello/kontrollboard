@@ -51,6 +51,19 @@ const GLEITDAUER = 170;
 const ROLLRAND = 90;
 const ROLLTEMPO = 18;
 
+/** So viele Pixel Bewegung, bevor aus einem Klick ein Zug wird. */
+const ZIEHSCHWELLE = 5;
+
+/**
+ * Rechtschreibung und Grammatik bleiben getrennt: eine eingeplante Einheit
+ * behaelt ihre Spur, egal ueber welcher Spalte losgelassen wird. Nur was im
+ * Vorrat liegt, hat noch keine Spur und darf in beide.
+ */
+function erlaubteSpur(eigeneSpur, zellenSpur) {
+  if (!eigeneSpur) return zellenSpur;
+  return eigeneSpur;
+}
+
 export function zeichneEinheiten(ziel, kontext) {
   const { daten, neuZeichnen } = kontext;
   const aktuelleWoche = schulwoche(heute(), daten.meta.schuljahresbeginn);
@@ -104,7 +117,7 @@ export function zeichneEinheiten(ziel, kontext) {
 
   raster.appendChild(e('div', { klasse: 'jahresraster-kopf woche', text: 'Woche' }));
   SPUREN.forEach((s) => raster.appendChild(
-    e('div', { klasse: 'jahresraster-kopf', text: s.titel })));
+    e('div', { klasse: 'jahresraster-kopf spur-' + s.id.toLowerCase(), text: s.titel })));
 
   daten.einheiten.forEach((einheit) => {
     const { box, zusatz } = einheitBox(daten, einheit, {
@@ -216,45 +229,60 @@ export function zeichneEinheiten(ziel, kontext) {
 
   // --- Ziehen mit laufender Vorschau ----------------------------------------
 
-  function starteZiehen(ev, einheitId, griff) {
-    ev.preventDefault();
+  function starteZiehen(ev, einheitId) {
+    // Nur die linke Maustaste zieht; Rechtsklick und Mausrad nicht.
+    if (ev.pointerType === 'mouse' && ev.button !== 0) return;
 
-    // Die Ereignisse haengen bewusst am Fenster und NICHT per
-    // setPointerCapture am Griff: sobald die Vorschau die Box in eine andere
-    // Spalte oder in den Vorrat umhaengt, wird sie kurz aus dem Dokument
-    // geloest — und damit verfaellt eine Zeigererfassung. Das Loslassen kam
-    // dann nie an, und der Zug blieb wirkungslos.
     const box = boxen.get(einheitId);
-    const kasten = box.getBoundingClientRect();
-    const versatzX = ev.clientX - kasten.left;
-    const versatzY = ev.clientY - kasten.top;
-
-    // Die Einheit haengt sichtbar am Zeiger; im Raster bleibt an ihrer Stelle
-    // der Umriss stehen, damit erkennbar ist, wo sie landen wird.
-    const flug = box.cloneNode(true);
-    flug.className = box.className + ' einheit-flug';
-    flug.style.cssText = `position:fixed;z-index:999;pointer-events:none;margin:0;` +
-      `width:${kasten.width}px;height:${kasten.height}px;` +
-      `left:${kasten.left}px;top:${kasten.top}px`;
-    document.body.appendChild(flug);
-    box.classList.add('ist-platzhalter');
-    document.body.classList.add('zieht-gerade');
+    const eigeneSpur = box.dataset.spur || '';
+    const startX = ev.clientX;
+    const startY = ev.clientY;
 
     // Grundriss ohne die gezogene Einheit: daran wird abgelesen, vor welche
     // Einheit sie gehoert, wenn der Zeiger ueber einer bestimmten Woche steht.
     const ohneEigene = daten.einheiten.filter((x) => x.id !== einheitId);
-    einheitBeimZiehen = einheitId;
     let letzteWahl = null;
     let ordnung = null;
-    let zeigerX = ev.clientX;
-    let zeigerY = ev.clientY;
-    let zieht = true;
+    let zeigerX = startX;
+    let zeigerY = startY;
+    let zieht = false;      // erst ab der Schwelle wird wirklich gezogen
+    let beendet = false;
+    let flug = null;
+    let versatzX = 0;
+    let versatzY = 0;
+
+    /**
+     * Der Zug beginnt erst nach ein paar Pixeln Bewegung. Ohne diese Schwelle
+     * waere kein Klick mehr moeglich: jedes Antippen der Box wuerde als
+     * Verschieben gelten, und die Teilthemen liessen sich nicht mehr oeffnen.
+     */
+    function beginne() {
+      zieht = true;
+      einheitBeimZiehen = einheitId;
+
+      const kasten = box.getBoundingClientRect();
+      versatzX = startX - kasten.left;
+      versatzY = startY - kasten.top;
+
+      // Die Einheit haengt sichtbar am Zeiger; im Raster bleibt an ihrer
+      // Stelle der Umriss stehen, damit erkennbar ist, wo sie landen wird.
+      flug = box.cloneNode(true);
+      flug.className = box.className + ' einheit-flug';
+      flug.style.cssText = `position:fixed;z-index:999;pointer-events:none;margin:0;` +
+        `width:${kasten.width}px;height:${kasten.height}px;` +
+        `left:${kasten.left}px;top:${kasten.top}px`;
+      document.body.appendChild(flug);
+      box.classList.add('ist-platzhalter');
+      document.body.classList.add('zieht-gerade');
+      requestAnimationFrame(rollen);
+    }
 
     function pruefeZiel() {
+      if (!zieht) return;
       flug.style.left = (zeigerX - versatzX) + 'px';
       flug.style.top = (zeigerY - versatzY) + 'px';
 
-      const wahl = zielUnter(zeigerX, zeigerY, ohneEigene);
+      const wahl = zielUnter(zeigerX, zeigerY, ohneEigene, eigeneSpur);
       if (!wahl) return;
       if (letzteWahl && wahl.spur === letzteWahl.spur && wahl.vorId === letzteWahl.vorId) return;
       letzteWahl = wahl;
@@ -266,6 +294,11 @@ export function zeichneEinheiten(ziel, kontext) {
     function bewegen(e2) {
       zeigerX = e2.clientX;
       zeigerY = e2.clientY;
+      if (!zieht) {
+        if (Math.abs(zeigerX - startX) < ZIEHSCHWELLE &&
+            Math.abs(zeigerY - startY) < ZIEHSCHWELLE) return;
+        beginne();
+      }
       pruefeZiel();
     }
 
@@ -287,18 +320,33 @@ export function zeichneEinheiten(ziel, kontext) {
     requestAnimationFrame(rollen);
 
     function loslassen() {
-      zieht = false;
+      if (beendet) return;
+      beendet = true;
       window.removeEventListener('pointermove', bewegen);
       window.removeEventListener('pointerup', loslassen);
       window.removeEventListener('pointercancel', loslassen);
 
-      flug.remove();
+      // Unter der Schwelle geblieben: das war ein Klick, kein Zug. Nichts
+      // aufraeumen, nichts speichern — der Kopf oeffnet gleich die Teilthemen.
+      if (!zieht) return;
+      zieht = false;
+
+      if (flug) flug.remove();
       box.classList.remove('ist-platzhalter');
       document.body.classList.remove('zieht-gerade');
       einheitBeimZiehen = null;
 
+      // Nach einem Zug darf sich die Einheit nicht auch noch aufklappen.
+      box.addEventListener('click', schluckeKlick, { capture: true, once: true });
+      setTimeout(() => box.removeEventListener('click', schluckeKlick, { capture: true }), 0);
+
       if (ordnung) uebernimm(ordnung);
       else platziere(jahresplan(daten.einheiten), true);
+    }
+
+    function schluckeKlick(klick) {
+      klick.preventDefault();
+      klick.stopPropagation();
     }
 
     window.addEventListener('pointermove', bewegen);
@@ -311,7 +359,7 @@ export function zeichneEinheiten(ziel, kontext) {
    * Woche unter dem Zeiger, nicht die Box darunter: dadurch laesst sich in
    * einem Zug ueber beliebig viele Wochen verschieben.
    */
-  function zielUnter(x, y, ohneEigene) {
+  function zielUnter(x, y, ohneEigene, eigeneSpur) {
     const treffer = document.elementsFromPoint(x, y);
 
     for (const el of treffer) {
@@ -319,14 +367,12 @@ export function zeichneEinheiten(ziel, kontext) {
         return { spur: '', vorId: null };
       }
       if (el.classList?.contains('jahreszelle')) {
-        const spur = el.dataset.spur;
-        const woche = Number(el.dataset.woche);
-        return { spur, vorId: vorWelcher(ohneEigene, spur, woche) };
+        const spur = erlaubteSpur(eigeneSpur, el.dataset.spur);
+        return { spur, vorId: vorWelcher(ohneEigene, spur, Number(el.dataset.woche)) };
       }
       if (el.classList?.contains('jahreswoche')) {
-        // Ueber der Wochenzahl selbst: die Spur beibehalten, in der die
-        // Einheit gerade liegt, und nur die Woche uebernehmen.
-        const spur = boxen.get(einheitBeimZiehen)?.dataset.spur || 'RS';
+        // Ueber der Wochenzahl selbst zaehlt nur die Woche; die Spur bleibt.
+        const spur = erlaubteSpur(eigeneSpur, eigeneSpur || 'RS');
         return { spur, vorId: vorWelcher(ohneEigene, spur, Number(el.dataset.woche)) };
       }
     }
@@ -339,9 +385,10 @@ export function zeichneEinheiten(ziel, kontext) {
   ziel.appendChild(karte(null, [
     e('div', { klasse: 'leiste', style: 'margin:0 0 10px' }, [
       e('div', { klasse: 'feldhilfe', style: 'margin:0', text:
-        'Einheiten am gepunkteten Streifen links anfassen und in eine andere Woche oder auf die ' +
-        'andere Spur ziehen — der Plan ordnet sich schon beim Ziehen so, wie er danach aussieht. ' +
-        'Die Pfeilknöpfe verschieben um eine Position.' }),
+        'Eine Einheit lässt sich überall anfassen und in eine andere Woche ziehen — der Plan ordnet ' +
+        'sich schon beim Ziehen so, wie er danach aussieht. Ein kurzer Klick klappt stattdessen die ' +
+        'Teilthemen auf. Rechtschreibung und Grammatik bleiben getrennt; wer eine Einheit in die ' +
+        'andere Spur bringen will, legt sie erst unten ab und zieht sie von dort hinüber.' }),
       e('span', { klasse: 'schub' }, [statusEl])
     ]),
     e('div', { klasse: 'jahresrahmen' }, [raster])
@@ -428,7 +475,6 @@ function einheitBox(daten, einheit, { neuZeichnen, starteZiehen, verschiebeUeber
   const griff = e('div', {
     klasse: 'einheit-griff', title: 'Zum Verschieben ziehen', 'aria-hidden': 'true'
   });
-  griff.addEventListener('pointerdown', (ev) => starteZiehen(ev, einheit.id, griff));
 
   const box = e('div', {
     klasse: 'einheit-box spur-' + (einheit.spur || 'frei').toLowerCase() + (offen ? ' offen' : ''),
@@ -449,6 +495,14 @@ function einheitBox(daten, einheit, { neuZeichnen, starteZiehen, verschiebeUeber
     ]),
     offen ? einheitBereich(daten, einheit, themen, neuZeichnen, aktuellerPlan) : null
   ]);
+
+  // Gezogen wird an der GANZEN Box, nicht nur am schmalen Griffstreifen —
+  // der war zu leicht zu verfehlen. Ausgenommen sind die Pfeilknoepfe und
+  // der aufgeklappte Bereich, die ihr eigenes Verhalten behalten.
+  box.addEventListener('pointerdown', (ev) => {
+    if (ev.target.closest('.einheit-knoepfe, .einheit-bereich')) return;
+    starteZiehen(ev, einheit.id);
+  });
 
   return { box, zusatz };
 }

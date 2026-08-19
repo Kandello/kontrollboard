@@ -335,6 +335,7 @@ function onOpen() {
     .addItem('Blätter anlegen / prüfen', 'menueSetup')
     .addItem('Schülerliste einlesen', 'menueImport')
     .addItem('Jahresplan einfügen', 'menueJahresplan')
+    .addItem('Jahresplan zurücksetzen', 'menueJahresplanZuruecksetzen')
     .addItem('Konfiguration prüfen', 'menuePruefung')
     .addSeparator()
     .addItem('Zugangsschlüssel anzeigen', 'menueToken')

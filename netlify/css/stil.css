@@ -511,25 +511,36 @@ table.liste td.beteiligung-band-5 { background: var(--beteiligung-band-5); }
 table.liste td.beteiligung-band-6 { background: var(--beteiligung-band-6); }
 
 /* --- Unterrichtseinheiten: Jahresplan --------------------------------------
-   Zwei Spuren auf einer Wochenleiste. Die Einheiten liegen als Boxen im
-   Raster und spannen ueber so viele Zeilen, wie sie Wochen dauern; die
-   leeren Zellen darunter sind die Ablageflaechen beim Ziehen. */
-.jahresrahmen { overflow-x: auto; }
+   Zwei Spuren auf einer Wochenleiste. Die Farben folgen den Arbeitsheften:
+   Rechtschreibung gruen (gruenes Heft), Grammatik rosa (pinkes Heft). Eine
+   Einheit, die beide Spuren belegt, traegt beide Farben im Verlauf. */
+:root {
+  --spur-rs:       #4f8b36;
+  --spur-rs-leis:  rgba(79, 139, 54, .07);
+  --spur-rs-linie: rgba(79, 139, 54, .30);
+  --spur-gr:       #c1567f;
+  --spur-gr-leis:  rgba(193, 86, 127, .07);
+  --spur-gr-linie: rgba(193, 86, 127, .30);
+}
+
+.jahresrahmen { overflow-x: auto; padding: 2px 6px 6px 2px; }
 
 .jahresraster {
   display: grid;
   grid-template-columns: 64px minmax(200px, 1fr) minmax(200px, 1fr);
-  gap: 4px;
+  gap: 6px;
   align-items: stretch;
   min-width: 520px;
 }
 .jahresraster-kopf {
   grid-row: 1;
   font-family: var(--serif); font-size: var(--t-klein); text-transform: uppercase;
-  letter-spacing: .06em; color: var(--text-leise);
+  letter-spacing: .06em; font-weight: 700;
   padding: 0 0 4px;
 }
-.jahresraster-kopf.woche { grid-column: 1; }
+.jahresraster-kopf.woche { grid-column: 1; color: var(--text-leise); font-weight: 400; }
+.jahresraster-kopf.spur-rs { color: var(--spur-rs); }
+.jahresraster-kopf.spur-gr { color: var(--spur-gr); }
 
 .jahreswoche {
   grid-column: 1;
@@ -537,69 +548,85 @@ table.liste td.beteiligung-band-6 { background: var(--beteiligung-band-6); }
   padding-right: var(--s2);
   font-variant-numeric: tabular-nums;
   font-size: var(--t-klein); color: var(--text-leise);
-  min-height: 44px;
+  min-height: 46px;
 }
-.jahreswoche.ist-jetzt {
-  font-weight: 700; color: var(--akzent);
-}
-.jahreswoche.ist-jetzt::after {
-  content: '▸'; margin-left: 4px;
-}
+.jahreswoche.ist-jetzt { font-weight: 700; color: var(--akzent); }
+.jahreswoche.ist-jetzt::after { content: '▸'; margin-left: 4px; }
 
 .jahreszelle {
   border: 1px dashed var(--linie);
   border-radius: var(--radius);
-  background: var(--flaeche-leis);
-  min-height: 44px;
+  min-height: 46px;
 }
-.jahreszelle.ist-ziel {
-  border-style: solid; border-color: var(--akzent);
-  background: var(--grund);
-}
+.jahreszelle[data-spur="RS"] { background: var(--spur-rs-leis); border-color: var(--spur-rs-linie); }
+.jahreszelle[data-spur="GR"] { background: var(--spur-gr-leis); border-color: var(--spur-gr-linie); }
+.jahreszelle.ist-ziel { border-style: solid; border-color: var(--akzent); }
 
 /* --- Eine Einheit als Box ---------------------------------------------------
-   Bewusst koerperlich gestaltet: leichter Verlauf, weicher Schatten und eine
-   dickere Kante an der Spurfarbe. Beim Ziehen hebt die Einheit sichtbar ab,
-   damit erkennbar bleibt, was gerade am Zeiger haengt und was liegen bleibt. */
+   Bewusst koerperlich: heller Lichtsaum oben, zwei gestaffelte Schatten fuer
+   Naehe und Tiefe, dazu ein schmaler Farbstreifen an der Kante, der die Spur
+   nennt. Beim Ueberfahren hebt die Box an, beim Ziehen schwebt sie deutlich. */
 .einheit-box {
   position: relative;
   display: flex; flex-direction: column;
   border: 1px solid var(--linie);
-  border-left: 5px solid var(--akzent);
   border-radius: 12px;
-  background: linear-gradient(180deg, #ffffff 0%, #f6f9fc 100%);
+  background: linear-gradient(180deg, #ffffff 0%, #eef3f8 100%);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, .9),
-    0 1px 2px rgba(28, 48, 74, .10),
-    0 5px 12px rgba(28, 48, 74, .08);
-  padding: var(--s2) var(--s2) var(--s2) 24px;
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    inset 0 -1px 0 rgba(28, 48, 74, .06),
+    0 1px 1px rgba(28, 48, 74, .10),
+    0 3px 5px rgba(28, 48, 74, .10),
+    0 8px 16px rgba(28, 48, 74, .09);
+  padding: var(--s2) var(--s2) var(--s2) 26px;
   min-width: 0;
-  transition: box-shadow .15s ease, transform .15s ease;
+  cursor: grab;
+  transition: box-shadow .16s ease, transform .16s ease;
 }
+
+/* Der Farbstreifen an der Kante — als eigene Flaeche, damit eine Einheit auf
+   beiden Spuren beide Farben im Verlauf tragen kann. */
+.einheit-box::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 7px;
+  border-radius: 11px 0 0 11px;
+  background: var(--spurfarbe, var(--linie-stark));
+  box-shadow: inset -1px 0 0 rgba(0, 0, 0, .10);
+}
+.einheit-box.spur-rs   { --spurfarbe: var(--spur-rs); }
+.einheit-box.spur-gr   { --spurfarbe: var(--spur-gr); }
+.einheit-box.spur-frei { --spurfarbe: var(--linie-stark); }
+.einheit-box.spur-beide::before {
+  background: linear-gradient(180deg, var(--spur-rs) 0%, var(--spur-rs) 42%,
+                                      var(--spur-gr) 58%, var(--spur-gr) 100%);
+}
+
 .einheit-box:hover {
-  transform: translateY(-1px);
+  transform: translateY(-2px);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, .9),
-    0 2px 4px rgba(28, 48, 74, .12),
-    0 10px 20px rgba(28, 48, 74, .12);
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    inset 0 -1px 0 rgba(28, 48, 74, .06),
+    0 2px 2px rgba(28, 48, 74, .10),
+    0 6px 10px rgba(28, 48, 74, .13),
+    0 16px 30px rgba(28, 48, 74, .14);
 }
-.einheit-box.spur-rs    { border-left-color: #2e75b6; }
-.einheit-box.spur-gr    { border-left-color: #c55a11; }
-.einheit-box.spur-beide { border-left-color: #548235; }
-.einheit-box.spur-frei  { border-left-color: var(--linie-stark); }
+.einheit-box:active { cursor: grabbing; }
 
 .einheit-box.offen {
   z-index: 3;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, .9),
-    0 3px 6px rgba(28, 48, 74, .14),
-    0 14px 28px rgba(28, 48, 74, .14);
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    0 3px 4px rgba(28, 48, 74, .12),
+    0 10px 18px rgba(28, 48, 74, .14),
+    0 22px 40px rgba(28, 48, 74, .14);
 }
 
 /* Das Stueck, das am Zeiger haengt. */
 .einheit-flug {
-  transform: rotate(-1deg) scale(1.02);
-  box-shadow: 0 18px 40px rgba(28, 48, 74, .30), 0 4px 8px rgba(28, 48, 74, .18);
+  transform: rotate(-1.5deg) scale(1.03);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    0 6px 10px rgba(28, 48, 74, .20),
+    0 26px 50px rgba(28, 48, 74, .32);
   opacity: .97;
 }
 .einheit-flug .einheit-knoepfe { display: none; }
@@ -607,31 +634,29 @@ table.liste td.beteiligung-band-6 { background: var(--beteiligung-band-6); }
 /* Der Umriss, der waehrend des Ziehens an der kuenftigen Stelle steht. */
 .einheit-box.ist-platzhalter {
   background: var(--akzent-leis);
-  border-style: dashed; border-left-style: dashed;
+  border-style: dashed;
   box-shadow: none; transform: none;
 }
+.einheit-box.ist-platzhalter::before { opacity: .35; }
 .einheit-box.ist-platzhalter > * { visibility: hidden; }
 
 /* Waehrend des Ziehens nichts markieren und keinen Schwebe-Effekt zeigen. */
 body.zieht-gerade { user-select: none; -webkit-user-select: none; cursor: grabbing; }
 body.zieht-gerade .einheit-box:hover { transform: none; }
 
-/* Der Griff ist ein schmaler Streifen am linken Rand — beruehrungsfreundlich
-   breit genug, ohne den Titel zu verdraengen. */
+/* Der Griff ist nur noch ein Hinweis: gezogen wird an der ganzen Box. */
 .einheit-griff {
-  position: absolute; left: 0; top: 0; bottom: 0; width: 20px;
-  border-radius: 0 6px 6px 0;
-  cursor: grab; touch-action: none;
+  position: absolute; left: 9px; top: 50%; transform: translateY(-50%);
+  width: 12px; height: 34px; pointer-events: none; opacity: .55;
   background:
-    radial-gradient(circle, var(--text-sehrleis) 1.4px, transparent 1.4px) 50% 50% / 7px 7px repeat-y;
+    radial-gradient(circle, var(--text-sehrleis) 1.4px, transparent 1.4px) 50% 50% / 6px 7px;
 }
-.einheit-griff:hover { background-color: rgba(0, 0, 0, .04); }
-.einheit-griff:active { cursor: grabbing; }
+.einheit-box:hover .einheit-griff { opacity: .9; }
 
 .einheit-kopf {
   display: block; width: 100%; text-align: left;
   background: none; border: 0; padding: 0; color: inherit;
-  min-width: 0;
+  min-width: 0; cursor: inherit;
 }
 .einheit-kopf:hover { border: 0; background: none; }
 .einheit-titel {
@@ -647,19 +672,22 @@ body.zieht-gerade .einheit-box:hover { transform: none; }
 .einheit-box:hover .einheit-knoepfe,
 .einheit-box:focus-within .einheit-knoepfe,
 .einheit-box.offen .einheit-knoepfe { opacity: 1; }
-.einheit-knoepfe button { padding: 1px 7px; line-height: 1.3; }
+.einheit-knoepfe button { padding: 1px 7px; line-height: 1.3; cursor: pointer; }
 
-.einheit-bereich { margin-top: var(--s3); border-top: 1px solid var(--linie); padding-top: var(--s3); }
+.einheit-bereich {
+  margin-top: var(--s3); border-top: 1px solid var(--linie); padding-top: var(--s3);
+  cursor: default;
+}
 
 .jahresvorrat {
   display: flex; flex-wrap: wrap; gap: var(--s3);
   padding: var(--s3);
-  border: 1px dashed var(--linie); border-radius: var(--radius-gross);
-  background: var(--flaeche-leis);
-  min-height: 72px;
+  border: 1px dashed var(--linie-stark); border-radius: var(--radius-gross);
+  background: rgba(255, 255, 255, .45);
+  min-height: 78px;
 }
-.jahresvorrat.ist-ziel { border-style: solid; border-color: var(--akzent); background: var(--grund); }
-.jahresvorrat .einheit-box { flex: 0 1 260px; background: var(--flaeche); }
+.jahresvorrat.ist-ziel { border-style: solid; border-color: var(--akzent); }
+.jahresvorrat .einheit-box { flex: 0 1 260px; }
 
 /* --- Teilthemen ------------------------------------------------------------- */
 ol.teilthemenliste { margin: 0; padding-left: 20px; }

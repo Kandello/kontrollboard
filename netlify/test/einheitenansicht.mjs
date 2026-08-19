@@ -219,39 +219,18 @@ console.log('\n=== Ziehen ueber mehrere Wochen ===');
     (await spurReihenfolge(p, 'rs'))[0], titel);
 }
 
-console.log('\n=== Ziehen auf die andere Spur und in den Vorrat ===');
+console.log('\n=== Ueber den Vorrat die Spur wechseln ===');
 {
+  // Direkt von Spur zu Spur geht nicht (siehe unten). Der Umweg ueber den
+  // Vorrat ist der vorgesehene Weg: dort hat eine Einheit keine Spur mehr
+  // und darf anschliessend in beide.
   const grVorher = await spurReihenfolge(p, 'gr');
   const titel = grVorher[0];
 
-  const zielZelle = p.locator('.jahreszelle[data-woche="6"][data-spur="RS"]');
-  await zielZelle.scrollIntoViewIfNeeded();
-  await p.waitForTimeout(200);
-  const vonKasten = await p.locator('.einheit-box', { hasText: titel }).first()
-    .locator('.einheit-griff').boundingBox();
-  const zielKasten = await zielZelle.boundingBox();
-  await p.mouse.move(vonKasten.x + vonKasten.width / 2, vonKasten.y + vonKasten.height / 2);
-  await p.mouse.down();
-  await p.mouse.move(zielKasten.x + zielKasten.width / 2, zielKasten.y + 2, { steps: 16 });
-  await p.waitForTimeout(200);
-  await p.mouse.up();
-  await p.waitForTimeout(900);
-
-  const nachher = await ausTabelle();
-  pruefe('die gezogene Einheit liegt auf der Rechtschreibspur',
-    nachher.einheiten.find((e) => e.titel === titel).spur, 'RS');
-  pruefe('die Grammatikspur hat eine Einheit weniger',
-    (await spurReihenfolge(p, 'gr')).length, grVorher.length - 1);
-  pruefe('nichts wurde dabei geloescht', nachher.einheiten.length, 26);
-
-  // In den Vorrat ziehen: die Einheit faellt aus dem Plan, bleibt aber da.
-  // Der Vorrat liegt unter dem gesamten Jahr — auch hierhin fuehrt der Weg
-  // nur ueber das Mitrollen am unteren Rand.
   await p.evaluate(() => window.scrollTo(0, 0));
   await p.waitForTimeout(150);
-  const g = await p.locator('.jahresraster .einheit-box', { hasText: titel }).first()
-    .locator('.einheit-griff').boundingBox();
-  await p.mouse.move(g.x + g.width / 2, g.y + g.height / 2);
+  const g = await p.locator('.jahresraster .einheit-box', { hasText: titel }).first().boundingBox();
+  await p.mouse.move(g.x + g.width / 2, g.y + 20);
   await p.mouse.down();
   await p.mouse.move(g.x + g.width / 2, p.viewportSize().height - 15, { steps: 12 });
   await p.waitForFunction(() => {
@@ -271,6 +250,132 @@ console.log('\n=== Ziehen auf die andere Spur und in den Vorrat ===');
   pruefe('… und ist nicht geloescht', imVorrat.einheiten.length, 26);
   pruefe('der Vorrat zeigt sie an',
     (await p.locator('.jahresvorrat .einheit-box').first().innerText()).includes(titel), true);
+  pruefe('die Grammatikspur hat eine Einheit weniger',
+    (await spurReihenfolge(p, 'gr')).length, grVorher.length - 1);
+
+  // Aus dem Vorrat in die ANDERE Spur — das ist erlaubt. Der Vorrat liegt
+  // unter dem ganzen Jahr, also wird von dort aus nach oben gerollt.
+  const rsVorher = await spurReihenfolge(p, 'rs');
+  await p.locator('.jahresvorrat').scrollIntoViewIfNeeded();
+  await p.waitForTimeout(250);
+  const vk = await p.locator('.jahresvorrat .einheit-box', { hasText: titel }).first().boundingBox();
+  await p.mouse.move(vk.x + vk.width / 2, vk.y + 20);
+  await p.mouse.down();
+  await p.mouse.move(vk.x + vk.width / 2, 15, { steps: 12 });
+  await p.waitForFunction(() => {
+    const z = document.querySelector('.jahreszelle[data-woche="9"][data-spur="RS"]');
+    const r = z.getBoundingClientRect();
+    return r.top > 120 && r.bottom < window.innerHeight - 120;
+  }, null, { timeout: 15000 });
+
+  const rsZelle = await p.locator('.jahreszelle[data-woche="9"][data-spur="RS"]').boundingBox();
+  await p.mouse.move(rsZelle.x + rsZelle.width / 2, rsZelle.y + rsZelle.height / 2, { steps: 10 });
+  await p.waitForTimeout(250);
+  await p.mouse.up();
+  await p.waitForTimeout(900);
+
+  pruefe('aus dem Vorrat heraus ist die Spur frei waehlbar',
+    (await ausTabelle()).einheiten.find((e) => e.titel === titel).spur, 'RS');
+  pruefe('die Rechtschreibspur ist eine Einheit laenger',
+    (await spurReihenfolge(p, 'rs')).length, rsVorher.length + 1);
+}
+
+console.log('\n=== Ziehen an der ganzen Box, Klick bleibt Klick ===');
+{
+  // Gemeldet: das Greifen misslang, weil nur ein schmaler Streifen zog.
+  // Jetzt zieht die ganze Box — ein kurzer Klick darf aber weiterhin nur
+  // die Teilthemen aufklappen.
+  await p.evaluate(() => window.scrollTo(0, 0));
+  await p.waitForTimeout(150);
+
+  const box = p.locator('.jahresraster .einheit-box.spur-rs').first();
+  const titelText = (await box.locator('.einheit-titel').innerText()).trim();
+  const k = await box.boundingBox();
+
+  // 1. Klick mitten auf die Box (nicht auf den Streifen): klappt nur auf.
+  await p.mouse.click(k.x + k.width / 2, k.y + 20);
+  await p.waitForTimeout(400);
+  // Es ist immer nur eine Einheit zugleich aufgeklappt — geprueft wird
+  // deshalb, dass genau DIESE offen ist.
+  pruefe('Klick auf die Fläche klappt die Teilthemen auf',
+    await p.locator('.einheit-box.offen .einheit-titel').innerText(), titelText);
+  const ordnungNachKlick = await spurReihenfolge(p, 'rs');
+  pruefe('… und verschiebt nichts', ordnungNachKlick[0], titelText);
+
+  // Wieder zuklappen.
+  await p.mouse.click(k.x + k.width / 2, k.y + 20);
+  await p.waitForTimeout(400);
+
+  // 2. Winzige Bewegung unter der Schwelle zaehlt weiterhin als Klick.
+  await p.mouse.move(k.x + k.width / 2, k.y + 20);
+  await p.mouse.down();
+  await p.mouse.move(k.x + k.width / 2 + 3, k.y + 22, { steps: 3 });
+  pruefe('unter der Schwelle beginnt kein Zug',
+    await p.locator('.einheit-flug').count(), 0);
+  await p.mouse.up();
+  await p.waitForTimeout(400);
+  await p.locator('.einheit-box.offen .einheit-kopf').first().click().catch(() => {});
+  await p.waitForTimeout(300);
+
+  // 3. Ziehen von der Mitte der Box aus — ohne den Streifen zu treffen.
+  const kNeu = await p.locator('.einheit-box', { hasText: titelText }).first().boundingBox();
+  await p.mouse.move(kNeu.x + kNeu.width / 2, kNeu.y + 20);
+  await p.mouse.down();
+  await p.mouse.move(kNeu.x + kNeu.width / 2, kNeu.y + 160, { steps: 14 });
+  await p.waitForTimeout(250);
+  pruefe('Ziehen aus der Fläche heraus funktioniert',
+    await p.locator('.einheit-flug').count(), 1);
+  await p.mouse.up();
+  await p.waitForTimeout(900);
+  pruefe('die Einheit ist verschoben',
+    (await spurReihenfolge(p, 'rs'))[0] !== titelText, true);
+  pruefe('nach dem Zug klappt sich nichts auf',
+    await p.locator('.einheit-box.offen').count(), 0);
+}
+
+console.log('\n=== Spurtreue: Rechtschreibung bleibt Rechtschreibung ===');
+{
+  await p.evaluate(() => window.scrollTo(0, 0));
+  await p.waitForTimeout(150);
+
+  const rsVorher = await spurReihenfolge(p, 'rs');
+  const grVorher = await spurReihenfolge(p, 'gr');
+  const titelRS = rsVorher[1];
+
+  // Eine Rechtschreib-Einheit mitten auf die Grammatikspalte ziehen.
+  const kasten = await p.locator('.einheit-box', { hasText: titelRS }).first().boundingBox();
+  const grZelle = await p.locator('.jahreszelle[data-woche="9"][data-spur="GR"]').boundingBox();
+  await p.mouse.move(kasten.x + kasten.width / 2, kasten.y + 20);
+  await p.mouse.down();
+  await p.mouse.move(grZelle.x + grZelle.width / 2, grZelle.y + grZelle.height / 2, { steps: 16 });
+  await p.waitForTimeout(250);
+  await p.mouse.up();
+  await p.waitForTimeout(900);
+
+  const tabelle = await ausTabelle();
+  pruefe('sie bleibt auf der Rechtschreibspur',
+    tabelle.einheiten.find((e) => e.titel === titelRS).spur, 'RS');
+  pruefe('die Grammatikspur hat keine Einheit dazubekommen',
+    (await spurReihenfolge(p, 'gr')).length, grVorher.length);
+  pruefe('die Rechtschreibspur ist vollzählig geblieben',
+    (await spurReihenfolge(p, 'rs')).length, rsVorher.length);
+
+  // Und die Gegenrichtung.
+  const titelGR = grVorher[1];
+  const kastenGR = await p.locator('.einheit-box', { hasText: titelGR }).first().boundingBox();
+  const rsZelle = await p.locator('.jahreszelle[data-woche="9"][data-spur="RS"]').boundingBox();
+  await p.mouse.move(kastenGR.x + kastenGR.width / 2, kastenGR.y + 20);
+  await p.mouse.down();
+  await p.mouse.move(rsZelle.x + rsZelle.width / 2, rsZelle.y + rsZelle.height / 2, { steps: 16 });
+  await p.waitForTimeout(250);
+  await p.mouse.up();
+  await p.waitForTimeout(900);
+
+  pruefe('umgekehrt bleibt Grammatik ebenfalls Grammatik',
+    (await ausTabelle()).einheiten.find((e) => e.titel === titelGR).spur, 'GR');
+  pruefe('beide Spuren unverändert lang',
+    [(await spurReihenfolge(p, 'rs')).length, (await spurReihenfolge(p, 'gr')).length],
+    [rsVorher.length, grVorher.length]);
 }
 
 console.log('\n=== Abhaken je Klasse ===');

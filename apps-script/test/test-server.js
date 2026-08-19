@@ -906,5 +906,44 @@ console.log('\n=== Einheiten: keine Klarnamen im Datenpaket ===');
     /Musterfrau|Beispiel|Anna|Ben|Bruno/.test(roh), false);
 }
 
+console.log('\n=== Jahresplan zuruecksetzen ===');
+{
+  // Vorher etwas Fortschritt anlegen, damit sich zeigt, dass er mit weggeht.
+  const vorher = ladeAlles();
+  const einThema = vorher.teilthemen[0];
+  fortschrittSpeichern([{ teilthema_id: einThema.id, klasse: '3L', erledigt: true }]);
+  pruefe('Fortschritt steht vor dem Zuruecksetzen', ladeAlles().einheitFortschritt.length > 0, true);
+
+  const b = jahresplanZuruecksetzen();
+  pruefe('Plan neu eingetragen', b.eingetragen, true);
+  pruefe('wieder 26 Einheiten', b.einheiten, 26);
+
+  const d = ladeAlles();
+  pruefe('keine doppelten Einheiten', d.einheiten.length, 26);
+  pruefe('Fortschritt ist mit weggeraeumt', d.einheitFortschritt.length, 0);
+  pruefe('keine verwaisten Teilthemen',
+    d.teilthemen.every(t => d.einheiten.some(e => e.id === t.einheit_id)), true);
+
+  // Der inhaltliche Tausch: die Mehrzahlbildung gehoert in den Vorspann,
+  // das Zusammensetzen in die Grammatikspur.
+  const vorspann = d.einheiten[0];
+  pruefe('Vorspann laeuft auf beiden Spuren', vorspann.spur, 'BEIDE');
+  const vorspannThemen = d.teilthemen.filter(t => t.einheit_id === vorspann.id).map(t => t.titel);
+  pruefe('Mehrzahl steht im Vorspann',
+    vorspannThemen.some(t => /Mehrzahl/.test(t)), true);
+  pruefe('Zusammensetzen steht NICHT mehr im Vorspann',
+    vorspannThemen.some(t => /[Zz]usammensetz/.test(t)), false);
+  pruefe('dafuer als eigene Grammatikeinheit',
+    d.einheiten.some(e => e.titel === 'Nomen zusammensetzen' && e.spur === 'GR'), true);
+  pruefe('keine Einheit heisst mehr "Nomen in der Mehrzahl bilden"',
+    d.einheiten.some(e => e.titel === 'Nomen in der Mehrzahl bilden'), false);
+
+  // Heftbezeichnungen ausgeschrieben statt Kuerzel.
+  const alleThemen = d.teilthemen.map(t => t.titel).join(' | ');
+  pruefe('Seitenangaben nennen das Heft', /\(gr[üu]n, S\. /.test(alleThemen), true);
+  pruefe('… auch das pinke', /\(pink, S\. /.test(alleThemen), true);
+  pruefe('keine rohen Kuerzel mehr', /\((RS|GR) \d/.test(alleThemen), false);
+}
+
 console.log(fehler === 0 ? '\nALLE TESTS BESTANDEN' : `\n${fehler} TEST(S) FEHLGESCHLAGEN`);
 process.exit(fehler === 0 ? 0 : 1);
