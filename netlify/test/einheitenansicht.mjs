@@ -183,7 +183,7 @@ console.log('\n=== Ziehen ueber mehrere Wochen ===');
   pruefe('waehrend des Ziehens ist ein Platzhalter zu sehen',
     await p.locator('.einheit-box.ist-platzhalter').count(), 1);
   pruefe('… und die Einheit haengt sichtbar am Zeiger',
-    await p.locator('.einheit-flug').count(), 1);
+    await p.locator('.wird-geflogen').count(), 1);
 
   await p.mouse.up();
   await p.waitForTimeout(900);
@@ -311,7 +311,7 @@ console.log('\n=== Ziehen an der ganzen Box, Klick bleibt Klick ===');
   await p.mouse.down();
   await p.mouse.move(k.x + k.width / 2 + 3, k.y + 22, { steps: 3 });
   pruefe('unter der Schwelle beginnt kein Zug',
-    await p.locator('.einheit-flug').count(), 0);
+    await p.locator('.wird-geflogen').count(), 0);
   await p.mouse.up();
   await p.waitForTimeout(400);
   await p.locator('.einheit-box.offen .einheit-kopf').first().click().catch(() => {});
@@ -324,7 +324,7 @@ console.log('\n=== Ziehen an der ganzen Box, Klick bleibt Klick ===');
   await p.mouse.move(kNeu.x + kNeu.width / 2, kNeu.y + 160, { steps: 14 });
   await p.waitForTimeout(250);
   pruefe('Ziehen aus der Fläche heraus funktioniert',
-    await p.locator('.einheit-flug').count(), 1);
+    await p.locator('.wird-geflogen').count(), 1);
   await p.mouse.up();
   await p.waitForTimeout(900);
   pruefe('die Einheit ist verschoben',

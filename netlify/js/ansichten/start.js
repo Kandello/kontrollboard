@@ -1,12 +1,24 @@
 /**
  * ansichten/start.js — Ebene 1, der morgendliche Tagesüberblick.
  *
- * Uhr, Tagesplan, die beiden Wochenaufgaben, Ferienmodus und die
- * Klassenknoepfe. Das Widget zur laufenden Unterrichtseinheit folgt mit
- * den Einheiten (Schritt 9); sein Platz ist vorgesehen.
+ * Die Seite ist ein Raster aus Widgets, nicht mehr eine feste Abfolge von
+ * Karten: Uhr, Tagesplan, Wochenaufgaben, laufende Unterrichtseinheit,
+ * Ferienmodus und Klassen. Welche davon zu sehen sind, in welcher
+ * Reihenfolge und wie breit, steht in der Tabelle (siehe layout.js) — und
+ * laesst sich hier per Ziehen aendern.
+ *
+ * Gezogen wird ausdruecklich nur an der Griffleiste oben in jedem Widget.
+ * Die Inhalte enthalten Knoepfe und Verweise; waere die ganze Flaeche
+ * ziehbar, geriete jeder Klick darauf in Gefahr. Bei den Unterrichtseinheiten
+ * ist es umgekehrt geloest, weil deren Boxen kaum Bedienelemente tragen.
  */
 
 import { e, karte, setzeMeldung, hinweis } from '../ui.js';
+import {
+  metaSchluessel, leseLayout, schreibeLayout, sichtbare, ausgeblendete,
+  verschiebe as verschiebeWidget, blendeAus, blendeEin, wechsleBreite
+} from '../layout.js';
+import { starteZug, messeAlle, gleite } from '../ziehen.js';
 import { klassenlehrkraftEintrag } from '../zuordnung.js';
 import { sende, leereDaten, ladeDaten } from '../server.js';
 import {
@@ -45,6 +57,20 @@ function planTag(jetzt = new Date()) {
   return { tag: vorschau ? morgen(tag) : tag, istHeute: !vorschau };
 }
 
+/**
+ * Die Bausteine der Startseite. Reihenfolge und Breite hier sind nur die
+ * Vorgabe fuer den ersten Aufruf; danach entscheidet die gespeicherte
+ * Anordnung. Ein neuer Baustein taucht bei allen automatisch hinten auf.
+ */
+const BAUSTEINE = [
+  { id: 'uhr',        titel: 'Uhr',                       breite: 1 },
+  { id: 'tagesplan',  titel: 'Tagesplan',                 breite: 2 },
+  { id: 'aufgaben',   titel: 'Wochenaufgaben',            breite: 2 },
+  { id: 'einheit',    titel: 'Aktuelle Unterrichtseinheit', breite: 2 },
+  { id: 'klassen',    titel: 'Klassen',                   breite: 2 },
+  { id: 'ferien',     titel: 'Ferienmodus',               breite: 2 }
+];
+
 export function zeichneStart(ziel, { daten, verbergen, neuZeichnen }) {
   if (uhrGeber) { clearInterval(uhrGeber); uhrGeber = null; }
 
@@ -53,15 +79,22 @@ export function zeichneStart(ziel, { daten, verbergen, neuZeichnen }) {
   const kw = kwKennung(tag);
   const plan = planTag();
 
+  // --- Inhalte der Bausteine ----------------------------------------------
   const uhr = uhrWidget(tag, ferien);
-  ziel.appendChild(uhr.element);
+  const tp = ferien ? null : tagesplan(daten, plan.tag, plan.istHeute);
 
-  let planAktualisieren = null;
-  if (!ferien) {
-    const p = tagesplan(daten, plan.tag, plan.istHeute);
-    ziel.appendChild(p.element);
-    planAktualisieren = p.aktualisiere;
-  }
+  const inhalte = {
+    uhr: uhr.element,
+    tagesplan: tp ? tp.element : e('div', { klasse: 'leer', style: 'padding:20px 16px',
+      text: 'Ferienmodus — der Tagesplan ruht.' }),
+    aufgaben: e('div', { klasse: 'kachelreihe' }, [
+      wochenkachel('PEAK', daten, kw, tag, ferien, neuZeichnen),
+      wochenkachel('WEEKLY', daten, kw, tag, ferien, neuZeichnen)
+    ]),
+    einheit: aktuelleEinheit(daten, tag),
+    klassen: klassenknoepfe(daten, verbergen),
+    ferien: ferienschalter(ferien, neuZeichnen)
+  };
 
   // Die Seite bleibt oft stundenlang offen. Ohne diesen Takt bliebe die
   // Markierung „läuft"/„als Nächstes" an der Stunde kleben, die beim
@@ -72,20 +105,140 @@ export function zeichneStart(ziel, { daten, verbergen, neuZeichnen }) {
     uhr.stellen();
     const jetzt = planTag();
     if (alsIso(jetzt.tag) !== gezeichneterTag) { neuZeichnen(); return; }
-    if (planAktualisieren) planAktualisieren();
+    if (tp) tp.aktualisiere();
   }, 1000);
 
-  ziel.appendChild(e('div', { klasse: 'kachelreihe' }, [
-    wochenkachel('PEAK', daten, kw, tag, ferien, neuZeichnen),
-    wochenkachel('WEEKLY', daten, kw, tag, ferien, neuZeichnen)
-  ]));
+  // --- Raster --------------------------------------------------------------
+  let layout = leseLayout(daten.meta[metaSchluessel('start')], BAUSTEINE);
 
-  ziel.appendChild(ferienschalter(ferien, neuZeichnen));
+  const raster = e('div', { klasse: 'widgetraster' });
+  const ablage = e('div', { klasse: 'widget-ablage' });
+  const ablageLeer = e('div', { klasse: 'leer', style: 'padding:12px',
+    text: 'Alles eingeblendet. Hierher gezogene Widgets verschwinden von der Startseite, ohne dass Daten verlorengehen.' });
+  ablage.appendChild(ablageLeer);
 
-  ziel.appendChild(aktuelleEinheit(daten, tag));
+  const huellen = new Map();
+  BAUSTEINE.forEach((b) => huellen.set(b.id, widgetHuelle(b, inhalte[b.id], {
+    starteWidgetZug, umschalten: (id) => setze(wechsleBreite(layout, id)),
+    ausblenden: (id) => setze(blendeAus(layout, id)),
+    einblenden: (id) => setze(blendeEin(layout, id))
+  })));
 
-  ziel.appendChild(e('div', { klasse: 'abschnitt-titel', text: 'Klassen' }));
-  ziel.appendChild(klassenknoepfe(daten, verbergen));
+  function platziere(neuesLayout, animiert) {
+    const vorher = animiert ? messeAlle(huellen) : null;
+
+    sichtbare(neuesLayout).forEach((w) => {
+      const el = huellen.get(w.id);
+      raster.appendChild(el);
+      el.style.gridColumn = `span ${w.breite}`;
+      el.dataset.breite = String(w.breite);
+      el.classList.remove('ist-ausgeblendet');
+    });
+    ausgeblendete(neuesLayout).forEach((w) => {
+      const el = huellen.get(w.id);
+      ablage.appendChild(el);
+      el.style.gridColumn = '';
+      el.classList.add('ist-ausgeblendet');
+    });
+    ablageLeer.hidden = ausgeblendete(neuesLayout).length > 0;
+
+    if (animiert) gleite(huellen, vorher);
+  }
+
+  /** Uebernimmt eine neue Anordnung: erst zeichnen, dann wegschreiben. */
+  async function setze(neuesLayout) {
+    if (!neuesLayout) return;
+    const vorher = layout;
+    layout = neuesLayout;
+    platziere(layout, true);
+
+    const zeile = schreibeLayout(layout);
+    daten.meta[metaSchluessel('start')] = zeile;
+    try {
+      await sende('meta', { werte: { [metaSchluessel('start')]: zeile } });
+    } catch (fehler) {
+      layout = vorher;
+      daten.meta[metaSchluessel('start')] = schreibeLayout(vorher);
+      platziere(layout, true);
+      window.alert('Die Anordnung konnte nicht gespeichert werden: ' + fehler.message);
+    }
+  }
+
+  function starteWidgetZug(ev, id) {
+    let entwurf = null;
+    starteZug({
+      ev, element: huellen.get(id),
+      zielSuche: (x, y) => zielUnter(x, y, id),
+      gleich: (a, b) => a.vorId === b.vorId && a.ablegen === b.ablegen,
+      vorschau: (ziel) => {
+        entwurf = ziel.ablegen ? blendeAus(layout, id) : verschiebeWidget(layout, id, ziel.vorId);
+        if (entwurf) platziere(entwurf, true);
+      },
+      abschluss: () => {
+        if (entwurf) setze(entwurf);
+        else platziere(layout, true);
+      }
+    });
+  }
+
+  /** Vor welches Widget gehoert es, wenn hier losgelassen wird? */
+  function zielUnter(x, y, eigeneId) {
+    for (const el of document.elementsFromPoint(x, y)) {
+      if (el === ablage || (el.closest && el.closest('.widget-ablage'))) {
+        return { vorId: null, ablegen: true };
+      }
+      const huelle = el.closest && el.closest('.widget');
+      if (huelle && huelle.dataset.id !== eigeneId) {
+        return { vorId: huelle.dataset.id, ablegen: false };
+      }
+      if (el === raster) return { vorId: null, ablegen: false };
+    }
+    return null;
+  }
+
+  ziel.appendChild(raster);
+  ziel.appendChild(e('div', { klasse: 'abschnitt-titel', text: 'Ausgeblendet' }));
+  ziel.appendChild(ablage);
+  platziere(layout, false);
+}
+
+/**
+ * Die Huelle um einen Baustein: Griffleiste mit Namen und zwei Knoepfen,
+ * darunter der eigentliche Inhalt.
+ */
+function widgetHuelle(baustein, inhalt, { starteWidgetZug, umschalten, ausblenden, einblenden }) {
+  const griff = e('div', { klasse: 'widget-griff' }, [
+    e('span', { klasse: 'widget-punkte', 'aria-hidden': 'true' }),
+    e('span', { klasse: 'widget-name', text: baustein.titel }),
+    e('span', { klasse: 'widget-knoepfe' }, [
+      e('button', {
+        klasse: 'klein leise', text: '↔', title: 'Breite umschalten',
+        'aria-label': baustein.titel + ': Breite umschalten',
+        auf: { click: (ev) => { ev.stopPropagation(); umschalten(baustein.id); } }
+      }),
+      e('button', {
+        klasse: 'klein leise', text: '×', title: 'Ausblenden',
+        'aria-label': baustein.titel + ' ausblenden',
+        auf: { click: (ev) => { ev.stopPropagation(); ausblenden(baustein.id); } }
+      }),
+      e('button', {
+        klasse: 'klein zurueckholen', text: '+', title: 'Wieder einblenden',
+        'aria-label': baustein.titel + ' wieder einblenden',
+        auf: { click: (ev) => { ev.stopPropagation(); einblenden(baustein.id); } }
+      })
+    ])
+  ]);
+
+  // Gezogen wird nur an der Griffleiste — der Inhalt bleibt bedienbar.
+  griff.addEventListener('pointerdown', (ev) => {
+    if (ev.target.closest('button')) return;
+    starteWidgetZug(ev, baustein.id);
+  });
+
+  return e('div', { klasse: 'karte widget', daten: { id: baustein.id } }, [
+    griff,
+    e('div', { klasse: 'widget-inhalt' }, [inhalt])
+  ]);
 }
 
 export function raeumeStartAuf() {
@@ -113,7 +266,7 @@ function uhrWidget(tag, ferien) {
   // Den Takt setzt zeichneStart, damit Uhr und Tagesplan im selben
   // Zeitgeber laufen und nicht um Sekundenbruchteile auseinanderfallen.
   return {
-    element: e('div', { klasse: 'karte uhr' }, [
+    element: e('div', { klasse: 'uhr' }, [
       zeitZeile, tagZeile,
       ferien ? e('span', { klasse: 'marke ruhend', text: 'Ferienmodus' }) : null
     ]),
@@ -132,7 +285,7 @@ function tagesplanUeberschrift(tag) {
 }
 
 function tagesplanKarte(tag, kinder) {
-  return e('div', { klasse: 'karte' }, [
+  return e('div', {}, [
     tagesplanUeberschrift(tag),
     ...(Array.isArray(kinder) ? kinder : [kinder])
   ]);
@@ -285,7 +438,7 @@ function aktuelleEinheit(daten, tag) {
   const plan = jahresplan(daten.einheiten || []);
 
   if (!plan.geplant.length) {
-    return karte('Aktuelle Unterrichtseinheit', [
+    return e('div', {}, [
       e('div', { klasse: 'leer', style: 'padding:20px 16px' }, [
         e('div', { text: 'Es ist noch keine Unterrichtseinheit eingeplant.' }),
         e('div', { klasse: 'leiste', style: 'justify-content:center;margin-top:14px' }, [
@@ -296,7 +449,7 @@ function aktuelleEinheit(daten, tag) {
   }
 
   if (woche === null) {
-    return karte('Aktuelle Unterrichtseinheit', [
+    return e('div', {}, [
       e('div', { klasse: 'leer', style: 'padding:20px 16px' }, [
         e('div', { text: 'Für die laufende Schulwoche fehlt der Schuljahresbeginn.' }),
         e('div', { klasse: 'feldhilfe', style: 'margin-top:6px',
@@ -313,7 +466,7 @@ function aktuelleEinheit(daten, tag) {
     .filter((x) => x.einheit);
 
   if (!laufende.length) {
-    return karte('Aktuelle Unterrichtseinheit', [
+    return e('div', {}, [
       e('div', { klasse: 'leer', style: 'padding:20px 16px' }, [
         e('div', { text: `Schulwoche ${woche} — dafür steht im Jahresplan nichts.` }),
         e('div', { klasse: 'leiste', style: 'justify-content:center;margin-top:14px' }, [
@@ -329,7 +482,7 @@ function aktuelleEinheit(daten, tag) {
     if (!gezeigt.some((g) => g.einheit.id === x.einheit.id)) gezeigt.push(x);
   });
 
-  return karte('Aktuelle Unterrichtseinheit', [
+  return e('div', {}, [
     e('div', { klasse: 'feldhilfe', style: 'margin-top:0', text: `Schulwoche ${woche}` }),
     ...gezeigt.map(({ spur, einheit }) => e('div', { klasse: 'laufende-einheit' }, [
       e('div', { klasse: 'leiste', style: 'margin:0' }, [
@@ -450,7 +603,7 @@ function ferienschalter(ferien, neuZeichnen) {
     }
   });
 
-  return e('div', { klasse: 'leiste ferienleiste' }, [
+  return e('div', { klasse: 'leiste ferienleiste', style: 'margin:0' }, [
     e('span', { klasse: 'feldhilfe', text: ferien
       ? 'Keine Woche wird als versäumt gewertet.'
       : 'Blendet Tagesplan und Wochenaufgaben aus.' }),

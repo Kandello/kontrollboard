@@ -620,8 +620,9 @@ table.liste td.beteiligung-band-6 { background: var(--beteiligung-band-6); }
     0 22px 40px rgba(28, 48, 74, .14);
 }
 
-/* Das Stueck, das am Zeiger haengt. */
-.einheit-flug {
+/* Das Stueck, das am Zeiger haengt — gilt fuer alles Ziehbare, nicht nur
+   fuer Unterrichtseinheiten (siehe js/ziehen.js). */
+.wird-geflogen {
   transform: rotate(-1.5deg) scale(1.03);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 1),
@@ -629,7 +630,8 @@ table.liste td.beteiligung-band-6 { background: var(--beteiligung-band-6); }
     0 26px 50px rgba(28, 48, 74, .32);
   opacity: .97;
 }
-.einheit-flug .einheit-knoepfe { display: none; }
+.wird-geflogen .einheit-knoepfe,
+.wird-geflogen .widget-knoepfe { display: none; }
 
 /* Der Umriss, der waehrend des Ziehens an der kuenftigen Stelle steht. */
 .einheit-box.ist-platzhalter {
@@ -721,4 +723,94 @@ ul.teilthemen-abhaken li.ist-erledigt label span { color: var(--text-leise); }
 @media (max-width: 520px) {
   .jahresraster { grid-template-columns: 44px minmax(140px, 1fr) minmax(140px, 1fr); min-width: 420px; }
   .jahresvorrat .einheit-box { flex: 1 1 100%; }
+}
+
+/* --- Startseite als Widget-Raster ------------------------------------------
+   Zwei Spalten wie ein Homescreen; jedes Widget belegt eine oder beide.
+   Der Koerper folgt bewusst denselben Werten wie die Unterrichtseinheiten,
+   damit sich Ziehbares ueberall gleich anfuehlt. */
+.widgetraster {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s4);
+  align-items: start;
+  margin-bottom: var(--s4);
+}
+
+.widget {
+  position: relative;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: linear-gradient(180deg, #ffffff 0%, #f2f6fa 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    inset 0 -1px 0 rgba(28, 48, 74, .06),
+    0 1px 1px rgba(28, 48, 74, .10),
+    0 3px 5px rgba(28, 48, 74, .10),
+    0 10px 20px rgba(28, 48, 74, .09);
+  transition: box-shadow .16s ease, transform .16s ease;
+}
+.widget:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    inset 0 -1px 0 rgba(28, 48, 74, .06),
+    0 2px 2px rgba(28, 48, 74, .10),
+    0 8px 14px rgba(28, 48, 74, .13),
+    0 20px 36px rgba(28, 48, 74, .14);
+}
+body.zieht-gerade .widget:hover { transform: none; }
+
+/* Die Griffleiste: hier und nur hier wird gezogen. */
+.widget-griff {
+  display: flex; align-items: center; gap: var(--s2);
+  padding: 6px var(--s3) 6px var(--s2);
+  border-bottom: 1px solid var(--linie);
+  background: linear-gradient(180deg, rgba(255,255,255,.7), rgba(233,240,247,.7));
+  cursor: grab; touch-action: none; user-select: none;
+}
+.widget-griff:active { cursor: grabbing; }
+
+.widget-punkte {
+  width: 14px; height: 16px; flex: none; opacity: .5;
+  background: radial-gradient(circle, var(--text-sehrleis) 1.3px, transparent 1.3px) 0 0 / 5px 5px;
+}
+.widget:hover .widget-punkte { opacity: .9; }
+
+.widget-name {
+  font-family: var(--serif); font-size: var(--t-klein);
+  text-transform: uppercase; letter-spacing: .06em; color: var(--text-leise);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.widget-knoepfe { margin-left: auto; display: flex; gap: 2px; opacity: 0; transition: opacity .12s; }
+.widget:hover .widget-knoepfe,
+.widget:focus-within .widget-knoepfe { opacity: 1; }
+.widget-knoepfe button { min-height: 26px; padding: 0 8px; line-height: 1.2; }
+
+/* Der Zurueckhol-Knopf zeigt sich nur in der Ablage, die Ausblenden- und
+   Breitenknoepfe nur im Raster. */
+.widget .zurueckholen { display: none; }
+.widget.ist-ausgeblendet .zurueckholen { display: inline-flex; }
+.widget.ist-ausgeblendet .widget-knoepfe button:not(.zurueckholen) { display: none; }
+.widget.ist-ausgeblendet .widget-knoepfe { opacity: 1; }
+.widget.ist-ausgeblendet .widget-inhalt { display: none; }
+.widget.ist-ausgeblendet { flex: 0 1 220px; background: rgba(255, 255, 255, .6); }
+
+.widget-inhalt { padding: var(--s4); }
+.widget-inhalt > .leiste:last-child { margin-bottom: 0; }
+
+.widget-ablage {
+  display: flex; flex-wrap: wrap; gap: var(--s3);
+  padding: var(--s3);
+  border: 1px dashed var(--linie-stark); border-radius: var(--radius-gross);
+  background: rgba(255, 255, 255, .45);
+  min-height: 72px;
+  margin-bottom: var(--s4);
+}
+
+@media (max-width: 720px) {
+  .widgetraster { grid-template-columns: minmax(0, 1fr); }
+  .widgetraster .widget { grid-column: span 1 !important; }
 }

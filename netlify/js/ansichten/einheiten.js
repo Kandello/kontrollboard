@@ -36,23 +36,11 @@ import {
   SPUREN, jahresplan, verschiebe, setzeReihenfolgeLokal,
   teilthemenFuer, schulwoche
 } from '../einheiten.js';
+import { starteZug, messeAlle, gleite } from '../ziehen.js';
 
 /** Welche Einheit ist aufgeklappt — ueberlebt ein neuZeichnen(). */
 const zustand = { offeneEinheit: null };
 
-/** Dauer der Umsortier-Animation. Kurz genug, um nicht zu bremsen. */
-const GLEITDAUER = 170;
-
-/**
- * Ein Schuljahr ist laenger als jeder Bildschirm. Kommt der Zeiger beim
- * Ziehen in diesen Randstreifen, rollt die Seite mit — sonst liesse sich
- * eine Einheit nur so weit schieben, wie gerade sichtbar ist.
- */
-const ROLLRAND = 90;
-const ROLLTEMPO = 18;
-
-/** So viele Pixel Bewegung, bevor aus einem Klick ein Zug wird. */
-const ZIEHSCHWELLE = 5;
 
 /**
  * Rechtschreibung und Grammatik bleiben getrennt: eine eingeplante Einheit
@@ -230,128 +218,26 @@ export function zeichneEinheiten(ziel, kontext) {
   // --- Ziehen mit laufender Vorschau ----------------------------------------
 
   function starteZiehen(ev, einheitId) {
-    // Nur die linke Maustaste zieht; Rechtsklick und Mausrad nicht.
-    if (ev.pointerType === 'mouse' && ev.button !== 0) return;
-
     const box = boxen.get(einheitId);
     const eigeneSpur = box.dataset.spur || '';
-    const startX = ev.clientX;
-    const startY = ev.clientY;
-
-    // Grundriss ohne die gezogene Einheit: daran wird abgelesen, vor welche
-    // Einheit sie gehoert, wenn der Zeiger ueber einer bestimmten Woche steht.
     const ohneEigene = daten.einheiten.filter((x) => x.id !== einheitId);
-    let letzteWahl = null;
     let ordnung = null;
-    let zeigerX = startX;
-    let zeigerY = startY;
-    let zieht = false;      // erst ab der Schwelle wird wirklich gezogen
-    let beendet = false;
-    let flug = null;
-    let versatzX = 0;
-    let versatzY = 0;
 
-    /**
-     * Der Zug beginnt erst nach ein paar Pixeln Bewegung. Ohne diese Schwelle
-     * waere kein Klick mehr moeglich: jedes Antippen der Box wuerde als
-     * Verschieben gelten, und die Teilthemen liessen sich nicht mehr oeffnen.
-     */
-    function beginne() {
-      zieht = true;
-      einheitBeimZiehen = einheitId;
-
-      const kasten = box.getBoundingClientRect();
-      versatzX = startX - kasten.left;
-      versatzY = startY - kasten.top;
-
-      // Die Einheit haengt sichtbar am Zeiger; im Raster bleibt an ihrer
-      // Stelle der Umriss stehen, damit erkennbar ist, wo sie landen wird.
-      flug = box.cloneNode(true);
-      flug.className = box.className + ' einheit-flug';
-      flug.style.cssText = `position:fixed;z-index:999;pointer-events:none;margin:0;` +
-        `width:${kasten.width}px;height:${kasten.height}px;` +
-        `left:${kasten.left}px;top:${kasten.top}px`;
-      document.body.appendChild(flug);
-      box.classList.add('ist-platzhalter');
-      document.body.classList.add('zieht-gerade');
-      requestAnimationFrame(rollen);
-    }
-
-    function pruefeZiel() {
-      if (!zieht) return;
-      flug.style.left = (zeigerX - versatzX) + 'px';
-      flug.style.top = (zeigerY - versatzY) + 'px';
-
-      const wahl = zielUnter(zeigerX, zeigerY, ohneEigene, eigeneSpur);
-      if (!wahl) return;
-      if (letzteWahl && wahl.spur === letzteWahl.spur && wahl.vorId === letzteWahl.vorId) return;
-      letzteWahl = wahl;
-
-      ordnung = verschiebe(daten.einheiten, einheitId, wahl.spur, wahl.vorId);
-      if (ordnung) platziere(vorschauPlan(daten.einheiten, ordnung), true);
-    }
-
-    function bewegen(e2) {
-      zeigerX = e2.clientX;
-      zeigerY = e2.clientY;
-      if (!zieht) {
-        if (Math.abs(zeigerX - startX) < ZIEHSCHWELLE &&
-            Math.abs(zeigerY - startY) < ZIEHSCHWELLE) return;
-        beginne();
+    einheitBeimZiehen = einheitId;
+    starteZug({
+      ev, element: box,
+      zielSuche: (x, y) => zielUnter(x, y, ohneEigene, eigeneSpur),
+      gleich: (a, b) => a.spur === b.spur && a.vorId === b.vorId,
+      vorschau: (ziel) => {
+        ordnung = verschiebe(daten.einheiten, einheitId, ziel.spur, ziel.vorId);
+        if (ordnung) platziere(vorschauPlan(daten.einheiten, ordnung), true);
+      },
+      abschluss: () => {
+        einheitBeimZiehen = null;
+        if (ordnung) uebernimm(ordnung);
+        else platziere(jahresplan(daten.einheiten), true);
       }
-      pruefeZiel();
-    }
-
-    /** Rollt die Seite, solange der Zeiger am oberen oder unteren Rand steht. */
-    function rollen() {
-      if (!zieht) return;
-      const hoehe = window.innerHeight;
-      let schritt = 0;
-      if (zeigerY < ROLLRAND) schritt = -ROLLTEMPO * (1 - zeigerY / ROLLRAND);
-      else if (zeigerY > hoehe - ROLLRAND) schritt = ROLLTEMPO * (1 - (hoehe - zeigerY) / ROLLRAND);
-
-      if (schritt) {
-        const vorherOben = window.scrollY;
-        window.scrollBy(0, schritt);
-        if (window.scrollY !== vorherOben) pruefeZiel();
-      }
-      requestAnimationFrame(rollen);
-    }
-    requestAnimationFrame(rollen);
-
-    function loslassen() {
-      if (beendet) return;
-      beendet = true;
-      window.removeEventListener('pointermove', bewegen);
-      window.removeEventListener('pointerup', loslassen);
-      window.removeEventListener('pointercancel', loslassen);
-
-      // Unter der Schwelle geblieben: das war ein Klick, kein Zug. Nichts
-      // aufraeumen, nichts speichern — der Kopf oeffnet gleich die Teilthemen.
-      if (!zieht) return;
-      zieht = false;
-
-      if (flug) flug.remove();
-      box.classList.remove('ist-platzhalter');
-      document.body.classList.remove('zieht-gerade');
-      einheitBeimZiehen = null;
-
-      // Nach einem Zug darf sich die Einheit nicht auch noch aufklappen.
-      box.addEventListener('click', schluckeKlick, { capture: true, once: true });
-      setTimeout(() => box.removeEventListener('click', schluckeKlick, { capture: true }), 0);
-
-      if (ordnung) uebernimm(ordnung);
-      else platziere(jahresplan(daten.einheiten), true);
-    }
-
-    function schluckeKlick(klick) {
-      klick.preventDefault();
-      klick.stopPropagation();
-    }
-
-    window.addEventListener('pointermove', bewegen);
-    window.addEventListener('pointerup', loslassen);
-    window.addEventListener('pointercancel', loslassen);
+    });
   }
 
   /**
@@ -418,43 +304,6 @@ function vorschauPlan(einheiten, ordnung) {
   const kopie = einheiten.map((x) => ({ ...x }));
   setzeReihenfolgeLokal({ einheiten: kopie }, ordnung);
   return jahresplan(kopie);
-}
-
-// --- Gleiten (FLIP) ----------------------------------------------------------
-
-/**
- * Gemessen wird in Dokumentkoordinaten, nicht relativ zum Fenster: waehrend
- * des Ziehens rollt die Seite mit, und eine Messung am Fenster liesse die
- * Boxen bei jedem Rollschritt scheinbar springen.
- */
-function messeAlle(boxen) {
-  const stand = new Map();
-  const x = window.scrollX, y = window.scrollY;
-  boxen.forEach((el, id) => {
-    const r = el.getBoundingClientRect();
-    stand.set(id, { left: r.left + x, top: r.top + y });
-  });
-  return stand;
-}
-
-function gleite(boxen, vorher) {
-  const x = window.scrollX, y = window.scrollY;
-  boxen.forEach((el, id) => {
-    const alt = vorher.get(id);
-    if (!alt || el.classList.contains('ist-platzhalter')) return;
-    const r = el.getBoundingClientRect();
-    const neu = { left: r.left + x, top: r.top + y };
-    const dx = alt.left - neu.left;
-    const dy = alt.top - neu.top;
-    if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
-
-    el.style.transition = 'none';
-    el.style.transform = `translate(${dx}px, ${dy}px)`;
-    requestAnimationFrame(() => {
-      el.style.transition = `transform ${GLEITDAUER}ms ease`;
-      el.style.transform = '';
-    });
-  });
 }
 
 // --- Eine Einheit als Box ----------------------------------------------------
