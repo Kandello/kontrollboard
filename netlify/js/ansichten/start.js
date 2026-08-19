@@ -13,12 +13,12 @@
  * ist es umgekehrt geloest, weil deren Boxen kaum Bedienelemente tragen.
  */
 
-import { e, karte, setzeMeldung, hinweis } from '../ui.js';
+import { e, setzeMeldung, hinweis } from '../ui.js';
 import {
-  metaSchluessel, leseLayout, schreibeLayout, sichtbare, ausgeblendete,
-  verschiebe as verschiebeWidget, blendeAus, blendeEin, wechsleBreite
+  GRID_SPALTEN, metaSchluessel, leseLayout, schreibeLayout, sichtbare, ausgeblendete,
+  versetze as versetzeWidget, groesseAendern, blendeAus, blendeEin
 } from '../layout.js';
-import { starteZug, messeAlle, gleite } from '../ziehen.js';
+import { starteZug, starteGroessenzug, messeAlle, gleite } from '../ziehen.js';
 import { klassenlehrkraftEintrag } from '../zuordnung.js';
 import { sende, leereDaten, ladeDaten } from '../server.js';
 import {
@@ -58,18 +58,40 @@ function planTag(jetzt = new Date()) {
 }
 
 /**
- * Die Bausteine der Startseite. Reihenfolge und Breite hier sind nur die
- * Vorgabe fuer den ersten Aufruf; danach entscheidet die gespeicherte
- * Anordnung. Ein neuer Baustein taucht bei allen automatisch hinten auf.
+ * Die Bausteine der Startseite. Reihenfolge und Groesse hier sind nur die
+ * Vorgabe fuer den allerersten Aufruf, in Rastereinheiten (siehe layout.js);
+ * danach entscheidet die gespeicherte Anordnung. Ein neuer Baustein taucht
+ * bei allen automatisch an einer freien Stelle auf.
  */
 const BAUSTEINE = [
-  { id: 'uhr',        titel: 'Uhr',                       breite: 1 },
-  { id: 'tagesplan',  titel: 'Tagesplan',                 breite: 2 },
-  { id: 'aufgaben',   titel: 'Wochenaufgaben',            breite: 2 },
-  { id: 'einheit',    titel: 'Aktuelle Unterrichtseinheit', breite: 2 },
-  { id: 'klassen',    titel: 'Klassen',                   breite: 2 },
-  { id: 'ferien',     titel: 'Ferienmodus',               breite: 2 }
+  { id: 'uhr',       titel: 'Uhr',                         breiteVorgabe: 4,  hoeheVorgabe: 6,  minBreite: 3, minHoehe: 4 },
+  { id: 'tagesplan', titel: 'Tagesplan',                   breiteVorgabe: 8,  hoeheVorgabe: 12, minBreite: 4, minHoehe: 6 },
+  { id: 'aufgaben',  titel: 'Wochenaufgaben',              breiteVorgabe: 8,  hoeheVorgabe: 5,  minBreite: 4, minHoehe: 3 },
+  { id: 'einheit',   titel: 'Aktuelle Unterrichtseinheit', breiteVorgabe: 8,  hoeheVorgabe: 8,  minBreite: 4, minHoehe: 4 },
+  { id: 'klassen',   titel: 'Klassen',                     breiteVorgabe: 12, hoeheVorgabe: 5,  minBreite: 4, minHoehe: 3 },
+  { id: 'ferien',    titel: 'Ferienmodus',                 breiteVorgabe: 8,  hoeheVorgabe: 3,  minBreite: 3, minHoehe: 2 }
 ];
+
+/** Hoehe einer Rasterzeile in Pixeln — muss zu `grid-auto-rows` im CSS passen. */
+const RASTER_REIHE_PX = 24;
+
+/**
+ * Die Geometrie des Rasters, frisch gemessen: waehrend eines Zugs rollt die
+ * Seite mit, wodurch sich die Lage des Rasters gegenueber dem Fenster
+ * laufend aendert. Eine einmalige Messung beim Start des Zugs waere nach
+ * dem ersten Rollschritt falsch.
+ */
+function rasterGeometrie(raster) {
+  const kasten = raster.getBoundingClientRect();
+  const stil = getComputedStyle(raster);
+  const spaltenluecke = parseFloat(stil.columnGap) || 0;
+  const zeilenluecke = parseFloat(stil.rowGap) || 0;
+  return {
+    links: kasten.left, oben: kasten.top,
+    spaltenraster: (kasten.width - spaltenluecke * (GRID_SPALTEN - 1)) / GRID_SPALTEN + spaltenluecke,
+    zeilenraster: RASTER_REIHE_PX + zeilenluecke
+  };
+}
 
 export function zeichneStart(ziel, { daten, verbergen, neuZeichnen }) {
   if (uhrGeber) { clearInterval(uhrGeber); uhrGeber = null; }
@@ -119,7 +141,8 @@ export function zeichneStart(ziel, { daten, verbergen, neuZeichnen }) {
 
   const huellen = new Map();
   BAUSTEINE.forEach((b) => huellen.set(b.id, widgetHuelle(b, inhalte[b.id], {
-    starteWidgetZug, umschalten: (id) => setze(wechsleBreite(layout, id)),
+    starteWidgetZug: (ev) => starteWidgetZug(ev, b.id),
+    starteWidgetResize: (ev) => starteWidgetResize(ev, b.id),
     ausblenden: (id) => setze(blendeAus(layout, id)),
     einblenden: (id) => setze(blendeEin(layout, id))
   })));
@@ -130,14 +153,15 @@ export function zeichneStart(ziel, { daten, verbergen, neuZeichnen }) {
     sichtbare(neuesLayout).forEach((w) => {
       const el = huellen.get(w.id);
       raster.appendChild(el);
-      el.style.gridColumn = `span ${w.breite}`;
-      el.dataset.breite = String(w.breite);
+      el.style.gridColumn = `${w.x + 1} / span ${w.w}`;
+      el.style.gridRow = `${w.y + 1} / span ${w.h}`;
       el.classList.remove('ist-ausgeblendet');
     });
     ausgeblendete(neuesLayout).forEach((w) => {
       const el = huellen.get(w.id);
       ablage.appendChild(el);
       el.style.gridColumn = '';
+      el.style.gridRow = '';
       el.classList.add('ist-ausgeblendet');
     });
     ablageLeer.hidden = ausgeblendete(neuesLayout).length > 0;
@@ -164,15 +188,36 @@ export function zeichneStart(ziel, { daten, verbergen, neuZeichnen }) {
     }
   }
 
+  /**
+   * Verschieben: die Zielzelle ergibt sich direkt aus der Zeigerposition,
+   * abzueglich der Stelle, an der gegriffen wurde — nicht aus dem Element
+   * unter dem Zeiger. Ein 2D-Raster kennt keine Nachbarn, vor die man
+   * einsortiert, nur Koordinaten.
+   */
   function starteWidgetZug(ev, id) {
+    const huelle = huellen.get(id);
+    const kasten = huelle.getBoundingClientRect();
+    const versatzX = ev.clientX - kasten.left;
+    const versatzY = ev.clientY - kasten.top;
     let entwurf = null;
+
     starteZug({
-      ev, element: huellen.get(id),
-      zielSuche: (x, y) => zielUnter(x, y, id),
-      gleich: (a, b) => a.vorId === b.vorId && a.ablegen === b.ablegen,
+      ev, element: huelle,
+      zielSuche: (x, y) => {
+        for (const el of document.elementsFromPoint(x, y)) {
+          if (el === ablage || (el.closest && el.closest('.widget-ablage'))) {
+            return { ablegen: true };
+          }
+        }
+        const geo = rasterGeometrie(raster);
+        const gx = Math.round((x - versatzX - geo.links) / geo.spaltenraster);
+        const gy = Math.round((y - versatzY - geo.oben) / geo.zeilenraster);
+        return { ablegen: false, gx, gy };
+      },
+      gleich: (a, b) => a.ablegen === b.ablegen && a.gx === b.gx && a.gy === b.gy,
       vorschau: (ziel) => {
-        entwurf = ziel.ablegen ? blendeAus(layout, id) : verschiebeWidget(layout, id, ziel.vorId);
-        if (entwurf) platziere(entwurf, true);
+        const kandidat = ziel.ablegen ? blendeAus(layout, id) : versetzeWidget(layout, id, ziel.gx, ziel.gy);
+        if (kandidat) { entwurf = kandidat; platziere(entwurf, true); }
       },
       abschluss: () => {
         if (entwurf) setze(entwurf);
@@ -181,19 +226,31 @@ export function zeichneStart(ziel, { daten, verbergen, neuZeichnen }) {
     });
   }
 
-  /** Vor welches Widget gehoert es, wenn hier losgelassen wird? */
-  function zielUnter(x, y, eigeneId) {
-    for (const el of document.elementsFromPoint(x, y)) {
-      if (el === ablage || (el.closest && el.closest('.widget-ablage'))) {
-        return { vorId: null, ablegen: true };
+  /**
+   * Groessenaendern: der Griff unten rechts waechst mit dem Zeiger mit, die
+   * linke obere Ecke bleibt stehen. Kollidiert die neue Groesse mit einem
+   * anderen Widget, bleibt einfach die letzte gueltige Groesse stehen.
+   */
+  function starteWidgetResize(ev, id) {
+    const start = layout.find((w) => w.id === id);
+    if (!start) return;
+    let entwurf = null;
+
+    starteGroessenzug({
+      ev,
+      vorschau: (dx, dy) => {
+        const geo = rasterGeometrie(raster);
+        const deltaSpalten = Math.round(dx / geo.spaltenraster);
+        const deltaZeilen = Math.round(dy / geo.zeilenraster);
+        const kandidat = groesseAendern(
+          layout, id, start.w + deltaSpalten, start.h + deltaZeilen, BAUSTEINE);
+        if (kandidat) { entwurf = kandidat; platziere(entwurf, true); }
+      },
+      abschluss: () => {
+        if (entwurf) setze(entwurf);
+        else platziere(layout, true);
       }
-      const huelle = el.closest && el.closest('.widget');
-      if (huelle && huelle.dataset.id !== eigeneId) {
-        return { vorId: huelle.dataset.id, ablegen: false };
-      }
-      if (el === raster) return { vorId: null, ablegen: false };
-    }
-    return null;
+    });
   }
 
   ziel.appendChild(raster);
@@ -203,19 +260,15 @@ export function zeichneStart(ziel, { daten, verbergen, neuZeichnen }) {
 }
 
 /**
- * Die Huelle um einen Baustein: Griffleiste mit Namen und zwei Knoepfen,
- * darunter der eigentliche Inhalt.
+ * Die Huelle um einen Baustein: Griffleiste mit Namen zum Verschieben, ein
+ * Ausblenden-Knopf, darunter der eigentliche Inhalt, unten rechts ein
+ * Anfassgriff zum Skalieren.
  */
-function widgetHuelle(baustein, inhalt, { starteWidgetZug, umschalten, ausblenden, einblenden }) {
+function widgetHuelle(baustein, inhalt, { starteWidgetZug, starteWidgetResize, ausblenden, einblenden }) {
   const griff = e('div', { klasse: 'widget-griff' }, [
     e('span', { klasse: 'widget-punkte', 'aria-hidden': 'true' }),
     e('span', { klasse: 'widget-name', text: baustein.titel }),
     e('span', { klasse: 'widget-knoepfe' }, [
-      e('button', {
-        klasse: 'klein leise', text: '↔', title: 'Breite umschalten',
-        'aria-label': baustein.titel + ': Breite umschalten',
-        auf: { click: (ev) => { ev.stopPropagation(); umschalten(baustein.id); } }
-      }),
       e('button', {
         klasse: 'klein leise', text: '×', title: 'Ausblenden',
         'aria-label': baustein.titel + ' ausblenden',
@@ -232,12 +285,21 @@ function widgetHuelle(baustein, inhalt, { starteWidgetZug, umschalten, ausblende
   // Gezogen wird nur an der Griffleiste — der Inhalt bleibt bedienbar.
   griff.addEventListener('pointerdown', (ev) => {
     if (ev.target.closest('button')) return;
-    starteWidgetZug(ev, baustein.id);
+    starteWidgetZug(ev);
+  });
+
+  const groessenGriff = e('div', {
+    klasse: 'widget-resize', title: 'Größe ändern', 'aria-hidden': 'true'
+  });
+  groessenGriff.addEventListener('pointerdown', (ev) => {
+    ev.stopPropagation();
+    starteWidgetResize(ev);
   });
 
   return e('div', { klasse: 'karte widget', daten: { id: baustein.id } }, [
     griff,
-    e('div', { klasse: 'widget-inhalt' }, [inhalt])
+    e('div', { klasse: 'widget-inhalt' }, [inhalt]),
+    groessenGriff
   ]);
 }
 

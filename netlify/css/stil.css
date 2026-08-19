@@ -326,9 +326,11 @@ ul.tagesplan li:first-child { border-top: 0; }
 @media (max-width: 520px) {
   .tagesplan .eintrag { flex-wrap: wrap; gap: var(--s2); }
   .tagesplan .zeit { min-width: 0; }
-  .uhr-zeit { font-size: 38px; }
-  .tagesplan-wochentag { font-size: 26px; }
 }
+/* Groesse von Uhr und Tagesplan-Ueberschrift richtet sich seit dem
+   Widget-Raster nach der eigenen Breite des Widgets (container query weiter
+   unten), nicht mehr nach der Fensterbreite — ein Widget kann schmal sein,
+   auch wenn viel Bildschirm zur Verfuegung steht, und umgekehrt. */
 
 /* --- Klassenfarben --------------------------------------------------------
    Kommen aus der Spalte `farbe` im Blatt Klassen. Fehlt sie, greift eine
@@ -726,19 +728,23 @@ ul.teilthemen-abhaken li.ist-erledigt label span { color: var(--text-leise); }
 }
 
 /* --- Startseite als Widget-Raster ------------------------------------------
-   Zwei Spalten wie ein Homescreen; jedes Widget belegt eine oder beide.
-   Der Koerper folgt bewusst denselben Werten wie die Unterrichtseinheiten,
-   damit sich Ziehbares ueberall gleich anfuehlt. */
+   Ein echtes zweidimensionales Raster wie der Startbildschirm eines
+   Handy-Launchers: zwoelf schmale Spalten, eine feste Zeilenhoehe. Jedes
+   Widget belegt ein Rechteck aus Spalten und Zeilen (per Inline-Stil aus
+   layout.js gesetzt) und laesst sich frei verschieben und in beide
+   Richtungen skalieren. Der Koerper folgt denselben Werten wie die
+   Unterrichtseinheiten, damit sich Ziehbares ueberall gleich anfuehlt. */
 .widgetraster {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-auto-rows: 24px;
   gap: var(--s4);
-  align-items: start;
   margin-bottom: var(--s4);
 }
 
 .widget {
   position: relative;
+  display: flex; flex-direction: column;
   margin: 0;
   padding: 0;
   overflow: hidden;
@@ -762,9 +768,9 @@ ul.teilthemen-abhaken li.ist-erledigt label span { color: var(--text-leise); }
 }
 body.zieht-gerade .widget:hover { transform: none; }
 
-/* Die Griffleiste: hier und nur hier wird gezogen. */
+/* Die Griffleiste: hier und nur hier wird verschoben. */
 .widget-griff {
-  display: flex; align-items: center; gap: var(--s2);
+  display: flex; align-items: center; gap: var(--s2); flex: none;
   padding: 6px var(--s3) 6px var(--s2);
   border-bottom: 1px solid var(--linie);
   background: linear-gradient(180deg, rgba(255,255,255,.7), rgba(233,240,247,.7));
@@ -789,17 +795,42 @@ body.zieht-gerade .widget:hover { transform: none; }
 .widget:focus-within .widget-knoepfe { opacity: 1; }
 .widget-knoepfe button { min-height: 26px; padding: 0 8px; line-height: 1.2; }
 
-/* Der Zurueckhol-Knopf zeigt sich nur in der Ablage, die Ausblenden- und
-   Breitenknoepfe nur im Raster. */
+/* Der Zurueckhol-Knopf zeigt sich nur in der Ablage, der Ausblenden-Knopf
+   nur im Raster. */
 .widget .zurueckholen { display: none; }
 .widget.ist-ausgeblendet .zurueckholen { display: inline-flex; }
 .widget.ist-ausgeblendet .widget-knoepfe button:not(.zurueckholen) { display: none; }
 .widget.ist-ausgeblendet .widget-knoepfe { opacity: 1; }
-.widget.ist-ausgeblendet .widget-inhalt { display: none; }
+.widget.ist-ausgeblendet .widget-inhalt,
+.widget.ist-ausgeblendet .widget-resize { display: none; }
 .widget.ist-ausgeblendet { flex: 0 1 220px; background: rgba(255, 255, 255, .6); }
 
-.widget-inhalt { padding: var(--s4); }
+/* Der Inhalt ist eine eigene Abfragebasis (container query): Widgets passen
+   sich an ihre EIGENE Groesse an, nicht an die Fensterbreite. Dasselbe
+   Widget sieht darum bei 3 Spalten anders aus als bei 8. */
+.widget-inhalt {
+  container-type: inline-size;
+  container-name: widget;
+  flex: 1;
+  min-height: 0;
+  padding: var(--s4);
+  overflow: auto;
+}
 .widget-inhalt > .leiste:last-child { margin-bottom: 0; }
+
+/* Anfassgriff unten rechts zum Skalieren — diagonale Linien wie bei einem
+   Fenster-Eck, damit die Geste sofort erkennbar ist. */
+.widget-resize {
+  position: absolute; right: 0; bottom: 0;
+  width: 22px; height: 22px;
+  cursor: nwse-resize; touch-action: none;
+  background:
+    linear-gradient(135deg, transparent 0 40%, var(--linie-stark) 40% 46%, transparent 46% 56%,
+                     var(--linie-stark) 56% 62%, transparent 62%);
+  opacity: 0; transition: opacity .12s;
+}
+.widget:hover .widget-resize,
+.widget:focus-within .widget-resize { opacity: 1; }
 
 .widget-ablage {
   display: flex; flex-wrap: wrap; gap: var(--s3);
@@ -810,7 +841,22 @@ body.zieht-gerade .widget:hover { transform: none; }
   margin-bottom: var(--s4);
 }
 
-@media (max-width: 720px) {
-  .widgetraster { grid-template-columns: minmax(0, 1fr); }
-  .widgetraster .widget { grid-column: span 1 !important; }
+/* --- Inhalt reagiert auf die eigene Breite, nicht auf die Fensterbreite --- */
+@container widget (max-width: 260px) {
+  .uhr-zeit { font-size: 30px; }
+  .tagesplan-wochentag { font-size: 22px; }
+  .widget-inhalt { padding: var(--s3); }
 }
+@container widget (max-width: 200px) {
+  .uhr-zeit { font-size: 24px; }
+  .uhr-tag { font-size: 13px; }
+}
+@container widget (min-width: 620px) {
+  .klassenraster { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+}
+
+/* Die Spaltenzahl bleibt bei zwoelf, auch auf schmalen Bildschirmen: die
+   Rasterkoordinaten aus layout.js sind fest darauf bezogen. Auf einem Telefon
+   werden die Spalten dadurch schmal, aber jedes Widget spannt ohnehin
+   mehrere davon (Mindestbreite 3), und der Inhalt reagiert selbst ueber die
+   container queries oben auf seine tatsaechliche Breite. */

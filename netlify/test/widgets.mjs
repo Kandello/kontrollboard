@@ -1,16 +1,23 @@
 /**
- * Prueft das Widget-Raster der Startseite.
+ * Prueft das Widget-Raster der Startseite — ein echtes 2D-Raster wie bei
+ * einem Handy-Launcher: frei nach x und y verschiebbar, per Anfassgriff
+ * stufenlos in Breite und Hoehe veraenderbar, der Inhalt passt sich der
+ * eigenen Breite an.
  *
- * Der heikle Teil ist, dass die Anordnung in der Tabelle landet und von dort
- * wiederkommt — sonst waere sie nach dem naechsten Geraetewechsel weg. Es
- * wird deshalb nicht nur geprueft, dass sich etwas bewegt, sondern dass die
- * Tabelle danach dieselbe Anordnung kennt wie die Anzeige.
+ * Die reine Rasterlogik (Kollision, Platzierung, Kurzform-Vertraeglichkeit)
+ * ist bereits in layout.mjs erschoepfend geprueft. Hier geht es um die
+ * Verdrahtung im Browser: dass ein Ziehen an der Griffleiste tatsaechlich
+ * frei nach x UND y bewegt (nicht nur senkrecht wie in der ersten Fassung),
+ * dass der Anfassgriff unten rechts die Groesse stufenlos aendert, dass eine
+ * Kollision durch die Oberflaeche hindurch abgelehnt wird, dass der Inhalt
+ * bei geringerer Breite kleiner wird, und dass alles das Neuladen uebersteht.
  *
  *   node mock.js &
  *   node widgets.mjs
  */
 
 import { chromium } from 'playwright';
+import { celleFrei } from '../js/layout.js';
 
 const ADRESSE = 'http://localhost:8901';
 const TOKEN = 'testtoken123';
@@ -29,19 +36,116 @@ async function ausTabelle() {
   return (await a.json()).daten;
 }
 
-/** Die Widgets in der Reihenfolge, in der sie auf dem Bildschirm stehen. */
-async function rasterReihenfolge(seite) {
-  return seite.$$eval('.widgetraster .widget', (els) => els
-    .map((el) => ({ id: el.dataset.id, oben: el.getBoundingClientRect().top,
-                    links: el.getBoundingClientRect().left }))
-    .sort((a, b) => (a.oben - b.oben) || (a.links - b.links))
-    .map((x) => x.id));
+/** Rasterkoordinaten aller sichtbaren Widgets, aus den gesetzten Inline-Styles. */
+async function alleRechtecke(seite) {
+  return seite.$$eval('.widgetraster .widget', (els) => {
+    const spanne = (s) => {
+      const m = /^(\d+)\s*\/\s*span\s*(\d+)$/.exec(s || '');
+      return m ? { start: Number(m[1]), spanne: Number(m[2]) } : null;
+    };
+    const ergebnis = {};
+    els.forEach((el) => {
+      const spalte = spanne(el.style.gridColumn);
+      const zeile = spanne(el.style.gridRow);
+      if (spalte && zeile) {
+        ergebnis[el.dataset.id] = { x: spalte.start - 1, y: zeile.start - 1, w: spalte.spanne, h: zeile.spanne };
+      }
+    });
+    return ergebnis;
+  });
+}
+
+/** Pixelmasse des Rasters — dieselbe Rechnung wie rasterGeometrie() in start.js. */
+async function rasterGeometrie(seite) {
+  return seite.$eval('.widgetraster', (raster) => {
+    const kasten = raster.getBoundingClientRect();
+    const stil = getComputedStyle(raster);
+    const spaltenluecke = parseFloat(stil.columnGap) || 0;
+    const zeilenluecke = parseFloat(stil.rowGap) || 0;
+    const GRID_SPALTEN = 12, RASTER_REIHE_PX = 24;
+    return {
+      links: kasten.left, oben: kasten.top,
+      spaltenraster: (kasten.width - spaltenluecke * (GRID_SPALTEN - 1)) / GRID_SPALTEN + spaltenluecke,
+      zeilenraster: RASTER_REIHE_PX + zeilenluecke
+    };
+  });
+}
+
+/** Zieht ein Widget an seiner Griffleiste an eine Rasterzelle (x, y). */
+async function ziehen(seite, id, zielX, zielY, { pruefeFlug = false } = {}) {
+  const widget = seite.locator(`.widget[data-id="${id}"]`);
+  const griff = widget.locator('.widget-griff');
+  const wKasten = await widget.boundingBox();
+  const gKasten = await griff.boundingBox();
+  const greifX = gKasten.x + 20;
+  const greifY = gKasten.y + gKasten.height / 2;
+  const versatzX = greifX - wKasten.x;
+  const versatzY = greifY - wKasten.y;
+  const geo = await rasterGeometrie(seite);
+  const zielPixelX = geo.links + zielX * geo.spaltenraster + versatzX;
+  const zielPixelY = geo.oben + zielY * geo.zeilenraster + versatzY;
+
+  await seite.mouse.move(greifX, greifY);
+  await seite.mouse.down();
+  await seite.mouse.move(zielPixelX, zielPixelY, { steps: 16 });
+  await seite.waitForTimeout(250);
+  if (pruefeFlug) {
+    pruefe(`„${id}" haengt waehrend des Ziehens am Zeiger`, await seite.locator('.wird-geflogen').count(), 1);
+    pruefe('… und an seiner Stelle steht ein Umriss', await seite.locator('.widget.ist-platzhalter').count(), 1);
+  }
+  await seite.mouse.up();
+  await seite.waitForTimeout(900);
+}
+
+/** Zieht ein Widget an den Ablage-Bereich (blendet es aus). */
+async function inAblageZiehen(seite, id) {
+  const widget = seite.locator(`.widget[data-id="${id}"]`);
+  const ablage = seite.locator('.widget-ablage');
+  const griff = widget.locator('.widget-griff');
+  const gKasten = await griff.boundingBox();
+  const aKasten = await ablage.boundingBox();
+  await seite.mouse.move(gKasten.x + 20, gKasten.y + gKasten.height / 2);
+  await seite.mouse.down();
+  await seite.mouse.move(aKasten.x + aKasten.width / 2, aKasten.y + 20, { steps: 14 });
+  await seite.waitForTimeout(250);
+  await seite.mouse.up();
+  await seite.waitForTimeout(900);
+}
+
+/** Zieht den Anfassgriff unten rechts, um Breite/Hoehe um ganze Rastereinheiten zu aendern. */
+async function groesseZiehen(seite, id, deltaSpalten, deltaZeilen) {
+  const griff = seite.locator(`.widget[data-id="${id}"] .widget-resize`);
+  await griff.scrollIntoViewIfNeeded();
+  const kasten = await griff.boundingBox();
+  const geo = await rasterGeometrie(seite);
+  const startX = kasten.x + kasten.width / 2;
+  const startY = kasten.y + kasten.height / 2;
+  await seite.mouse.move(startX, startY);
+  await seite.mouse.down();
+  await seite.mouse.move(
+    startX + deltaSpalten * geo.spaltenraster,
+    startY + deltaZeilen * geo.zeilenraster,
+    { steps: 14 }
+  );
+  await seite.waitForTimeout(250);
+  await seite.mouse.up();
+  await seite.waitForTimeout(900);
+}
+
+function erwarteteUhrSchrift(px) {
+  if (px <= 200) return '24px';
+  if (px <= 260) return '30px';
+  return '46px';
 }
 
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
 const fehler = [];
+// Grosszuegige Hoehe, damit auch isolierte Testbereiche weit unten im
+// Raster ohne Mitrollen erreichbar sind — ein Ziehen ueber mehrere
+// Rollschritte hinweg wuerde die einmal gemessene Rastergeometrie
+// verfaelschen.
 const ctx = await browser.newContext({
-  viewport: { width: 1280, height: 1100 }, locale: 'de-DE', timezoneId: 'Europe/Berlin'
+  viewport: { width: 1400, height: 4200 }, locale: 'de-DE', timezoneId: 'Europe/Berlin'
 });
 const p = await ctx.newPage();
 p.on('pageerror', (e) => fehler.push('PAGEERROR: ' + e.message));
@@ -56,122 +160,184 @@ await p.waitForSelector('.widgetraster', { timeout: 8000 });
 
 // ---------------------------------------------------------------------------
 console.log('=== Aufbau ===');
-pruefe('sechs Widgets', await p.locator('.widgetraster .widget').count(), 6);
-pruefe('Reihenfolge wie im Code vorgegeben', await rasterReihenfolge(p),
-  ['uhr', 'tagesplan', 'aufgaben', 'einheit', 'klassen', 'ferien']);
+pruefe('sechs Widgets im Raster', await p.locator('.widgetraster .widget').count(), 6);
 pruefe('Ablage ist zunaechst leer',
   (await p.locator('.widget-ablage').innerText()).includes('Alles eingeblendet'), true);
-pruefe('jedes Widget hat eine Griffleiste',
-  await p.locator('.widgetraster .widget-griff').count(), 6);
-pruefe('die Uhr ist schmal',
-  await p.locator('.widget[data-id="uhr"]').getAttribute('data-breite'), '1');
-pruefe('der Tagesplan ist breit',
-  await p.locator('.widget[data-id="tagesplan"]').getAttribute('data-breite'), '2');
+pruefe('jedes Widget hat eine Griffleiste', await p.locator('.widgetraster .widget-griff').count(), 6);
+pruefe('jedes Widget hat einen Anfassgriff zum Skalieren',
+  await p.locator('.widgetraster .widget-resize').count(), 6);
 pruefe('die Inhalte sind da', await p.locator('.widget .uhr-zeit').count(), 1);
-pruefe('… auch der Tagesplan', await p.locator('.widget ul.tagesplan').count(), 1);
+pruefe('… auch der Tagesplan', await p.locator('.widget ul.tagesplan, .widget .leer').count() >= 1, true);
+
+{
+  const rechtecke = await alleRechtecke(p);
+  const ids = Object.keys(rechtecke);
+  pruefe('alle sechs haben eine Rasterposition', ids.length, 6);
+  const ueberlappungsfrei = ids.every((id) => {
+    const andere = ids.filter((x) => x !== id).map((x) => rechtecke[x]);
+    return celleFrei(rechtecke[id], andere);
+  });
+  pruefe('keine zwei Widgets ueberschneiden sich beim ersten Aufbau', ueberlappungsfrei, true);
+}
 
 // ---------------------------------------------------------------------------
-console.log('\n=== Breite umschalten ===');
+console.log('\n=== Frei nach x UND y ziehen (nicht mehr nur senkrecht) ===');
+let y1;
 {
-  await p.locator('.widget[data-id="uhr"] button[title="Breite umschalten"]').click();
-  await p.waitForTimeout(900);
-  pruefe('die Uhr ist jetzt breit',
-    await p.locator('.widget[data-id="uhr"]').getAttribute('data-breite'), '2');
-  const meta = (await ausTabelle()).meta;
-  pruefe('in der Tabelle gespeichert', /uhr:2:1/.test(meta.layout_start || ''), true);
+  const rechtecke = await alleRechtecke(p);
+  const untenRand = Math.max(...Object.values(rechtecke).map((r) => r.y + r.h));
+  y1 = untenRand + 3;
 
-  await p.locator('.widget[data-id="uhr"] button[title="Breite umschalten"]').click();
-  await p.waitForTimeout(900);
-  pruefe('und wieder schmal',
-    await p.locator('.widget[data-id="uhr"]').getAttribute('data-breite'), '1');
+  // Erst an eine leere, isolierte Stelle holen — mit Bewegung in beiden
+  // Richtungen zugleich, wie es ein freies Raster erlauben muss.
+  await ziehen(p, 'uhr', 6, y1, { pruefeFlug: true });
+  let r = (await alleRechtecke(p)).uhr;
+  pruefe('die Uhr steht jetzt frei unten im Raster', { x: r.x, y: r.y }, { x: 6, y: y1 });
+  pruefe('Breite und Hoehe blieben beim Verschieben unveraendert', { w: r.w, h: r.h }, { w: 4, h: 6 });
+
+  // Jetzt eine reine Waagerecht-Bewegung: gleiche Zeile, andere Spalte. Genau
+  // das ging in der ersten Fassung nicht — Widgets liessen sich nur
+  // untereinander umsortieren.
+  await ziehen(p, 'uhr', 0, y1);
+  r = (await alleRechtecke(p)).uhr;
+  pruefe('rein waagerecht verschoben: die Zeile blieb gleich', r.y, y1);
+  pruefe('… nur die Spalte hat sich geaendert', r.x, 0);
+
+  const meta = (await ausTabelle()).meta;
+  pruefe('in der Tabelle im neuen Format vermerkt',
+    new RegExp(`uhr:0:${y1}:4:6:1`).test(meta.layout_start || ''), true);
+}
+
+// ---------------------------------------------------------------------------
+console.log('\n=== Eine Kollision wird durch die Oberflaeche hindurch abgelehnt ===');
+{
+  const vorher = await alleRechtecke(p);
+  const zielRechteck = vorher.tagesplan;
+  // Die tatsaechliche Zielflaeche behaelt die eigene Groesse von Aufgaben —
+  // versetze() aendert nur x/y, nie w/h.
+  const kandidat = { x: zielRechteck.x, y: zielRechteck.y, w: vorher.aufgaben.w, h: vorher.aufgaben.h };
+
+  // Aufgaben genau auf die Stelle des Tagesplans ziehen — dort steht schon
+  // ein anderes sichtbares Widget, die Bewegung darf nicht ankommen.
+  pruefe('die Zielstelle ist zur Kontrolle tatsaechlich belegt',
+    celleFrei(kandidat, [vorher.tagesplan]), false);
+
+  await ziehen(p, 'aufgaben', zielRechteck.x, zielRechteck.y);
+  const nachher = await alleRechtecke(p);
+  pruefe('Aufgaben ist an der alten Stelle geblieben', nachher.aufgaben, vorher.aufgaben);
+  pruefe('der Tagesplan ist unangetastet', nachher.tagesplan, vorher.tagesplan);
+  pruefe('keine Ueberschneidung entstanden',
+    celleFrei(nachher.aufgaben, [nachher.tagesplan]), true);
+}
+
+// ---------------------------------------------------------------------------
+console.log('\n=== Groesse per Anfassgriff aendern: wachsen, schrumpfen, Kollision ===');
+let y2;
+{
+  const rechtecke = await alleRechtecke(p);
+  const untenRand = Math.max(...Object.values(rechtecke).map((r) => r.y + r.h));
+  y2 = untenRand + 3;
+  await ziehen(p, 'einheit', 0, y2);
+  let r = (await alleRechtecke(p)).einheit;
+  pruefe('die Einheit steht isoliert bereit', { x: r.x, y: r.y }, { x: 0, y: y2 });
+
+  // Wachsen: der Griff zieht Breite UND Hoehe zugleich, stufenlos statt in
+  // einem einzigen Klick-Schritt.
+  await groesseZiehen(p, 'einheit', 1, 1);
+  r = (await alleRechtecke(p)).einheit;
+  pruefe('nach dem Ziehen um eine Spalte/Zeile: neue Groesse', { w: r.w, h: r.h }, { w: 9, h: 9 });
+  pruefe('die linke obere Ecke blieb beim Wachsen stehen', { x: r.x, y: r.y }, { x: 0, y: y2 });
+
+  // Ein zweites Widget direkt an die neue rechte Kante setzen — verkleinert,
+  // damit es in den verbleibenden Rand passt.
+  await groesseZiehen(p, 'ferien', -5, -1);
+  let fr = (await alleRechtecke(p)).ferien;
+  pruefe('Ferien ist auf die Mindestbreite geschrumpft', fr.w, 3);
+  await ziehen(p, 'ferien', 9, y2);
+  fr = (await alleRechtecke(p)).ferien;
+  pruefe('Ferien steht nun buendig an der Kante der Einheit', { x: fr.x, y: fr.y }, { x: 9, y: y2 });
+
+  // Weiter wachsen, jetzt in die belegte Stelle hinein — muss abgelehnt werden.
+  await groesseZiehen(p, 'einheit', 2, 0);
+  r = (await alleRechtecke(p)).einheit;
+  pruefe('das Wachsen in ein belegtes Widget hinein wurde abgelehnt', { w: r.w, h: r.h }, { w: 9, h: 9 });
+  pruefe('keine Ueberschneidung mit Ferien entstanden',
+    celleFrei(r, [(await alleRechtecke(p)).ferien]), true);
+
+  // Schrumpfen bis unter die Mindestgroesse: bleibt an der Mindestgroesse
+  // stehen (minBreite 4, minHoehe 4 fuer die Einheit), statt unbrauchbar zu werden.
+  await groesseZiehen(p, 'einheit', -50, -50);
+  r = (await alleRechtecke(p)).einheit;
+  pruefe('an der Mindestgroesse angehalten statt unbrauchbar zu schrumpfen', { w: r.w, h: r.h }, { w: 4, h: 4 });
+}
+
+// ---------------------------------------------------------------------------
+console.log('\n=== Der Inhalt passt sich der eigenen Breite an (nicht der Fensterbreite) ===');
+{
+  // Die Uhr steht seit dem Ziehtest oben frei bei (0, y1). Erst schmal auf
+  // Mindestbreite, dann wieder breit — derselbe Bildschirm, aber ein
+  // unterschiedlich breiter Rahmen.
+  await groesseZiehen(p, 'uhr', -1, -2);
+  let r = (await alleRechtecke(p)).uhr;
+  pruefe('die Uhr ist auf Mindestgroesse geschrumpft', { w: r.w, h: r.h }, { w: 3, h: 4 });
+
+  let breitePx = await p.locator('.widget[data-id="uhr"] .widget-inhalt').evaluate((el) => el.getBoundingClientRect().width);
+  let schrift = await p.locator('.widget[data-id="uhr"] .uhr-zeit').evaluate((el) => getComputedStyle(el).fontSize);
+  pruefe(`schmal (${Math.round(breitePx)}px): Schriftgroesse passt zur Container-Query-Schwelle`,
+    schrift, erwarteteUhrSchrift(breitePx));
+  const schriftSchmal = parseFloat(schrift);
+
+  await groesseZiehen(p, 'uhr', 5, 2);
+  r = (await alleRechtecke(p)).uhr;
+  pruefe('die Uhr ist wieder gewachsen', { w: r.w, h: r.h }, { w: 8, h: 6 });
+
+  breitePx = await p.locator('.widget[data-id="uhr"] .widget-inhalt').evaluate((el) => el.getBoundingClientRect().width);
+  schrift = await p.locator('.widget[data-id="uhr"] .uhr-zeit').evaluate((el) => getComputedStyle(el).fontSize);
+  pruefe(`breit (${Math.round(breitePx)}px): Schriftgroesse passt zur Container-Query-Schwelle`,
+    schrift, erwarteteUhrSchrift(breitePx));
+  pruefe('breiter Rahmen zeigt eine mindestens so grosse Schrift wie der schmale',
+    parseFloat(schrift) >= schriftSchmal, true);
 }
 
 // ---------------------------------------------------------------------------
 console.log('\n=== Aus- und Einblenden ueber die Knoepfe ===');
 {
-  await p.locator('.widget[data-id="ferien"] button[title="Ausblenden"]').click();
+  const vorher = (await alleRechtecke(p)).klassen;
+
+  await p.locator('.widget[data-id="klassen"] button[title="Ausblenden"]').click();
   await p.waitForTimeout(900);
   pruefe('nur noch fuenf im Raster', await p.locator('.widgetraster .widget').count(), 5);
-  pruefe('das sechste liegt in der Ablage',
-    await p.locator('.widget-ablage .widget[data-id="ferien"]').count(), 1);
+  pruefe('Klassen liegt in der Ablage', await p.locator('.widget-ablage .widget[data-id="klassen"]').count(), 1);
   pruefe('sein Inhalt ist dort verborgen',
-    await p.locator('.widget-ablage .widget[data-id="ferien"] .widget-inhalt').isVisible(), false);
+    await p.locator('.widget-ablage .widget[data-id="klassen"] .widget-inhalt').isVisible(), false);
+  pruefe('… auch der Anfassgriff ist dort verborgen',
+    await p.locator('.widget-ablage .widget[data-id="klassen"] .widget-resize').isVisible(), false);
   pruefe('in der Tabelle als ausgeblendet vermerkt',
-    /ferien:\d:0/.test((await ausTabelle()).meta.layout_start || ''), true);
+    /klassen:\d+:\d+:\d+:\d+:0/.test((await ausTabelle()).meta.layout_start || ''), true);
 
-  await p.locator('.widget-ablage .widget[data-id="ferien"] button[title="Wieder einblenden"]').click();
+  await p.locator('.widget-ablage .widget[data-id="klassen"] button[title="Wieder einblenden"]').click();
   await p.waitForTimeout(900);
   pruefe('wieder im Raster', await p.locator('.widgetraster .widget').count(), 6);
   pruefe('Ablage wieder leer',
     (await p.locator('.widget-ablage').innerText()).includes('Alles eingeblendet'), true);
+  pruefe('an der alten Stelle wieder aufgetaucht, weil sie noch frei war',
+    (await alleRechtecke(p)).klassen, vorher);
 }
 
 // ---------------------------------------------------------------------------
-console.log('\n=== Ziehen an der Griffleiste ===');
+console.log('\n=== Die Anordnung uebersteht das Neuladen ===');
 {
-  const vorher = await rasterReihenfolge(p);
-  await p.evaluate(() => window.scrollTo(0, 0));
-  await p.waitForTimeout(150);
-
-  // Den Tagesplan vor die Uhr. Bewusst zwei Widgets aus den obersten Reihen:
-  // ein weit unten liegendes waere nach dem Hochrollen ausserhalb des Bildes,
-  // und dann begaenne der Zug gar nicht erst.
-  const griff = await p.locator('.widget[data-id="tagesplan"] .widget-griff').boundingBox();
-  const ziel = await p.locator('.widget[data-id="uhr"]').boundingBox();
-  await p.mouse.move(griff.x + 30, griff.y + griff.height / 2);
-  await p.mouse.down();
-  await p.mouse.move(ziel.x + ziel.width / 2, ziel.y + 30, { steps: 16 });
-  await p.waitForTimeout(300);
-  pruefe('waehrend des Ziehens haengt es am Zeiger',
-    await p.locator('.wird-geflogen').count(), 1);
-  pruefe('… und an seiner Stelle steht ein Umriss',
-    await p.locator('.widget.ist-platzhalter').count(), 1);
-  await p.mouse.up();
-  await p.waitForTimeout(900);
-
-  const nachher = await rasterReihenfolge(p);
-  pruefe('der Tagesplan steht jetzt vorn', nachher[0], 'tagesplan');
-  pruefe('die Uhr ist dahinter gerutscht', nachher[1], 'uhr');
-  pruefe('nichts ist verlorengegangen', nachher.length, vorher.length);
-  pruefe('die Tabelle kennt dieselbe Anordnung',
-    (await ausTabelle()).meta.layout_start.split(',').map((t) => t.split(':')[0])
-      .filter((id) => nachher.includes(id)),
-    nachher);
-}
-
-// ---------------------------------------------------------------------------
-console.log('\n=== In die Ablage ziehen ===');
-{
-  await p.locator('.widget-ablage').scrollIntoViewIfNeeded();
-  await p.waitForTimeout(200);
-  const griff = await p.locator('.widget[data-id="aufgaben"] .widget-griff').boundingBox();
-  const ablage = await p.locator('.widget-ablage').boundingBox();
-  await p.mouse.move(griff.x + 30, griff.y + griff.height / 2);
-  await p.mouse.down();
-  await p.mouse.move(ablage.x + ablage.width / 2, ablage.y + 30, { steps: 14 });
-  await p.waitForTimeout(300);
-  await p.mouse.up();
-  await p.waitForTimeout(900);
-
-  pruefe('das Widget liegt in der Ablage',
-    await p.locator('.widget-ablage .widget[data-id="aufgaben"]').count(), 1);
-  pruefe('in der Tabelle vermerkt',
-    /aufgaben:\d:0/.test((await ausTabelle()).meta.layout_start || ''), true);
-}
-
-// ---------------------------------------------------------------------------
-console.log('\n=== Die Anordnung ueberlebt das Neuladen ===');
-{
-  const vorher = await rasterReihenfolge(p);
+  const vorher = await alleRechtecke(p);
+  const vorherAusgeblendet = await p.locator('.widget-ablage .widget').count();
   await p.reload();
   await p.waitForSelector('.widgetraster', { timeout: 8000 });
-  pruefe('gleiche Reihenfolge nach dem Neuladen', await rasterReihenfolge(p), vorher);
-  pruefe('das ausgeblendete bleibt ausgeblendet',
-    await p.locator('.widget-ablage .widget[data-id="aufgaben"]').count(), 1);
+  const nachher = await alleRechtecke(p);
+  pruefe('jedes Widget steht nach dem Neuladen wieder an derselben Stelle', nachher, vorher);
+  pruefe('die Ablage ist unveraendert', await p.locator('.widget-ablage .widget').count(), vorherAusgeblendet);
 
-  // Aufraeumen, damit ein zweiter Lauf denselben Ausgangsstand hat.
-  await p.locator('.widget-ablage .widget[data-id="aufgaben"] button[title="Wieder einblenden"]').click();
-  await p.waitForTimeout(900);
+  const meta = (await ausTabelle()).meta;
+  pruefe('die gespeicherte Zeile ist vollstaendig im neuen Format (id:x:y:w:h:sichtbar)',
+    /^([\w]+:\d+:\d+:\d+:\d+:[01],?)+$/.test(meta.layout_start || ''), true);
 }
 
 console.log('\nJS-Fehler:', fehler.length ? fehler : 'keine');

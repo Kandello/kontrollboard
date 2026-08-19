@@ -151,6 +151,39 @@ export function starteZug({ ev, element, zielSuche, gleich, vorschau, abschluss 
   window.addEventListener('pointercancel', loslassen);
 }
 
+/**
+ * Groessenaenderung an einem Anfassgriff: keine fliegende Kopie, kein
+ * Mitrollen — die gepackte Flaeche waechst live unter dem Zeiger. Meldet bei
+ * jeder Bewegung und beim Loslassen die Verschiebung in Pixeln seit dem
+ * Beginn; was daraus fuer Spalten und Zeilen wird, weiss nur der Aufrufer.
+ */
+export function starteGroessenzug({ ev, vorschau, abschluss }) {
+  if (ev.pointerType === 'mouse' && ev.button !== 0) return;
+  ev.preventDefault();
+  ev.stopPropagation();
+
+  const startX = ev.clientX;
+  const startY = ev.clientY;
+  let beendet = false;
+
+  function bewegen(e2) {
+    vorschau(e2.clientX - startX, e2.clientY - startY);
+  }
+
+  function loslassen(e2) {
+    if (beendet) return;
+    beendet = true;
+    window.removeEventListener('pointermove', bewegen);
+    window.removeEventListener('pointerup', loslassen);
+    window.removeEventListener('pointercancel', loslassen);
+    abschluss(e2.clientX - startX, e2.clientY - startY);
+  }
+
+  window.addEventListener('pointermove', bewegen);
+  window.addEventListener('pointerup', loslassen);
+  window.addEventListener('pointercancel', loslassen);
+}
+
 // --- Gleiten (FLIP) ----------------------------------------------------------
 
 /**
