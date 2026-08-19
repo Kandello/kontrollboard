@@ -1,7 +1,7 @@
 /**
  * ansichten/einheiten.js — Jahresplan der Unterrichtseinheiten.
  *
- * Zwei Spalten (Rechtschreibung, Grammatik) auf einer Wochenleiste, darunter
+ * Zwei Spuren (Rechtschreibung, Grammatik) auf einer Wochenleiste, darunter
  * ein Vorrat fuer noch nicht eingeplante Einheiten. Jede Einheit ist eine
  * Box, die sich in eine andere Woche oder auf die andere Spur ziehen laesst.
  *
@@ -11,30 +11,48 @@
  * gebraucht wird, und es kann dabei weder eine Luecke noch eine
  * Ueberschneidung entstehen.
  *
- * ZIEHEN UND TIPPEN: Das Ziehen laeuft ueber die Zeigereignisse des Browsers
- * und funktioniert dadurch mit Maus und mit dem Finger gleichermassen. Fuer
- * die Tastatur — und wenn Ziehen einmal haken sollte — traegt jede Box
- * zusaetzlich zwei Pfeilknoepfe.
+ * ZIEHEN MIT VORSCHAU: Waehrend des Ziehens haengt die Einheit am Zeiger,
+ * und der Plan darunter ordnet sich bei jeder Bewegung schon so, wie er nach
+ * dem Loslassen aussehen wird — die uebrigen Einheiten gleiten aus dem Weg.
+ * Ohne diese Vorschau war nicht abzusehen, wo eine Einheit landet: Ziel war
+ * immer die Box unter dem Zeiger, und weil sich nichts bewegte, liess sich
+ * praktisch nur eine Position weit verschieben.
  *
- * DATENSCHUTZ: Diese Ansicht kennt weder Kuerzel noch Namen. Der Fortschritt
- * je Klasse haengt an der Klassenbezeichnung, die ohnehin in der Tabelle steht.
+ * Das Ziel wird deshalb nicht mehr aus der Box unter dem Zeiger bestimmt,
+ * sondern aus der WOCHE unter dem Zeiger: die Einheit rutscht dorthin, wo
+ * die Woche liegt, unabhaengig davon, wie weit gezogen wurde.
+ *
+ * Das Ziehen laeuft ueber Zeigereignisse und funktioniert dadurch mit Maus
+ * und Finger gleichermassen. Fuer die Tastatur — und wenn Ziehen einmal
+ * haken sollte — traegt jede Box zusaetzlich zwei Pfeilknoepfe.
+ *
+ * DATENSCHUTZ: Diese Ansicht kennt weder Kuerzel noch Namen.
  */
 
-import { e, leere, karte, hinweis, setzeMeldung } from '../ui.js';
-import { sende, leereDaten, ladeDaten } from '../server.js';
-import { gehe } from '../router.js';
+import { e, karte, hinweis } from '../ui.js';
+import { sende } from '../server.js';
 import { heute } from '../zeit.js';
 import {
-  SPUREN, spurTitel, jahresplan, verschiebe, setzeReihenfolgeLokal,
-  teilthemenFuer, fortschrittEinheit, schulwoche
+  SPUREN, jahresplan, verschiebe, setzeReihenfolgeLokal,
+  teilthemenFuer, schulwoche
 } from '../einheiten.js';
 
 /** Welche Einheit ist aufgeklappt — ueberlebt ein neuZeichnen(). */
 const zustand = { offeneEinheit: null };
 
+/** Dauer der Umsortier-Animation. Kurz genug, um nicht zu bremsen. */
+const GLEITDAUER = 170;
+
+/**
+ * Ein Schuljahr ist laenger als jeder Bildschirm. Kommt der Zeiger beim
+ * Ziehen in diesen Randstreifen, rollt die Seite mit — sonst liesse sich
+ * eine Einheit nur so weit schieben, wie gerade sichtbar ist.
+ */
+const ROLLRAND = 90;
+const ROLLTEMPO = 18;
+
 export function zeichneEinheiten(ziel, kontext) {
   const { daten, neuZeichnen } = kontext;
-  const plan = jahresplan(daten.einheiten || []);
   const aktuelleWoche = schulwoche(heute(), daten.meta.schuljahresbeginn);
 
   ziel.appendChild(e('div', { klasse: 'leiste' }, [
@@ -60,156 +78,384 @@ export function zeichneEinheiten(ziel, kontext) {
   }
 
   const statusEl = e('span', { klasse: 'feldhilfe' });
+  const boxen = new Map();     // id -> Box-Element
+  const zusatzEl = new Map();  // id -> Element mit „Woche X–Y · N Teilthemen"
 
-  /** Verschiebt eine Einheit und schreibt die neue Ordnung weg. */
-  async function verschiebeEinheit(id, zielSpur, zielId) {
-    const saetze = verschiebe(daten.einheiten, id, zielSpur, zielId);
-    if (!saetze) return;
-
-    // Vorherigen Stand merken, damit ein fehlgeschlagener Aufruf die
-    // Anzeige nicht mit einem Plan zuruecklaesst, den die Tabelle nicht hat.
-    const vorher = daten.einheiten.map((x) => ({ id: x.id, spur: x.spur, reihenfolge: x.reihenfolge }));
-    setzeReihenfolgeLokal(daten, saetze);
-    neuZeichnen();
-
-    try {
-      await sende('einheitenReihenfolge', { saetze });
-    } catch (fehler) {
-      setzeReihenfolgeLokal(daten, vorher);
-      window.alert('Der Plan konnte nicht gespeichert werden: ' + fehler.message);
-      neuZeichnen();
-    }
-  }
-
-  ziel.appendChild(karte(null, [
-    e('div', { klasse: 'feldhilfe', style: 'margin-top:0', text:
-      'Einheiten lassen sich mit der Maus oder dem Finger in eine andere Woche oder auf die andere ' +
-      'Spur ziehen; die Pfeilknöpfe tun dasselbe. Die Wochen rechnen sich neu — Lücken oder ' +
-      'Überschneidungen können dabei nicht entstehen.' }),
-    statusEl,
-    rasterBauen(daten, plan, aktuelleWoche, verschiebeEinheit, neuZeichnen)
-  ]));
-
-  ziel.appendChild(e('div', { klasse: 'abschnitt-titel', text: 'Nicht eingeplant' }));
-  ziel.appendChild(vorratBauen(daten, plan, verschiebeEinheit, neuZeichnen));
-}
-
-// --- Raster -----------------------------------------------------------------
-
-function rasterBauen(daten, plan, aktuelleWoche, verschiebeEinheit, neuZeichnen) {
   const raster = e('div', { klasse: 'jahresraster' });
+  const vorratBehaelter = e('div', { klasse: 'jahresvorrat' });
+  const vorratLeer = e('div', { klasse: 'leer', style: 'padding:16px',
+    text: 'Alle Einheiten sind eingeplant. Hierher gezogene Einheiten fallen aus dem Plan, ohne gelöscht zu werden.' });
+
+  /** Baut Wochenleiste und Ablageflaechen fuer so viele Wochen wie noetig. */
+  let gezeichneteWochen = 0;
+  function baueWochen(anzahl) {
+    for (let w = gezeichneteWochen + 1; w <= anzahl; w++) {
+      raster.appendChild(e('div', {
+        klasse: 'jahreswoche' + (w === aktuelleWoche ? ' ist-jetzt' : ''),
+        style: `grid-row:${w + 1}`, daten: { woche: String(w) }, text: String(w)
+      }));
+      SPUREN.forEach((s, i) => raster.appendChild(e('div', {
+        klasse: 'jahreszelle', style: `grid-row:${w + 1};grid-column:${i + 2}`,
+        daten: { woche: String(w), spur: s.id }
+      })));
+    }
+    gezeichneteWochen = Math.max(gezeichneteWochen, anzahl);
+  }
 
   raster.appendChild(e('div', { klasse: 'jahresraster-kopf woche', text: 'Woche' }));
   SPUREN.forEach((s) => raster.appendChild(
     e('div', { klasse: 'jahresraster-kopf', text: s.titel })));
 
-  // Wochenleiste und leere Zellen liegen unter den Boxen; die Boxen selbst
-  // werden anschliessend per grid-row darueber gelegt.
-  for (let w = 1; w <= plan.wochen; w++) {
-    raster.appendChild(e('div', {
-      klasse: 'jahreswoche' + (w === aktuelleWoche ? ' ist-jetzt' : ''),
-      style: `grid-row:${w + 1}`,
-      text: String(w)
-    }));
-    SPUREN.forEach((s, i) => raster.appendChild(e('div', {
-      klasse: 'jahreszelle', style: `grid-row:${w + 1};grid-column:${i + 2}`
-    })));
-  }
-
-  plan.geplant.forEach((einheit) => {
-    const spalte = einheit.spur === 'BEIDE' ? '2 / span 2'
-                 : (einheit.spur === 'RS' ? '2' : '3');
-    raster.appendChild(einheitBox(daten, einheit, {
-      style: `grid-row:${einheit.von + 1} / span ${einheit.dauer_wochen};grid-column:${spalte}`,
-      verschiebeEinheit, neuZeichnen, plan
-    }));
+  daten.einheiten.forEach((einheit) => {
+    const { box, zusatz } = einheitBox(daten, einheit, {
+      neuZeichnen, starteZiehen, verschiebeUeberKnopf, aktuellerPlan: () => jahresplan(daten.einheiten)
+    });
+    boxen.set(einheit.id, box);
+    zusatzEl.set(einheit.id, zusatz);
   });
 
-  return e('div', { klasse: 'jahresrahmen' }, [raster]);
+  /**
+   * Legt alle Boxen an die Stellen, die ein Plan vorgibt.
+   * `animiert` misst vorher und nachher und laesst die Boxen die Differenz
+   * herübergleiten (FLIP) — ein Wechsel der Rasterzeile allein liesse sich
+   * nicht weich darstellen.
+   */
+  function platziere(plan, animiert) {
+    const vorher = animiert ? messeAlle(boxen) : null;
+
+    baueWochen(plan.wochen);
+
+    plan.geplant.forEach((einheit) => {
+      const box = boxen.get(einheit.id);
+      if (!box) return;
+      const spalte = einheit.spur === 'BEIDE' ? '2 / span 2' : (einheit.spur === 'RS' ? '2' : '3');
+      if (box.parentElement !== raster) raster.appendChild(box);
+      box.style.gridRow = `${einheit.von + 1} / span ${einheit.dauer_wochen}`;
+      box.style.gridColumn = spalte;
+      setzeKlasse(box, einheit);
+      box.dataset.spur = einheit.spur;
+      setzeZusatz(einheit);
+    });
+
+    plan.vorrat.forEach((einheit) => {
+      const box = boxen.get(einheit.id);
+      if (!box) return;
+      if (box.parentElement !== vorratBehaelter) vorratBehaelter.appendChild(box);
+      box.style.gridRow = '';
+      box.style.gridColumn = '';
+      setzeKlasse(box, einheit);
+      box.dataset.spur = '';
+      setzeZusatz(einheit);
+    });
+
+    vorratLeer.hidden = plan.vorrat.length > 0;
+
+    if (animiert) gleite(boxen, vorher);
+  }
+
+  function setzeZusatz(einheit) {
+    const el = zusatzEl.get(einheit.id);
+    if (!el) return;
+    const anzahl = teilthemenFuer(daten, einheit.id).length;
+    const themenText = `${anzahl} ${anzahl === 1 ? 'Teilthema' : 'Teilthemen'}`;
+    el.textContent = einheit.von
+      ? `Woche ${einheit.von}${einheit.dauer_wochen > 1 ? '–' + einheit.bis : ''} · ${themenText}`
+      : themenText;
+  }
+
+  /**
+   * Die Markierung des Platzhalters ueberlebt ein Umplatzieren — sonst
+   * verschwaende der Umriss beim ersten Vorschauschritt wieder, also genau
+   * dann, wenn er gebraucht wird.
+   */
+  function setzeKlasse(box, einheit) {
+    const platzhalter = box.classList.contains('ist-platzhalter');
+    box.className = 'einheit-box spur-' + (einheit.spur || 'frei').toLowerCase() +
+      (zustand.offeneEinheit === einheit.id ? ' offen' : '') +
+      (platzhalter ? ' ist-platzhalter' : '');
+  }
+
+  /** Wendet eine neue Ordnung an: erst lokal zeichnen, dann wegschreiben. */
+  async function uebernimm(ordnung) {
+    const vorherigerStand = daten.einheiten.map((x) =>
+      ({ id: x.id, spur: x.spur, reihenfolge: x.reihenfolge }));
+
+    setzeReihenfolgeLokal(daten, ordnung);
+    platziere(jahresplan(daten.einheiten), true);
+    statusEl.textContent = 'wird gespeichert …';
+    statusEl.className = 'feldhilfe';
+
+    try {
+      await sende('einheitenReihenfolge', { saetze: ordnung });
+      statusEl.textContent = 'gespeichert';
+      statusEl.className = 'feldhilfe status-gut';
+    } catch (fehler) {
+      setzeReihenfolgeLokal(daten, vorherigerStand);
+      platziere(jahresplan(daten.einheiten), true);
+      statusEl.textContent = 'nicht gespeichert — ' + fehler.message;
+      statusEl.className = 'feldhilfe status-schlecht';
+    }
+  }
+
+  function verschiebeUeberKnopf(einheitId, richtung) {
+    const plan = jahresplan(daten.einheiten);
+    const eigen = plan.geplant.find((x) => x.id === einheitId);
+    if (!eigen) return;
+
+    const aufSpur = plan.geplant.filter((x) =>
+      x.spur === eigen.spur || x.spur === 'BEIDE' || eigen.spur === 'BEIDE');
+    const i = aufSpur.findIndex((x) => x.id === einheitId);
+    if (!aufSpur[i + richtung]) return;
+
+    const zielId = richtung < 0
+      ? aufSpur[i - 1].id
+      : (aufSpur[i + 2] ? aufSpur[i + 2].id : null);
+    const ordnung = verschiebe(daten.einheiten, einheitId, eigen.spur, zielId);
+    if (ordnung) uebernimm(ordnung);
+  }
+
+  // --- Ziehen mit laufender Vorschau ----------------------------------------
+
+  function starteZiehen(ev, einheitId, griff) {
+    ev.preventDefault();
+
+    // Die Ereignisse haengen bewusst am Fenster und NICHT per
+    // setPointerCapture am Griff: sobald die Vorschau die Box in eine andere
+    // Spalte oder in den Vorrat umhaengt, wird sie kurz aus dem Dokument
+    // geloest — und damit verfaellt eine Zeigererfassung. Das Loslassen kam
+    // dann nie an, und der Zug blieb wirkungslos.
+    const box = boxen.get(einheitId);
+    const kasten = box.getBoundingClientRect();
+    const versatzX = ev.clientX - kasten.left;
+    const versatzY = ev.clientY - kasten.top;
+
+    // Die Einheit haengt sichtbar am Zeiger; im Raster bleibt an ihrer Stelle
+    // der Umriss stehen, damit erkennbar ist, wo sie landen wird.
+    const flug = box.cloneNode(true);
+    flug.className = box.className + ' einheit-flug';
+    flug.style.cssText = `position:fixed;z-index:999;pointer-events:none;margin:0;` +
+      `width:${kasten.width}px;height:${kasten.height}px;` +
+      `left:${kasten.left}px;top:${kasten.top}px`;
+    document.body.appendChild(flug);
+    box.classList.add('ist-platzhalter');
+    document.body.classList.add('zieht-gerade');
+
+    // Grundriss ohne die gezogene Einheit: daran wird abgelesen, vor welche
+    // Einheit sie gehoert, wenn der Zeiger ueber einer bestimmten Woche steht.
+    const ohneEigene = daten.einheiten.filter((x) => x.id !== einheitId);
+    einheitBeimZiehen = einheitId;
+    let letzteWahl = null;
+    let ordnung = null;
+    let zeigerX = ev.clientX;
+    let zeigerY = ev.clientY;
+    let zieht = true;
+
+    function pruefeZiel() {
+      flug.style.left = (zeigerX - versatzX) + 'px';
+      flug.style.top = (zeigerY - versatzY) + 'px';
+
+      const wahl = zielUnter(zeigerX, zeigerY, ohneEigene);
+      if (!wahl) return;
+      if (letzteWahl && wahl.spur === letzteWahl.spur && wahl.vorId === letzteWahl.vorId) return;
+      letzteWahl = wahl;
+
+      ordnung = verschiebe(daten.einheiten, einheitId, wahl.spur, wahl.vorId);
+      if (ordnung) platziere(vorschauPlan(daten.einheiten, ordnung), true);
+    }
+
+    function bewegen(e2) {
+      zeigerX = e2.clientX;
+      zeigerY = e2.clientY;
+      pruefeZiel();
+    }
+
+    /** Rollt die Seite, solange der Zeiger am oberen oder unteren Rand steht. */
+    function rollen() {
+      if (!zieht) return;
+      const hoehe = window.innerHeight;
+      let schritt = 0;
+      if (zeigerY < ROLLRAND) schritt = -ROLLTEMPO * (1 - zeigerY / ROLLRAND);
+      else if (zeigerY > hoehe - ROLLRAND) schritt = ROLLTEMPO * (1 - (hoehe - zeigerY) / ROLLRAND);
+
+      if (schritt) {
+        const vorherOben = window.scrollY;
+        window.scrollBy(0, schritt);
+        if (window.scrollY !== vorherOben) pruefeZiel();
+      }
+      requestAnimationFrame(rollen);
+    }
+    requestAnimationFrame(rollen);
+
+    function loslassen() {
+      zieht = false;
+      window.removeEventListener('pointermove', bewegen);
+      window.removeEventListener('pointerup', loslassen);
+      window.removeEventListener('pointercancel', loslassen);
+
+      flug.remove();
+      box.classList.remove('ist-platzhalter');
+      document.body.classList.remove('zieht-gerade');
+      einheitBeimZiehen = null;
+
+      if (ordnung) uebernimm(ordnung);
+      else platziere(jahresplan(daten.einheiten), true);
+    }
+
+    window.addEventListener('pointermove', bewegen);
+    window.addEventListener('pointerup', loslassen);
+    window.addEventListener('pointercancel', loslassen);
+  }
+
+  /**
+   * Wo landet die Einheit, wenn hier losgelassen wird? Massgeblich ist die
+   * Woche unter dem Zeiger, nicht die Box darunter: dadurch laesst sich in
+   * einem Zug ueber beliebig viele Wochen verschieben.
+   */
+  function zielUnter(x, y, ohneEigene) {
+    const treffer = document.elementsFromPoint(x, y);
+
+    for (const el of treffer) {
+      if (el === vorratBehaelter || el.closest?.('.jahresvorrat')) {
+        return { spur: '', vorId: null };
+      }
+      if (el.classList?.contains('jahreszelle')) {
+        const spur = el.dataset.spur;
+        const woche = Number(el.dataset.woche);
+        return { spur, vorId: vorWelcher(ohneEigene, spur, woche) };
+      }
+      if (el.classList?.contains('jahreswoche')) {
+        // Ueber der Wochenzahl selbst: die Spur beibehalten, in der die
+        // Einheit gerade liegt, und nur die Woche uebernehmen.
+        const spur = boxen.get(einheitBeimZiehen)?.dataset.spur || 'RS';
+        return { spur, vorId: vorWelcher(ohneEigene, spur, Number(el.dataset.woche)) };
+      }
+    }
+    return null;
+  }
+
+  let einheitBeimZiehen = null;
+
+  // --- Zusammenbau ----------------------------------------------------------
+  ziel.appendChild(karte(null, [
+    e('div', { klasse: 'leiste', style: 'margin:0 0 10px' }, [
+      e('div', { klasse: 'feldhilfe', style: 'margin:0', text:
+        'Einheiten am gepunkteten Streifen links anfassen und in eine andere Woche oder auf die ' +
+        'andere Spur ziehen — der Plan ordnet sich schon beim Ziehen so, wie er danach aussieht. ' +
+        'Die Pfeilknöpfe verschieben um eine Position.' }),
+      e('span', { klasse: 'schub' }, [statusEl])
+    ]),
+    e('div', { klasse: 'jahresrahmen' }, [raster])
+  ]));
+
+  ziel.appendChild(e('div', { klasse: 'abschnitt-titel', text: 'Nicht eingeplant' }));
+  vorratBehaelter.appendChild(vorratLeer);
+  ziel.appendChild(vorratBehaelter);
+
+  platziere(jahresplan(daten.einheiten), false);
 }
 
-function vorratBauen(daten, plan, verschiebeEinheit, neuZeichnen) {
-  const behaelter = e('div', { klasse: 'jahresvorrat', daten: { spur: '' } });
+/**
+ * Vor welche Einheit der Spur gehoert eine Einheit, die in dieser Woche
+ * beginnen soll? Verglichen wird mit der Mitte jeder vorhandenen Einheit:
+ * oberhalb davon wird davor einsortiert, unterhalb dahinter.
+ */
+function vorWelcher(einheitenOhneEigene, spur, woche) {
+  const plan = jahresplan(einheitenOhneEigene);
+  const aufSpur = plan.geplant.filter((x) => x.spur === spur || x.spur === 'BEIDE');
+  const treffer = aufSpur.find((x) => woche < x.von + x.dauer_wochen / 2);
+  return treffer ? treffer.id : null;
+}
 
-  if (!plan.vorrat.length) {
-    behaelter.appendChild(e('div', { klasse: 'leer', style: 'padding:16px',
-      text: 'Alle Einheiten sind eingeplant. Hierher gezogene Einheiten fallen aus dem Plan, ohne gelöscht zu werden.' }));
-  } else {
-    plan.vorrat.forEach((einheit) => behaelter.appendChild(
-      einheitBox(daten, einheit, { verschiebeEinheit, neuZeichnen, plan })));
-  }
-  return behaelter;
+/** Plan, wie er nach dem Loslassen aussaehe — ohne die echten Daten zu aendern. */
+function vorschauPlan(einheiten, ordnung) {
+  const kopie = einheiten.map((x) => ({ ...x }));
+  setzeReihenfolgeLokal({ einheiten: kopie }, ordnung);
+  return jahresplan(kopie);
+}
+
+// --- Gleiten (FLIP) ----------------------------------------------------------
+
+/**
+ * Gemessen wird in Dokumentkoordinaten, nicht relativ zum Fenster: waehrend
+ * des Ziehens rollt die Seite mit, und eine Messung am Fenster liesse die
+ * Boxen bei jedem Rollschritt scheinbar springen.
+ */
+function messeAlle(boxen) {
+  const stand = new Map();
+  const x = window.scrollX, y = window.scrollY;
+  boxen.forEach((el, id) => {
+    const r = el.getBoundingClientRect();
+    stand.set(id, { left: r.left + x, top: r.top + y });
+  });
+  return stand;
+}
+
+function gleite(boxen, vorher) {
+  const x = window.scrollX, y = window.scrollY;
+  boxen.forEach((el, id) => {
+    const alt = vorher.get(id);
+    if (!alt || el.classList.contains('ist-platzhalter')) return;
+    const r = el.getBoundingClientRect();
+    const neu = { left: r.left + x, top: r.top + y };
+    const dx = alt.left - neu.left;
+    const dy = alt.top - neu.top;
+    if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+
+    el.style.transition = 'none';
+    el.style.transform = `translate(${dx}px, ${dy}px)`;
+    requestAnimationFrame(() => {
+      el.style.transition = `transform ${GLEITDAUER}ms ease`;
+      el.style.transform = '';
+    });
+  });
 }
 
 // --- Eine Einheit als Box ----------------------------------------------------
 
-function einheitBox(daten, einheit, { style, verschiebeEinheit, neuZeichnen, plan }) {
+function einheitBox(daten, einheit, { neuZeichnen, starteZiehen, verschiebeUeberKnopf, aktuellerPlan }) {
   const offen = zustand.offeneEinheit === einheit.id;
   const themen = teilthemenFuer(daten, einheit.id);
+  const anzahl = themen.length;
+
+  const zusatz = e('span', { klasse: 'einheit-zusatz',
+    text: `${anzahl} ${anzahl === 1 ? 'Teilthema' : 'Teilthemen'}` });
 
   const kopf = e('button', {
-    klasse: 'einheit-kopf',
-    'aria-expanded': String(offen),
-    auf: { click: () => {
-      zustand.offeneEinheit = offen ? null : einheit.id;
-      neuZeichnen();
-    } }
-  }, [
-    e('span', { klasse: 'einheit-titel', text: einheit.titel }),
-    e('span', { klasse: 'einheit-zusatz', text: einheit.von
-      ? `Woche ${einheit.von}${einheit.dauer_wochen > 1 ? '–' + einheit.bis : ''} · ` +
-        `${themen.length} ${themen.length === 1 ? 'Teilthema' : 'Teilthemen'}`
-      : `${themen.length} ${themen.length === 1 ? 'Teilthema' : 'Teilthemen'}` })
-  ]);
+    klasse: 'einheit-kopf', 'aria-expanded': String(offen),
+    auf: { click: () => { zustand.offeneEinheit = offen ? null : einheit.id; neuZeichnen(); } }
+  }, [e('span', { klasse: 'einheit-titel', text: einheit.titel }), zusatz]);
+
+  const griff = e('div', {
+    klasse: 'einheit-griff', title: 'Zum Verschieben ziehen', 'aria-hidden': 'true'
+  });
+  griff.addEventListener('pointerdown', (ev) => starteZiehen(ev, einheit.id, griff));
 
   const box = e('div', {
     klasse: 'einheit-box spur-' + (einheit.spur || 'frei').toLowerCase() + (offen ? ' offen' : ''),
-    style: style || null,
     daten: { id: einheit.id, spur: einheit.spur || '' }
   }, [
-    e('div', { klasse: 'einheit-griff', title: 'Zum Verschieben ziehen', 'aria-hidden': 'true' }),
-    kopf,
+    griff, kopf,
     e('div', { klasse: 'einheit-knoepfe' }, [
       e('button', {
         klasse: 'klein leise', text: '↑', title: 'Eine Position früher',
         'aria-label': einheit.titel + ' eine Position früher',
-        auf: { click: (ev) => { ev.stopPropagation(); nachbarTausch(plan, einheit, -1, verschiebeEinheit); } }
+        auf: { click: (ev) => { ev.stopPropagation(); verschiebeUeberKnopf(einheit.id, -1); } }
       }),
       e('button', {
         klasse: 'klein leise', text: '↓', title: 'Eine Position später',
         'aria-label': einheit.titel + ' eine Position später',
-        auf: { click: (ev) => { ev.stopPropagation(); nachbarTausch(plan, einheit, 1, verschiebeEinheit); } }
+        auf: { click: (ev) => { ev.stopPropagation(); verschiebeUeberKnopf(einheit.id, 1); } }
       })
     ]),
-    offen ? einheitBereich(daten, einheit, themen, neuZeichnen, verschiebeEinheit) : null
+    offen ? einheitBereich(daten, einheit, themen, neuZeichnen, aktuellerPlan) : null
   ]);
 
-  ziehbarMachen(box, einheit, verschiebeEinheit);
-  return box;
-}
-
-/**
- * Tauscht die Einheit mit ihrer Nachbarin auf derselben Spur. Ueber die
- * Pfeilknoepfe erreichbar, damit der Plan auch ohne Ziehen umzustellen ist.
- */
-function nachbarTausch(plan, einheit, richtung, verschiebeEinheit) {
-  const spur = einheit.spur;
-  if (!spur) return;
-
-  const aufSpur = plan.geplant.filter((x) => x.spur === spur || x.spur === 'BEIDE' || spur === 'BEIDE');
-  const i = aufSpur.findIndex((x) => x.id === einheit.id);
-  const ziel = aufSpur[i + richtung];
-  if (!ziel) return;
-
-  // Nach oben: vor die Vorgaengerin. Nach unten: vor die Uebernaechste,
-  // ersatzweise ans Ende der Spur.
-  const zielId = richtung < 0 ? ziel.id : (aufSpur[i + 2] ? aufSpur[i + 2].id : null);
-  verschiebeEinheit(einheit.id, spur, zielId);
+  return { box, zusatz };
 }
 
 // --- Aufgeklappter Bereich einer Einheit ------------------------------------
 
-function einheitBereich(daten, einheit, themen, neuZeichnen, verschiebeEinheit) {
+function einheitBereich(daten, einheit, themen, neuZeichnen) {
   const liste = themen.length
     ? e('ol', { klasse: 'teilthemenliste' }, themen.map((t) => e('li', {}, [
         e('span', { text: t.titel }),
@@ -228,87 +474,10 @@ function einheitBereich(daten, einheit, themen, neuZeichnen, verschiebeEinheit) 
                     auf: { click: () => teilthemaAnlegen(daten, einheit, neuZeichnen) } }),
       e('button', { klasse: 'klein', text: 'Bearbeiten',
                     auf: { click: () => einheitBearbeiten(daten, einheit, neuZeichnen) } }),
-      einheit.spur
-        ? e('button', { klasse: 'klein leise', text: 'Aus dem Plan nehmen',
-                        auf: { click: () => verschiebeEinheit(einheit.id, '', null) } })
-        : e('button', { klasse: 'klein', text: 'In den Plan',
-                        auf: { click: () => verschiebeEinheit(einheit.id, 'RS', null) } }),
       e('button', { klasse: 'klein leise', text: 'Löschen',
                     auf: { click: () => einheitLoeschen(daten, einheit, neuZeichnen) } })
     ])
   ]);
-}
-
-// --- Ziehen ------------------------------------------------------------------
-
-/**
- * Ziehen ueber Zeigereignisse statt ueber die Ziehschnittstelle des Browsers:
- * jene loest auf Tablets gar nicht aus, und genau dort wird der Plan am
- * ehesten umgestellt.
- */
-function ziehbarMachen(box, einheit, verschiebeEinheit) {
-  const griff = box.querySelector('.einheit-griff');
-  if (!griff) return;
-
-  griff.addEventListener('pointerdown', (ev) => {
-    ev.preventDefault();
-    griff.setPointerCapture(ev.pointerId);
-
-    box.classList.add('wird-gezogen');
-    let ziel = null;
-
-    function markiere(neuesZiel) {
-      if (ziel === neuesZiel) return;
-      if (ziel) ziel.element.classList.remove('ist-ziel');
-      ziel = neuesZiel;
-      if (ziel) ziel.element.classList.add('ist-ziel');
-    }
-
-    function bewegen(e2) {
-      markiere(zielUnter(e2.clientX, e2.clientY, einheit.id));
-    }
-
-    function loslassen() {
-      griff.removeEventListener('pointermove', bewegen);
-      griff.removeEventListener('pointerup', loslassen);
-      griff.removeEventListener('pointercancel', loslassen);
-      box.classList.remove('wird-gezogen');
-      if (ziel) {
-        ziel.element.classList.remove('ist-ziel');
-        verschiebeEinheit(einheit.id, ziel.spur, ziel.vorId);
-      }
-    }
-
-    griff.addEventListener('pointermove', bewegen);
-    griff.addEventListener('pointerup', loslassen);
-    griff.addEventListener('pointercancel', loslassen);
-  });
-}
-
-/**
- * Was liegt unter dem Zeiger? Entweder eine leere Rasterzelle (dann zaehlt
- * die Spur und die Einheit, die dort beginnt) oder eine andere Box (dann
- * wird davor einsortiert) oder der Vorrat.
- */
-function zielUnter(x, y, eigeneId) {
-  const treffer = document.elementsFromPoint(x, y);
-
-  for (const el of treffer) {
-    if (el.classList.contains('jahresvorrat')) {
-      return { element: el, spur: '', vorId: null };
-    }
-
-    const box = el.closest && el.closest('.einheit-box');
-    if (box && box.dataset.id !== eigeneId) {
-      return { element: box, spur: box.dataset.spur || '', vorId: box.dataset.id };
-    }
-
-    if (el.classList.contains('jahreszelle')) {
-      const spalte = Number(getComputedStyle(el).gridColumnStart);
-      return { element: el, spur: spalte === 3 ? 'GR' : 'RS', vorId: null };
-    }
-  }
-  return null;
 }
 
 // --- Aktionen ----------------------------------------------------------------
@@ -318,17 +487,16 @@ async function neueEinheit(daten, neuZeichnen) {
   if (!titel || !titel.trim()) return;
 
   const id = 'neu-' + Date.now();
-  const einheit = {
+  daten.einheiten.push({
     id, titel: titel.trim(), beschreibung: '', reihenfolge: 9999,
     geplante_stunden: null, lehrplanbezug: '', status: 'geplant',
     spur: '', dauer_wochen: 1
-  };
-  daten.einheiten.push(einheit);
+  });
   zustand.offeneEinheit = id;
   neuZeichnen();
 
   try {
-    await sende('einheitErstellen', { titel: einheit.titel, spur: '', dauer_wochen: 1, id });
+    await sende('einheitErstellen', { titel: titel.trim(), spur: '', dauer_wochen: 1, id });
   } catch (fehler) {
     const i = daten.einheiten.findIndex((x) => x.id === id);
     if (i !== -1) daten.einheiten.splice(i, 1);
@@ -391,17 +559,15 @@ async function teilthemaAnlegen(daten, einheit, neuZeichnen) {
   if (!titel || !titel.trim()) return;
 
   const id = 'neu-t-' + Date.now();
-  const vorhandene = teilthemenFuer(daten, einheit.id);
-  const thema = {
-    id, einheit_id: einheit.id, titel: titel.trim(),
-    reihenfolge: vorhandene.length + 1
-  };
   if (!daten.teilthemen) daten.teilthemen = [];
-  daten.teilthemen.push(thema);
+  daten.teilthemen.push({
+    id, einheit_id: einheit.id, titel: titel.trim(),
+    reihenfolge: teilthemenFuer(daten, einheit.id).length + 1
+  });
   neuZeichnen();
 
   try {
-    await sende('teilthemaErstellen', { einheit_id: einheit.id, titel: thema.titel, id });
+    await sende('teilthemaErstellen', { einheit_id: einheit.id, titel: titel.trim(), id });
   } catch (fehler) {
     const i = daten.teilthemen.findIndex((t) => t.id === id);
     if (i !== -1) daten.teilthemen.splice(i, 1);

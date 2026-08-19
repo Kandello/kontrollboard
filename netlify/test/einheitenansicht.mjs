@@ -32,6 +32,27 @@ async function ausTabelle() {
 
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
 const fehler = [];
+
+/**
+ * Die Titel einer Spur in der Reihenfolge, in der sie auf dem Bildschirm
+ * stehen. Die Reihenfolge im Dokument taugt dafuer nicht: die Boxen werden
+ * einmal gebaut und danach nur noch im Raster umplatziert.
+ */
+async function spurReihenfolge(seite, spur) {
+  return seite.$$eval(`.jahresraster .einheit-box.spur-${spur}`, (els) => els
+    .map((el) => ({
+      titel: el.querySelector('.einheit-titel').textContent.trim(),
+      oben: el.getBoundingClientRect().top
+    }))
+    .sort((a, b) => a.oben - b.oben)
+    .map((x) => x.titel));
+}
+
+/** Die Wochenangabe, die unter dem Titel einer Einheit steht. */
+async function wochenText(seite, titel) {
+  return seite.locator('.einheit-box', { hasText: titel }).first()
+    .locator('.einheit-zusatz').innerText();
+}
 const ctx = await browser.newContext({
   viewport: { width: 1280, height: 1200 }, locale: 'de-DE', timezoneId: 'Europe/Berlin'
 });
@@ -57,9 +78,7 @@ pruefe('zwei Spurenüberschriften',
   (await p.locator('.jahresraster-kopf').allInnerTexts()).map((t) => t.toLowerCase()),
   ['woche', 'rechtschreibung', 'grammatik']);
 
-const ersteBox = p.locator('.jahresraster .einheit-box').first();
-pruefe('die Wortarten-Einheit steht zuerst',
-  (await ersteBox.innerText()).includes('Wortarten wiederholen'), true);
+const ersteBox = p.locator('.einheit-box', { hasText: 'Wortarten wiederholen' }).first();
 pruefe('… läuft auf beiden Spuren',
   (await ersteBox.getAttribute('class')).includes('spur-beide'), true);
 pruefe('… und beginnt in Woche 1', (await ersteBox.innerText()).includes('Woche 1–4'), true);
@@ -69,11 +88,13 @@ pruefe('… spannt über beide Spalten',
 
 // Die Startwoche wird gerechnet, nicht gespeichert: die zweite
 // Rechtschreib-Einheit muss lueckenlos an die erste anschliessen.
-const rsBoxen = p.locator('.einheit-box.spur-rs');
+const rsOrdnung = await spurReihenfolge(p, 'rs');
+pruefe('die Rechtschreibspur beginnt mit der Wörterliste',
+  rsOrdnung[0], 'Mit dem Alphabet und der Wörterliste arbeiten');
 pruefe('die erste Rechtschreib-Einheit beginnt nach dem Vorspann',
-  (await rsBoxen.first().innerText()).includes('Woche 5–6'), true);
+  (await wochenText(p, rsOrdnung[0])).includes('Woche 5–6'), true);
 pruefe('die zweite schließt lückenlos an',
-  (await rsBoxen.nth(1).innerText()).includes('Woche 7–8'), true);
+  (await wochenText(p, rsOrdnung[1])).includes('Woche 7–8'), true);
 
 pruefe('aktuelle Schulwoche ist hervorgehoben', await p.locator('.jahreswoche.ist-jetzt').count(), 1);
 pruefe('… und es ist Woche 5',
@@ -94,110 +115,164 @@ pruefe('erstes Teilthema',
 // ---------------------------------------------------------------------------
 console.log('\n=== Verschieben über die Pfeilknöpfe ===');
 {
-  const vorher = await ausTabelle();
-  const rsVorher = vorher.einheiten.filter((e) => e.spur === 'RS').map((e) => e.titel);
+  const vorher = await spurReihenfolge(p, 'rs');
+  const zweite = vorher[1];
 
-  // Die zweite Rechtschreib-Einheit eine Position nach vorn.
-  const box = p.locator('.einheit-box.spur-rs').nth(1);
-  const titel = (await box.locator('.einheit-titel').innerText()).trim();
-  await box.locator('button[title="Eine Position früher"]').click();
-  await p.waitForTimeout(700);
+  await p.locator('.einheit-box', { hasText: zweite }).first()
+    .locator('button[title="Eine Position früher"]').click();
+  await p.waitForTimeout(800);
 
-  pruefe('sie steht jetzt an erster Stelle der Spur',
-    (await p.locator('.einheit-box.spur-rs').first().locator('.einheit-titel').innerText()).trim(),
-    titel);
+  const nachher = await spurReihenfolge(p, 'rs');
+  pruefe('sie steht jetzt an erster Stelle der Spur', nachher[0], zweite);
+  pruefe('… und die vormals erste dahinter', nachher[1], vorher[0]);
   pruefe('… und beginnt nun in Woche 5',
-    (await p.locator('.einheit-box.spur-rs').first().innerText()).includes('Woche 5'), true);
+    (await wochenText(p, zweite)).includes('Woche 5'), true);
 
-  const nachher = await ausTabelle();
-  const rsNachher = nachher.einheiten.filter((e) => e.spur === 'RS').map((e) => e.titel);
+  const tabelle = await ausTabelle();
   pruefe('die Tabelle kennt dieselbe Reihenfolge',
-    rsNachher.slice(0, 2), [rsVorher[1], rsVorher[0]]);
-  pruefe('keine Einheit ist dabei verlorengegangen',
-    nachher.einheiten.length, vorher.einheiten.length);
+    tabelle.einheiten.filter((e) => e.spur === 'RS').map((e) => e.titel).slice(0, 2),
+    [zweite, vorher[0]]);
+  pruefe('keine Einheit ist dabei verlorengegangen', tabelle.einheiten.length, 26);
 
   // Zurueck, damit die folgenden Pruefungen vom Ausgangsplan ausgehen.
-  await p.locator('.einheit-box.spur-rs').first()
+  await p.locator('.einheit-box', { hasText: zweite }).first()
     .locator('button[title="Eine Position später"]').click();
-  await p.waitForTimeout(700);
-  const zurueck = await ausTabelle();
+  await p.waitForTimeout(800);
   pruefe('Zurückschieben stellt den alten Plan wieder her',
-    zurueck.einheiten.filter((e) => e.spur === 'RS').map((e) => e.titel).slice(0, 2),
-    rsVorher.slice(0, 2));
+    (await spurReihenfolge(p, 'rs')).slice(0, 2), vorher.slice(0, 2));
 }
 
 // ---------------------------------------------------------------------------
-console.log('\n=== Verschieben durch Ziehen ===');
+console.log('\n=== Ziehen ueber mehrere Wochen ===');
 {
-  const vorher = await ausTabelle();
-  const grVorher = vorher.einheiten.filter((e) => e.spur === 'GR').map((e) => e.titel);
+  // Der gemeldete Fehler: egal wie weit gezogen wurde, die Einheit rutschte
+  // immer nur eine Position. Hier wird die erste Rechtschreib-Einheit quer
+  // durchs halbe Jahr gezogen — sie muss dort landen, wo losgelassen wurde.
+  const vorher = await spurReihenfolge(p, 'rs');
+  const titel = vorher[0];
 
-  // Die erste Grammatik-Einheit am Griff auf die Rechtschreibspur ziehen.
-  const quelle = p.locator('.einheit-box.spur-gr').first();
-  const titel = (await quelle.locator('.einheit-titel').innerText()).trim();
-  const griff = quelle.locator('.einheit-griff');
+  // Bewusst OHNE vorheriges Scrollen: Woche 20 liegt auf einem gewoehnlichen
+  // Bildschirm ausserhalb des Sichtbereichs. Am unteren Rand muss die Seite
+  // von selbst mitrollen, sonst waere ein weiter Zug gar nicht moeglich.
+  await p.evaluate(() => window.scrollTo(0, 0));
+  await p.waitForTimeout(150);
+  const griff = p.locator('.einheit-box', { hasText: titel }).first().locator('.einheit-griff');
   const vonKasten = await griff.boundingBox();
-
-  // Ziel: die erste Rechtschreib-Box — dorthin wird davor einsortiert.
-  const ziel = p.locator('.einheit-box.spur-rs').first();
-  const zielKasten = await ziel.boundingBox();
-
   await p.mouse.move(vonKasten.x + vonKasten.width / 2, vonKasten.y + vonKasten.height / 2);
   await p.mouse.down();
-  await p.mouse.move(zielKasten.x + zielKasten.width / 2, zielKasten.y + 12, { steps: 12 });
-  await p.waitForTimeout(120);
+
+  const standVorRollen = await p.evaluate(() => window.scrollY);
+  const hoehe = p.viewportSize().height;
+  await p.mouse.move(vonKasten.x + vonKasten.width / 2, hoehe - 20, { steps: 12 });
+
+  // Warten, bis die Zielwoche durch das Mitrollen sichtbar geworden ist.
+  await p.waitForFunction(() => {
+    const z = document.querySelector('.jahreszelle[data-woche="20"][data-spur="RS"]');
+    const r = z.getBoundingClientRect();
+    return r.top > 100 && r.bottom < window.innerHeight - 100;
+  }, null, { timeout: 8000 });
+  pruefe('die Seite rollt beim Ziehen am Rand mit',
+    (await p.evaluate(() => window.scrollY)) > standVorRollen, true);
+
+  const zielKasten = await p.locator('.jahreszelle[data-woche="20"][data-spur="RS"]').boundingBox();
+  await p.mouse.move(zielKasten.x + zielKasten.width / 2, zielKasten.y + zielKasten.height / 2,
+                     { steps: 10 });
+  await p.waitForTimeout(250);
+
+  // Schon vor dem Loslassen muss der Umriss an der kuenftigen Stelle stehen.
+  pruefe('waehrend des Ziehens ist ein Platzhalter zu sehen',
+    await p.locator('.einheit-box.ist-platzhalter').count(), 1);
+  pruefe('… und die Einheit haengt sichtbar am Zeiger',
+    await p.locator('.einheit-flug').count(), 1);
+
   await p.mouse.up();
-  await p.waitForTimeout(800);
+  await p.waitForTimeout(900);
+
+  const nachher = await spurReihenfolge(p, 'rs');
+  pruefe('die Einheit ist nicht mehr die erste', nachher[0] !== titel, true);
+  pruefe('sie ist weit nach hinten gerutscht, nicht nur eine Position',
+    nachher.indexOf(titel) > 3, true);
+  const woche = Number(/Woche (\d+)/.exec(await wochenText(p, titel))[1]);
+  pruefe('sie liegt jetzt ungefaehr in der Zielwoche', woche >= 16 && woche <= 23, true);
+  const tabelle = await ausTabelle();
+  pruefe('nichts wurde dabei geloescht', tabelle.einheiten.length, 26);
+  pruefe('die Tabelle kennt dieselbe Reihenfolge',
+    tabelle.einheiten.filter((e) => e.spur === 'RS').map((e) => e.titel), nachher);
+
+  // Zurueck an den Anfang der Spur ziehen — genauso weit in die Gegenrichtung.
+  const g2 = await p.locator('.einheit-box', { hasText: titel }).first()
+    .locator('.einheit-griff').boundingBox();
+  await p.mouse.move(g2.x + g2.width / 2, g2.y + g2.height / 2);
+  await p.mouse.down();
+  await p.mouse.move(g2.x + g2.width / 2, 20, { steps: 12 });
+  await p.waitForFunction(() => {
+    const z = document.querySelector('.jahreszelle[data-woche="5"][data-spur="RS"]');
+    const r = z.getBoundingClientRect();
+    return r.top > 100 && r.bottom < window.innerHeight - 100;
+  }, null, { timeout: 15000 });
+  const z2 = await p.locator('.jahreszelle[data-woche="5"][data-spur="RS"]').boundingBox();
+  await p.mouse.move(z2.x + z2.width / 2, z2.y + 2, { steps: 10 });
+  await p.waitForTimeout(250);
+  await p.mouse.up();
+  await p.waitForTimeout(900);
+  pruefe('sie laesst sich genauso weit zurueckziehen',
+    (await spurReihenfolge(p, 'rs'))[0], titel);
+}
+
+console.log('\n=== Ziehen auf die andere Spur und in den Vorrat ===');
+{
+  const grVorher = await spurReihenfolge(p, 'gr');
+  const titel = grVorher[0];
+
+  const zielZelle = p.locator('.jahreszelle[data-woche="6"][data-spur="RS"]');
+  await zielZelle.scrollIntoViewIfNeeded();
+  await p.waitForTimeout(200);
+  const vonKasten = await p.locator('.einheit-box', { hasText: titel }).first()
+    .locator('.einheit-griff').boundingBox();
+  const zielKasten = await zielZelle.boundingBox();
+  await p.mouse.move(vonKasten.x + vonKasten.width / 2, vonKasten.y + vonKasten.height / 2);
+  await p.mouse.down();
+  await p.mouse.move(zielKasten.x + zielKasten.width / 2, zielKasten.y + 2, { steps: 16 });
+  await p.waitForTimeout(200);
+  await p.mouse.up();
+  await p.waitForTimeout(900);
 
   const nachher = await ausTabelle();
-  const gezogen = nachher.einheiten.find((e) => e.titel === titel);
-  pruefe('die gezogene Einheit liegt auf der Rechtschreibspur', gezogen.spur, 'RS');
-  pruefe('sie steht dort an erster Stelle',
-    (await p.locator('.einheit-box.spur-rs').first().locator('.einheit-titel').innerText()).trim(),
-    titel);
+  pruefe('die gezogene Einheit liegt auf der Rechtschreibspur',
+    nachher.einheiten.find((e) => e.titel === titel).spur, 'RS');
   pruefe('die Grammatikspur hat eine Einheit weniger',
-    nachher.einheiten.filter((e) => e.spur === 'GR').length, grVorher.length - 1);
-  pruefe('nichts wurde dabei gelöscht', nachher.einheiten.length, vorher.einheiten.length);
+    (await spurReihenfolge(p, 'gr')).length, grVorher.length - 1);
+  pruefe('nichts wurde dabei geloescht', nachher.einheiten.length, 26);
 
-  // In den Vorrat ziehen — die Einheit faellt aus dem Plan, bleibt aber da.
-  // Die LETZTE Einheit der Spur nehmen: sie liegt am unteren Ende des Rasters
-  // und ist damit gleichzeitig mit dem Vorrat sichtbar. Bei einer Box vom
-  // Jahresanfang waere nach dem Scrollen zum Vorrat der Griff aus dem Bild.
-  const raus = p.locator('.einheit-box.spur-rs').last();
-  const rausTitel = (await raus.locator('.einheit-titel').innerText()).trim();
-  const rausGriff = raus.locator('.einheit-griff');
-  const vorrat = p.locator('.jahresvorrat');
-  await vorrat.scrollIntoViewIfNeeded();
+  // In den Vorrat ziehen: die Einheit faellt aus dem Plan, bleibt aber da.
+  // Der Vorrat liegt unter dem gesamten Jahr — auch hierhin fuehrt der Weg
+  // nur ueber das Mitrollen am unteren Rand.
+  await p.evaluate(() => window.scrollTo(0, 0));
   await p.waitForTimeout(150);
-  const rausKasten = await rausGriff.boundingBox();
-  const vorratKasten = await vorrat.boundingBox();
-
-  await p.mouse.move(rausKasten.x + rausKasten.width / 2, rausKasten.y + rausKasten.height / 2);
+  const g = await p.locator('.jahresraster .einheit-box', { hasText: titel }).first()
+    .locator('.einheit-griff').boundingBox();
+  await p.mouse.move(g.x + g.width / 2, g.y + g.height / 2);
   await p.mouse.down();
-  await p.mouse.move(vorratKasten.x + vorratKasten.width / 2,
-                     vorratKasten.y + vorratKasten.height / 2, { steps: 12 });
-  await p.waitForTimeout(120);
+  await p.mouse.move(g.x + g.width / 2, p.viewportSize().height - 15, { steps: 12 });
+  await p.waitForFunction(() => {
+    const r = document.querySelector('.jahresvorrat').getBoundingClientRect();
+    return r.top > 100 && r.top < window.innerHeight - 120;
+  }, null, { timeout: 15000 });
+
+  const v = await p.locator('.jahresvorrat').boundingBox();
+  await p.mouse.move(v.x + v.width / 2, v.y + Math.min(40, v.height / 2), { steps: 10 });
+  await p.waitForTimeout(250);
   await p.mouse.up();
-  await p.waitForTimeout(800);
+  await p.waitForTimeout(900);
 
   const imVorrat = await ausTabelle();
   pruefe('die in den Vorrat gezogene Einheit ist ausgeplant',
-    imVorrat.einheiten.find((e) => e.titel === rausTitel).spur, '');
-  pruefe('… und ist nicht gelöscht', imVorrat.einheiten.length, vorher.einheiten.length);
+    imVorrat.einheiten.find((e) => e.titel === titel).spur, '');
+  pruefe('… und ist nicht geloescht', imVorrat.einheiten.length, 26);
   pruefe('der Vorrat zeigt sie an',
-    (await p.locator('.jahresvorrat .einheit-box').first().innerText()).includes(rausTitel), true);
-
-  // Und wieder zurück in den Plan — über den Knopf im aufgeklappten Kasten.
-  await p.locator('.jahresvorrat .einheit-box .einheit-kopf').first().click();
-  await p.waitForTimeout(300);
-  await p.locator('.jahresvorrat button', { hasText: 'In den Plan' }).first().click();
-  await p.waitForTimeout(800);
-  const zurueckImPlan = await ausTabelle();
-  pruefe('„In den Plan" holt sie zurück',
-    zurueckImPlan.einheiten.find((e) => e.titel === rausTitel).spur, 'RS');
+    (await p.locator('.jahresvorrat .einheit-box').first().innerText()).includes(titel), true);
 }
 
-// ---------------------------------------------------------------------------
 console.log('\n=== Abhaken je Klasse ===');
 {
   await p.goto(ADRESSE + '#/klasse/3L/einheiten');

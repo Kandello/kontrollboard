@@ -557,32 +557,75 @@ table.liste td.beteiligung-band-6 { background: var(--beteiligung-band-6); }
   background: var(--grund);
 }
 
-/* --- Eine Einheit als Box --------------------------------------------------- */
+/* --- Eine Einheit als Box ---------------------------------------------------
+   Bewusst koerperlich gestaltet: leichter Verlauf, weicher Schatten und eine
+   dickere Kante an der Spurfarbe. Beim Ziehen hebt die Einheit sichtbar ab,
+   damit erkennbar bleibt, was gerade am Zeiger haengt und was liegen bleibt. */
 .einheit-box {
   position: relative;
   display: flex; flex-direction: column;
-  border: 1px solid var(--linie); border-left: 4px solid var(--akzent);
-  border-radius: var(--radius);
-  background: var(--flaeche);
-  padding: var(--s2) var(--s2) var(--s2) 22px;
+  border: 1px solid var(--linie);
+  border-left: 5px solid var(--akzent);
+  border-radius: 12px;
+  background: linear-gradient(180deg, #ffffff 0%, #f6f9fc 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .9),
+    0 1px 2px rgba(28, 48, 74, .10),
+    0 5px 12px rgba(28, 48, 74, .08);
+  padding: var(--s2) var(--s2) var(--s2) 24px;
   min-width: 0;
+  transition: box-shadow .15s ease, transform .15s ease;
+}
+.einheit-box:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .9),
+    0 2px 4px rgba(28, 48, 74, .12),
+    0 10px 20px rgba(28, 48, 74, .12);
 }
 .einheit-box.spur-rs    { border-left-color: #2e75b6; }
 .einheit-box.spur-gr    { border-left-color: #c55a11; }
 .einheit-box.spur-beide { border-left-color: #548235; }
-.einheit-box.spur-frei  { border-left-color: var(--linie); }
-.einheit-box.offen { box-shadow: 0 2px 10px rgba(0,0,0,.10); z-index: 2; }
-.einheit-box.wird-gezogen { opacity: .55; }
-.einheit-box.ist-ziel { outline: 2px solid var(--akzent); outline-offset: 1px; }
+.einheit-box.spur-frei  { border-left-color: var(--linie-stark); }
+
+.einheit-box.offen {
+  z-index: 3;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .9),
+    0 3px 6px rgba(28, 48, 74, .14),
+    0 14px 28px rgba(28, 48, 74, .14);
+}
+
+/* Das Stueck, das am Zeiger haengt. */
+.einheit-flug {
+  transform: rotate(-1deg) scale(1.02);
+  box-shadow: 0 18px 40px rgba(28, 48, 74, .30), 0 4px 8px rgba(28, 48, 74, .18);
+  opacity: .97;
+}
+.einheit-flug .einheit-knoepfe { display: none; }
+
+/* Der Umriss, der waehrend des Ziehens an der kuenftigen Stelle steht. */
+.einheit-box.ist-platzhalter {
+  background: var(--akzent-leis);
+  border-style: dashed; border-left-style: dashed;
+  box-shadow: none; transform: none;
+}
+.einheit-box.ist-platzhalter > * { visibility: hidden; }
+
+/* Waehrend des Ziehens nichts markieren und keinen Schwebe-Effekt zeigen. */
+body.zieht-gerade { user-select: none; -webkit-user-select: none; cursor: grabbing; }
+body.zieht-gerade .einheit-box:hover { transform: none; }
 
 /* Der Griff ist ein schmaler Streifen am linken Rand — beruehrungsfreundlich
    breit genug, ohne den Titel zu verdraengen. */
 .einheit-griff {
-  position: absolute; left: 0; top: 0; bottom: 0; width: 18px;
+  position: absolute; left: 0; top: 0; bottom: 0; width: 20px;
+  border-radius: 0 6px 6px 0;
   cursor: grab; touch-action: none;
   background:
-    radial-gradient(circle, var(--text-sehrleis) 1px, transparent 1px) 50% 50% / 6px 6px repeat-y;
+    radial-gradient(circle, var(--text-sehrleis) 1.4px, transparent 1.4px) 50% 50% / 7px 7px repeat-y;
 }
+.einheit-griff:hover { background-color: rgba(0, 0, 0, .04); }
 .einheit-griff:active { cursor: grabbing; }
 
 .einheit-kopf {
