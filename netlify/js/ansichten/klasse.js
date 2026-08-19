@@ -7,15 +7,23 @@
  * mehr — sie sind klassenuebergreifend und haben einen eigenen Einstieg
  * in der Kopfleiste (ansichten/checklisten.js).
  *
- * Stand Schritt 4: Notentracker und Unterrichtseinheiten sind noch
- * Platzhalter (Schritte 5 und 6). Die Schuelerliste wird bereits echt
- * gezeigt — damit ist die Zuordnungslogik ueberpruefbar.
+ * Unter „Unterrichtseinheiten" steht hier der Fortschritt DIESER Klasse:
+ * derselbe Jahresplan wie unter #/einheiten, aber mit abhakbaren
+ * Teilthemen. Parallelklassen bearbeiten dieselben Einheiten; faellt in
+ * einer Klasse eine Stunde aus, hakt eben nur sie das Teilthema spaeter ab.
  */
 
-import { e, karte } from '../ui.js';
+import { e, karte, hinweis } from '../ui.js';
 import { name as anzeigeName, klassenlehrkraftEintrag, sortiereNachListe } from '../zuordnung.js';
 import { lehrkraftVerweis } from './start.js';
 import { gehe } from '../router.js';
+import { sende } from '../server.js';
+import { alsIso } from '../zeit.js';
+import { heute } from '../zeit.js';
+import {
+  jahresplan, teilthemenFuer, istErledigt, erledigtAm, setzeFortschrittLokal,
+  fortschrittEinheit, fortschrittKlasse, spurTitel
+} from '../einheiten.js';
 
 const WERKZEUGE = [
   { id: 'einheiten', titel: 'Unterrichtseinheiten', beschreibung: 'Fortschritt dieser Klasse' }
@@ -68,12 +76,15 @@ export function zeichneKlasse(ziel, kontext) {
 
   // --- Werkzeugeinstiege --------------------------------------------------
   if (!werkzeug) {
+    const gesamt = fortschrittKlasse(daten, klasse);
     ziel.appendChild(e('div', { klasse: 'werkzeuge' }, WERKZEUGE.map((w) => e('a', {
       klasse: 'werkzeug',
       href: '#/klasse/' + encodeURIComponent(klasse) + '/' + w.id
     }, [
       e('span', { klasse: 'titel', text: w.titel }),
-      e('span', { klasse: 'beschreibung', text: w.beschreibung })
+      e('span', { klasse: 'beschreibung', text: w.id === 'einheiten' && gesamt.prozent !== null
+        ? `${gesamt.erledigt} von ${gesamt.gesamt} Teilthemen erledigt · ${gesamt.prozent} %`
+        : w.beschreibung })
     ]))));
 
     ziel.appendChild(e('div', { klasse: 'abschnitt-titel', text: 'Klassenliste' }));
@@ -85,16 +96,142 @@ export function zeichneKlasse(ziel, kontext) {
   const w = WERKZEUGE.find((x) => x.id === werkzeug);
   if (!w) { gehe('/klasse/' + encodeURIComponent(klasse), { ersetzen: true }); return; }
 
+  if (werkzeug === 'einheiten') {
+    zeichneEinheitenFortschritt(ziel, daten, klasse, kontext.neuZeichnen);
+    return;
+  }
+
   ziel.appendChild(karte(w.titel, [
     e('div', { klasse: 'leer', style: 'padding:32px 16px' }, [
-      e('div', { text: 'Dieses Werkzeug wird in einem der nächsten Schritte gebaut.' }),
-      e('div', { klasse: 'feldhilfe', style: 'margin-top:8px',
-                 text: 'Das Gerüst und die Namensanzeige stehen bereits — die Liste unten kommt aus der Tabelle.' })
+      e('div', { text: 'Dieses Werkzeug wird in einem der nächsten Schritte gebaut.' })
     ])
   ]));
 
   ziel.appendChild(e('div', { klasse: 'abschnitt-titel', text: 'Klassenliste' }));
   ziel.appendChild(schuelerliste(kinder, verbergen));
+}
+
+// --- Unterrichtseinheiten: Fortschritt dieser Klasse -------------------------
+
+/**
+ * Der Jahresplan mit abhakbaren Teilthemen. Die Haekchen werden lokal sofort
+ * gesetzt und gebuendelt nachgeschickt — genau wie bei den Checklisten, damit
+ * das Abhaken im Unterricht nicht auf die Tabelle wartet.
+ */
+function zeichneEinheitenFortschritt(ziel, daten, klasse, neuZeichnen) {
+  const plan = jahresplan(daten.einheiten || []);
+  const gesamt = fortschrittKlasse(daten, klasse);
+
+  const statusEl = e('span', { klasse: 'feldhilfe' });
+  let ausstehend = new Map();
+  let zeitgeber = null;
+
+  function zeigeStatus(text, art) {
+    statusEl.textContent = text;
+    statusEl.className = 'feldhilfe' + (art ? ' status-' + art : '');
+  }
+
+  async function sendeJetzt() {
+    zeitgeber = null;
+    if (!ausstehend.size) return;
+    const aenderungen = [...ausstehend.values()];
+    ausstehend.clear();
+    zeigeStatus('wird gespeichert …', '');
+    try {
+      await sende('fortschritt', { aenderungen });
+      zeigeStatus('gespeichert', 'gut');
+    } catch (fehler) {
+      aenderungen.forEach((a) => ausstehend.set(a.teilthema_id, a));
+      zeigeStatus('nicht gespeichert — ' + fehler.message, 'schlecht');
+    }
+  }
+
+  function planeSpeichern(aenderung) {
+    ausstehend.set(aenderung.teilthema_id, aenderung);
+    zeigeStatus('nicht gespeichert', 'warn');
+    if (zeitgeber) clearTimeout(zeitgeber);
+    zeitgeber = setTimeout(sendeJetzt, 1000);
+  }
+
+  ziel.appendChild(karte(null, [
+    e('div', { klasse: 'leiste', style: 'margin:0' }, [
+      e('div', {}, [
+        e('h2', { text: 'Unterrichtseinheiten' }),
+        e('div', { klasse: 'feldhilfe', text: gesamt.prozent === null
+          ? 'Noch keine Teilthemen eingeplant.'
+          : `${gesamt.erledigt} von ${gesamt.gesamt} Teilthemen erledigt · ${gesamt.prozent} %` })
+      ]),
+      e('div', { klasse: 'schub' }, [
+        statusEl,
+        e('a', { klasse: 'knopf klein', href: '#/einheiten', text: 'Jahresplan bearbeiten' })
+      ])
+    ]),
+    gesamt.gesamt
+      ? e('div', { klasse: 'balken gross', role: 'presentation' },
+          [e('i', { style: `width:${gesamt.prozent}%` })])
+      : null
+  ]));
+
+  if (!plan.geplant.length) {
+    ziel.appendChild(hinweis({
+      art: 'warn', zeichen: '→', titel: 'Noch kein Jahresplan',
+      text: 'Es ist noch keine Unterrichtseinheit eingeplant.'
+    }));
+    return;
+  }
+
+  plan.geplant.forEach((einheit) => {
+    const themen = teilthemenFuer(daten, einheit.id);
+    const f = fortschrittEinheit(daten, einheit.id, klasse);
+
+    const liste = themen.length
+      ? e('ul', { klasse: 'teilthemen-abhaken' }, themen.map((t) => {
+          const an = istErledigt(daten, t.id, klasse);
+          const datumEl = e('span', { klasse: 'feldhilfe',
+                                      text: an && erledigtAm(daten, t.id, klasse)
+                                        ? 'am ' + erledigtAm(daten, t.id, klasse) : '' });
+          const kasten = e('input', {
+            type: 'checkbox', checked: an,
+            'aria-label': t.titel,
+            auf: { change: (ev) => {
+              const jetztAn = ev.target.checked;
+              const datum = alsIso(heute());
+              setzeFortschrittLokal(daten, t.id, klasse, jetztAn, datum);
+              datumEl.textContent = jetztAn ? 'am ' + datum : '';
+              zeile.className = jetztAn ? 'ist-erledigt' : '';
+              aktualisiereZaehler();
+              planeSpeichern({ teilthema_id: t.id, klasse, erledigt: jetztAn, datum });
+            } }
+          });
+          const zeile = e('li', { klasse: an ? 'ist-erledigt' : '' }, [
+            e('label', {}, [kasten, e('span', { text: t.titel })]),
+            datumEl
+          ]);
+          return zeile;
+        }))
+      : e('div', { klasse: 'feldhilfe', text: 'Für diese Einheit sind noch keine Teilthemen angelegt.' });
+
+    const zaehler = e('span', { klasse: 'feldhilfe',
+                                text: `${f.erledigt} von ${f.gesamt}` });
+
+    function aktualisiereZaehler() {
+      const neu = fortschrittEinheit(daten, einheit.id, klasse);
+      zaehler.textContent = `${neu.erledigt} von ${neu.gesamt}`;
+    }
+
+    ziel.appendChild(karte(null, [
+      e('div', { klasse: 'leiste', style: 'margin:0 0 8px' }, [
+        e('div', {}, [
+          e('h3', { text: einheit.titel }),
+          e('div', { klasse: 'feldhilfe', text:
+            `${spurTitel(einheit.spur)} · Woche ${einheit.von}` +
+            (einheit.dauer_wochen > 1 ? '–' + einheit.bis : '') })
+        ]),
+        e('div', { klasse: 'schub' }, [zaehler])
+      ]),
+      liste
+    ]));
+  });
 }
 
 /**

@@ -81,7 +81,7 @@ global.ContentService = {
   createTextOutput: (t) => ({ setMimeType() { return { text: t }; } })
 };
 
-for (const datei of ['Setup', 'Daten', 'Boards', 'Noten', 'Code']) {
+for (const datei of ['Setup', 'Daten', 'Boards', 'Noten', 'Einheiten', 'Jahresplan', 'Code']) {
   const quelle = fs.readFileSync(`${APPS_SCRIPT}/${datei}.gs`, 'utf8');
   (0, eval)(quelle.replace(/^function (\w+)/gm, 'global.$1 = function $1')
                   .replace(/^var (\w+) =/gm, 'global.$1 ='));
@@ -90,6 +90,11 @@ for (const datei of ['Setup', 'Daten', 'Boards', 'Noten', 'Code']) {
 // Frisch eingerichtete Tabelle mit den echten 69 Kuerzeln, genau wie in DEPLOY.md.
 setupSheets();
 importSchuelerAusText(fs.readFileSync('/home/user/kontrollboard/schueler-import.csv', 'utf8'));
+
+// Jahresplan und Schuljahresbeginn, damit die Einheiten-Ansicht etwas zu
+// zeigen hat und die Schulwoche bestimmbar ist.
+jahresplanEinfuegen();
+setzeMeta({ schuljahresbeginn: '2026-08-17' });
 
 // --- HTTP-Server ------------------------------------------------------------
 

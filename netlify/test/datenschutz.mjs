@@ -67,9 +67,22 @@ await p.locator('.werkzeug').first().click(); await p.waitForTimeout(400);
 await p.locator('input.notenfeld').first().fill('8');
 await p.waitForTimeout(1400); // Debounce abwarten.
 
+// Ein Teilthema abhaken — der Fortschritt haengt an der Klasse, nicht am Kind,
+// und darf deshalb erst recht keinen Namen tragen.
+await p.goto(B + '#/klasse/3L/einheiten'); await p.waitForTimeout(600);
+await p.locator('ul.teilthemen-abhaken input').first().check();
+await p.waitForTimeout(1400); // Debounce abwarten.
+
+// Eine Einheit im Jahresplan verschieben — auch dieser Aufruf traegt nur
+// Bezeichnungen aus der Tabelle.
+await p.goto(B + '#/einheiten'); await p.waitForTimeout(600);
+await p.locator('.einheit-box.spur-rs').nth(1)
+  .locator('button[title="Eine Position früher"]').click();
+await p.waitForTimeout(900);
+
 // Durch alle Ansichten laufen, damit jeder Serveraufruf erfasst wird.
 for (const pfad of ['#/', '#/klasse/3L', '#/noten', '#/noten/3L', '#/checklisten', '#/checklisten/3L',
-                    '#/klasse/3M', '#/klasse/3OB/einheiten', '#/einstellungen']) {
+                    '#/klasse/3M', '#/klasse/3OB/einheiten', '#/einheiten', '#/einstellungen']) {
   await p.goto(B + pfad); await p.waitForTimeout(350);
 }
 await knopf('Daten neu laden').click(); await p.waitForTimeout(700);
@@ -124,6 +137,20 @@ if (!punkteKuerzel) schlecht++;
 const mundAufruf = verkehr.some(v => v.rumpf.includes('"kategorie_id":"MUND"'));
 console.log(`${mundAufruf ? 'OK  ' : 'FEHL'}  abgeleitete Beteiligungsnote (MUND) wird uebertragen`);
 if (!mundAufruf) schlecht++;
+
+// Und: Fortschritt und Jahresplan — beide haengen an der Klasse, nie am Kind.
+const fortschrittAufruf = verkehr.find(v => v.rumpf.includes('"aktion":"fortschritt"'));
+console.log(`${fortschrittAufruf ? 'OK  ' : 'FEHL'}  Einheiten-Fortschritt wird uebertragen`);
+if (!fortschrittAufruf) schlecht++;
+const nurKlasse = fortschrittAufruf &&
+  fortschrittAufruf.rumpf.includes('"klasse":"3L"') &&
+  !/"kuerzel"/.test(fortschrittAufruf.rumpf);
+console.log(`${nurKlasse ? 'OK  ' : 'FEHL'}  … und trägt nur die Klasse, kein Kürzel`);
+if (!nurKlasse) schlecht++;
+
+const planAufruf = verkehr.some(v => v.rumpf.includes('"aktion":"einheitenReihenfolge"'));
+console.log(`${planAufruf ? 'OK  ' : 'FEHL'}  Jahresplan-Änderung wird uebertragen`);
+if (!planAufruf) schlecht++;
 
 console.log(schlecht === 0 ? '\nKEIN NAME HAT DAS GERAET VERLASSEN' : `\n${schlecht} PROBLEM(E)`);
 await b.close();

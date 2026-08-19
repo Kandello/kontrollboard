@@ -21,7 +21,7 @@ var SCHEMA = {
   BoardSpalten:       ['id', 'board_id', 'bezeichnung', 'reihenfolge'],
   BoardWerte:         ['board_id', 'spalte_id', 'kuerzel', 'zustand', 'geaendert_am'],
   BoardKlassenStatus: ['board_id', 'klasse', 'status', 'archiviert_am'],
-  Einheiten:          ['id', 'fach', 'titel', 'beschreibung', 'reihenfolge', 'geplante_stunden', 'lehrplanbezug', 'status', 'aktiv'],
+  Einheiten:          ['id', 'fach', 'titel', 'beschreibung', 'reihenfolge', 'geplante_stunden', 'lehrplanbezug', 'status', 'aktiv', 'spur', 'dauer_wochen'],
   Teilthemen:         ['id', 'einheit_id', 'titel', 'reihenfolge'],
   EinheitFortschritt: ['teilthema_id', 'klasse', 'erledigt', 'datum', 'notiz'],
   Wochenstatus:       ['kw', 'aufgabe', 'erledigt_am'],
@@ -43,9 +43,9 @@ var TEXTSPALTEN = {
   BoardSpalten:       ['id', 'board_id'],
   BoardWerte:         ['board_id', 'spalte_id', 'kuerzel', 'geaendert_am'],
   BoardKlassenStatus: ['board_id', 'klasse', 'archiviert_am'],
-  Einheiten:          ['id'],
+  Einheiten:          ['id', 'spur'],
   Teilthemen:         ['id', 'einheit_id'],
-  EinheitFortschritt: ['teilthema_id', 'datum'],
+  EinheitFortschritt: ['teilthema_id', 'klasse', 'datum'],
   Wochenstatus:       ['kw', 'erledigt_am'],
   Meta:               ['wert']
 };
@@ -334,6 +334,7 @@ function onOpen() {
     .createMenu('Kommandozentrale')
     .addItem('Blätter anlegen / prüfen', 'menueSetup')
     .addItem('Schülerliste einlesen', 'menueImport')
+    .addItem('Jahresplan einfügen', 'menueJahresplan')
     .addItem('Konfiguration prüfen', 'menuePruefung')
     .addSeparator()
     .addItem('Zugangsschlüssel anzeigen', 'menueToken')

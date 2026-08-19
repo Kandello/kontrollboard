@@ -10,6 +10,9 @@ import { e, karte, setzeMeldung, hinweis } from '../ui.js';
 import { klassenlehrkraftEintrag } from '../zuordnung.js';
 import { sende, leereDaten, ladeDaten } from '../server.js';
 import {
+  SPUREN, jahresplan, einheitInWoche, fortschrittEinheit, fortschrittKlasse, schulwoche
+} from '../einheiten.js';
+import {
   heute, morgen, uhrzeit, wochentag, wochentagName, istWochenende,
   kwKennung, alsMinuten, alsDeutsch, alsIso
 } from '../zeit.js';
@@ -79,12 +82,7 @@ export function zeichneStart(ziel, { daten, verbergen, neuZeichnen }) {
 
   ziel.appendChild(ferienschalter(ferien, neuZeichnen));
 
-  // Platz fuer das Widget der laufenden Einheit (Schritt 9).
-  ziel.appendChild(karte('Aktuelle Unterrichtseinheit', [
-    e('div', { klasse: 'leer', style: 'padding:20px 16px' }, [
-      e('div', { text: 'Wird mit den Unterrichtseinheiten gebaut.' })
-    ])
-  ]));
+  ziel.appendChild(aktuelleEinheit(daten, tag));
 
   ziel.appendChild(e('div', { klasse: 'abschnitt-titel', text: 'Klassen' }));
   ziel.appendChild(klassenknoepfe(daten, verbergen));
@@ -275,6 +273,86 @@ function artText(s) {
   return grund;
 }
 
+// --- Aktuelle Unterrichtseinheit --------------------------------------------
+
+/**
+ * Was steht in dieser Schulwoche an — auf beiden Spuren, mit dem Fortschritt
+ * jeder Klasse. Ohne hinterlegten Schuljahresbeginn laesst sich die
+ * Schulwoche nicht bestimmen; dann sagt die Karte genau das.
+ */
+function aktuelleEinheit(daten, tag) {
+  const woche = schulwoche(tag, daten.meta.schuljahresbeginn);
+  const plan = jahresplan(daten.einheiten || []);
+
+  if (!plan.geplant.length) {
+    return karte('Aktuelle Unterrichtseinheit', [
+      e('div', { klasse: 'leer', style: 'padding:20px 16px' }, [
+        e('div', { text: 'Es ist noch keine Unterrichtseinheit eingeplant.' }),
+        e('div', { klasse: 'leiste', style: 'justify-content:center;margin-top:14px' }, [
+          e('a', { klasse: 'knopf', href: '#/einheiten', text: 'Jahresplan öffnen' })
+        ])
+      ])
+    ]);
+  }
+
+  if (woche === null) {
+    return karte('Aktuelle Unterrichtseinheit', [
+      e('div', { klasse: 'leer', style: 'padding:20px 16px' }, [
+        e('div', { text: 'Für die laufende Schulwoche fehlt der Schuljahresbeginn.' }),
+        e('div', { klasse: 'feldhilfe', style: 'margin-top:6px',
+                   text: 'Er steht im Blatt „Meta" unter „schuljahresbeginn" (Format 2026-08-17).' }),
+        e('div', { klasse: 'leiste', style: 'justify-content:center;margin-top:14px' }, [
+          e('a', { klasse: 'knopf', href: '#/einheiten', text: 'Jahresplan öffnen' })
+        ])
+      ])
+    ]);
+  }
+
+  const laufende = SPUREN
+    .map((s) => ({ spur: s, einheit: einheitInWoche(plan, s.id, woche) }))
+    .filter((x) => x.einheit);
+
+  if (!laufende.length) {
+    return karte('Aktuelle Unterrichtseinheit', [
+      e('div', { klasse: 'leer', style: 'padding:20px 16px' }, [
+        e('div', { text: `Schulwoche ${woche} — dafür steht im Jahresplan nichts.` }),
+        e('div', { klasse: 'leiste', style: 'justify-content:center;margin-top:14px' }, [
+          e('a', { klasse: 'knopf', href: '#/einheiten', text: 'Jahresplan öffnen' })
+        ])
+      ])
+    ]);
+  }
+
+  // Eine Einheit auf beiden Spuren erscheint sonst zweimal.
+  const gezeigt = [];
+  laufende.forEach((x) => {
+    if (!gezeigt.some((g) => g.einheit.id === x.einheit.id)) gezeigt.push(x);
+  });
+
+  return karte('Aktuelle Unterrichtseinheit', [
+    e('div', { klasse: 'feldhilfe', style: 'margin-top:0', text: `Schulwoche ${woche}` }),
+    ...gezeigt.map(({ spur, einheit }) => e('div', { klasse: 'laufende-einheit' }, [
+      e('div', { klasse: 'leiste', style: 'margin:0' }, [
+        e('div', {}, [
+          e('div', { klasse: 'laufende-titel', text: einheit.titel }),
+          e('div', { klasse: 'feldhilfe', text:
+            `${einheit.spur === 'BEIDE' ? 'Beide Spuren' : spur.titel} · Woche ${einheit.von}` +
+            (einheit.dauer_wochen > 1 ? '–' + einheit.bis : '') })
+        ]),
+        e('div', { klasse: 'schub' }, daten.klassen.map((k) => {
+          const f = fortschrittEinheit(daten, einheit.id, k.klasse);
+          return e('a', {
+            klasse: 'knopf klein',
+            href: '#/klasse/' + encodeURIComponent(k.klasse) + '/einheiten',
+            title: `${k.bezeichnung}: ${f.erledigt} von ${f.gesamt} Teilthemen`,
+            text: `${k.bezeichnung} ${f.prozent === null ? '–' : f.prozent + ' %'}`
+          });
+        }))
+      ])
+    ]))
+  ]);
+}
+
 // --- Wochenaufgaben --------------------------------------------------------
 
 function wochenkachel(aufgabe, daten, kw, tag, ferien, neuZeichnen) {
@@ -394,6 +472,7 @@ function klassenknoepfe(daten, verbergen) {
   daten.klassen.forEach((k, i) => {
     const anzahl = daten.schueler.filter((s) => s.klasse === k.klasse && s.aktiv).length;
     const lehrkraft = verbergen ? null : klassenlehrkraftEintrag(k.klasse);
+    const fortschritt = fortschrittKlasse(daten, k.klasse);
 
     // Der Kachelinhalt ist ein Link auf die Klassenseite. Der Verweis auf
     // die E-Mail-Adresse muss deshalb daneben stehen, nicht darin —
@@ -411,8 +490,13 @@ function klassenknoepfe(daten, verbergen) {
         e('span', { klasse: 'zusatz', text: anzahl + (anzahl === 1 ? ' Kind' : ' Kinder') })
       ]),
       lehrkraft ? e('span', { klasse: 'zusatz' }, [lehrkraftVerweis(lehrkraft)]) : null,
-      // Textloser Fortschrittsbalken; Wert folgt mit den Einheiten (Schritt 9).
-      e('div', { klasse: 'balken', role: 'presentation' }, [e('i', { style: 'width:0%' })])
+      // Anteil der abgehakten Teilthemen aller eingeplanten Einheiten.
+      e('div', {
+        klasse: 'balken', role: 'img',
+        'aria-label': fortschritt.prozent === null
+          ? 'Noch keine Unterrichtseinheiten eingeplant'
+          : `Unterrichtseinheiten: ${fortschritt.prozent} % erledigt`
+      }, [e('i', { style: `width:${fortschritt.prozent || 0}%` })])
     ]));
   });
 

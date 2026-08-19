@@ -11,6 +11,7 @@ import { zeichneStart, raeumeStartAuf } from './ansichten/start.js';
 import { zeichneKlasse } from './ansichten/klasse.js';
 import { zeichneChecklisten } from './ansichten/checklisten.js';
 import { zeichneNoten } from './ansichten/noten.js';
+import { zeichneEinheiten } from './ansichten/einheiten.js';
 import { zeichneEinstellungen } from './ansichten/einstellungen.js';
 import { zeichneZuordnung } from './ansichten/zuordnungAnsicht.js';
 
@@ -57,6 +58,7 @@ function zeichneKopf() {
   kopf.appendChild(e('div', { klasse: 'kopfleiste-inhalt' }, [
     pfad,
     schalter,
+    e('a', { klasse: 'knopf klein', href: '#/einheiten', text: 'Einheiten' }),
     e('a', { klasse: 'knopf klein', href: '#/noten', text: 'Noten' }),
     e('a', { klasse: 'knopf klein', href: '#/checklisten', text: 'Checklisten' }),
     e('a', { klasse: 'knopf klein', href: '#/einstellungen', text: 'Einstellungen' })
@@ -243,6 +245,11 @@ registriere('/noten', ansicht((ziel, k) => {
 registriere('/noten/:klasse', ansicht((ziel, k) => {
   if (!k.daten) return;
   zeichneNoten(ziel, k);
+}));
+
+registriere('/einheiten', ansicht((ziel, k) => {
+  if (!k.daten) return;
+  zeichneEinheiten(ziel, k);
 }));
 
 registriere('/einstellungen', ansicht(zeichneEinstellungen));

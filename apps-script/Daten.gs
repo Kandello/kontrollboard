@@ -367,7 +367,13 @@ function ladeAlles() {
           reihenfolge: alsZahl_(z.reihenfolge) || 0,
           geplante_stunden: alsZahl_(z.geplante_stunden),
           lehrplanbezug: alsText_(z.lehrplanbezug),
-          status: alsText_(z.status) || 'geplant'
+          status: alsText_(z.status) || 'geplant',
+          // Spur und Dauer tragen den Jahresplan: die Startwoche wird nicht
+          // gespeichert, sondern aus Reihenfolge und Dauer errechnet. Dadurch
+          // kann keine Ueberschneidung entstehen, wenn eine Einheit verschoben
+          // oder verlaengert wird (siehe netlify/js/einheiten.js).
+          spur: alsText_(z.spur).toUpperCase(),
+          dauer_wochen: alsZahl_(z.dauer_wochen) || 1
         };
       })
       .sort(function (a, b) { return a.reihenfolge - b.reihenfolge; }),

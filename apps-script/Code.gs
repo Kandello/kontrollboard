@@ -143,6 +143,38 @@ function doPost(e) {
       case 'beteiligungspunkte':
         return antwort_({ ok: true, ergebnis: beteiligungspunkteSpeichern(rumpf.aenderungen) });
 
+      case 'einheitErstellen':
+        return antwort_({ ok: true, ergebnis:
+          einheitErstellen(rumpf.titel, rumpf.spur, rumpf.dauer_wochen, rumpf.id) });
+
+      case 'einheitAktualisieren':
+        return antwort_({ ok: true, ergebnis:
+          einheitAktualisieren(rumpf.id, rumpf.titel, rumpf.beschreibung, rumpf.lehrplanbezug,
+                               rumpf.dauer_wochen, rumpf.geplante_stunden) });
+
+      case 'einheitenReihenfolge':
+        return antwort_({ ok: true, ergebnis: einheitenReihenfolge(rumpf.saetze) });
+
+      case 'einheitLoeschen':
+        return antwort_({ ok: true, ergebnis: einheitLoeschen(rumpf.id) });
+
+      case 'teilthemaErstellen':
+        return antwort_({ ok: true, ergebnis:
+          teilthemaErstellen(rumpf.einheit_id, rumpf.titel, rumpf.id) });
+
+      case 'teilthemaUmbenennen':
+        return antwort_({ ok: true, ergebnis: teilthemaUmbenennen(rumpf.id, rumpf.titel) });
+
+      case 'teilthemaLoeschen':
+        return antwort_({ ok: true, ergebnis: teilthemaLoeschen(rumpf.id) });
+
+      case 'teilthemenReihenfolge':
+        return antwort_({ ok: true, ergebnis:
+          teilthemenReihenfolge(rumpf.einheit_id, rumpf.reihenfolge) });
+
+      case 'fortschritt':
+        return antwort_({ ok: true, ergebnis: fortschrittSpeichern(rumpf.aenderungen) });
+
       case 'schuelerImport':
         return antwort_({ ok: true, ergebnis: importSchuelerAusText(rumpf.csv || '') });
 

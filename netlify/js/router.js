@@ -118,6 +118,8 @@ export function pfadEintraege(daten) {
         : null;
       eintraege.push({ text: klasse ? klasse.bezeichnung : t[1], ziel: null });
     }
+  } else if (t[0] === 'einheiten') {
+    eintraege.push({ text: 'Unterrichtseinheiten', ziel: null });
   } else if (t[0] === 'einstellungen') {
     eintraege.push({ text: 'Einstellungen', ziel: null });
   } else if (t[0] === 'zuordnung') {

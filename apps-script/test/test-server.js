@@ -71,7 +71,7 @@ global.ContentService = {
   createTextOutput: t => ({ setMimeType() { return { text: t }; } })
 };
 
-for (const f of ['Setup', 'Daten', 'Boards', 'Noten', 'Code']) {
+for (const f of ['Setup', 'Daten', 'Boards', 'Noten', 'Einheiten', 'Jahresplan', 'Code']) {
   const src = fs.readFileSync(`../${f}.gs`, 'utf8');
   (0, eval)(src.replace(/^function (\w+)/gm, 'global.$1 = function $1')
               .replace(/^var (\w+) =/gm, 'global.$1 ='));
@@ -724,6 +724,185 @@ console.log('\n=== Beteiligungspunkte: keine Klarnamen im Datenpaket ===');
 {
   const roh = JSON.stringify(ladeAlles());
   pruefe('kein Klarname in Beteiligungspunkten sichtbar',
+    /Musterfrau|Beispiel|Anna|Ben|Bruno/.test(roh), false);
+}
+
+// ---------------------------------------------------------------------------
+console.log('\n=== Jahresplan einfuegen ===');
+{
+  const b = jahresplanEinfuegen();
+  pruefe('Plan wurde eingetragen', b.eingetragen, true);
+  pruefe('26 Einheiten', b.einheiten, 26);
+  pruefe('alle Einheiten im Blatt', holeBlatt_('Einheiten').getLastRow() - 1, 26);
+  pruefe('Teilthemen ebenfalls', holeBlatt_('Teilthemen').getLastRow() - 1, b.teilthemen);
+
+  const zweiter = jahresplanEinfuegen();
+  pruefe('zweiter Aufruf schreibt nichts', zweiter.eingetragen, false);
+  pruefe('… und laesst die Zeilen stehen', holeBlatt_('Einheiten').getLastRow() - 1, 26);
+
+  const d = ladeAlles();
+  pruefe('Einheiten kommen im Datenpaket an', d.einheiten.length, 26);
+  pruefe('nach Reihenfolge sortiert',
+    d.einheiten.map(e => e.reihenfolge).every((r, i, a) => i === 0 || a[i - 1] <= r), true);
+  pruefe('die erste Einheit laeuft auf beiden Spuren', d.einheiten[0].spur, 'BEIDE');
+  pruefe('… und dauert vier Wochen', d.einheiten[0].dauer_wochen, 4);
+  pruefe('Teilthemen zeigen auf ihre Einheit',
+    d.teilthemen.filter(t => t.einheit_id === d.einheiten[0].id).length, 7);
+}
+
+console.log('\n=== Einheiten anlegen, aendern, loeschen ===');
+{
+  const neu = einheitErstellen('Testeinheit', 'RS', 3, 'test-1');
+  pruefe('Einheit angelegt', neu.einheit.id, 'test-1');
+  pruefe('landet am Ende', neu.einheit.reihenfolge, 27);
+  pruefe('Spur uebernommen', neu.einheit.spur, 'RS');
+
+  einheitAktualisieren('test-1', 'Umbenannt', 'Beschreibung', 'Lehrplan', 5, 12);
+  const d = ladeAlles();
+  const t = d.einheiten.find(e => e.id === 'test-1');
+  pruefe('Titel geaendert', t.titel, 'Umbenannt');
+  pruefe('Dauer geaendert', t.dauer_wochen, 5);
+  pruefe('Spur bleibt beim Aendern unberuehrt', t.spur, 'RS');
+  pruefe('Reihenfolge bleibt beim Aendern unberuehrt', t.reihenfolge, 27);
+
+  let geworfen = '';
+  try { einheitErstellen('', 'RS', 1); } catch (e) { geworfen = e.message; }
+  pruefe('leerer Titel abgewiesen', /Titel/.test(geworfen), true);
+
+  geworfen = '';
+  try { einheitErstellen('X', 'QUATSCH', 1); } catch (e) { geworfen = e.message; }
+  pruefe('unbekannte Spur abgewiesen', /Spur/.test(geworfen), true);
+
+  geworfen = '';
+  try { einheitErstellen('X', 'RS', 0); } catch (e) { geworfen = e.message; }
+  pruefe('Dauer 0 abgewiesen', /Dauer/.test(geworfen), true);
+
+  geworfen = '';
+  try { einheitErstellen('X', 'RS', 2.5); } catch (e) { geworfen = e.message; }
+  pruefe('Kommazahl als Dauer abgewiesen', /Dauer/.test(geworfen), true);
+}
+
+console.log('\n=== Reihenfolge setzen ===');
+{
+  const d = ladeAlles();
+  // Die erste Rechtschreib-Einheit ans Ende der Grammatikspur schieben.
+  const saetze = d.einheiten.map((e, i) => ({ id: e.id, spur: e.spur, reihenfolge: i + 1 }));
+  saetze[1].spur = 'GR';
+  einheitenReihenfolge(saetze);
+
+  const d2 = ladeAlles();
+  pruefe('Spur wurde umgesetzt', d2.einheiten[1].spur, 'GR');
+  pruefe('Titel blieb erhalten', d2.einheiten[1].titel, d.einheiten[1].titel);
+  pruefe('Dauer blieb erhalten', d2.einheiten[1].dauer_wochen, d.einheiten[1].dauer_wochen);
+
+  let geworfen = '';
+  try { einheitenReihenfolge([{ id: 'gibtsnicht', spur: 'RS', reihenfolge: 1 }]); }
+  catch (e) { geworfen = e.message; }
+  pruefe('unbekannte Einheit abgewiesen', /nicht gefunden/.test(geworfen), true);
+
+  geworfen = '';
+  try { einheitenReihenfolge([]); } catch (e) { geworfen = e.message; }
+  pruefe('leere Reihenfolge abgewiesen', /Reihenfolge/.test(geworfen), true);
+}
+
+console.log('\n=== Teilthemen ===');
+{
+  teilthemaErstellen('test-1', 'Erstes Teilthema', 'tt-1');
+  teilthemaErstellen('test-1', 'Zweites Teilthema', 'tt-2');
+  let d = ladeAlles();
+  pruefe('zwei Teilthemen angelegt', d.teilthemen.filter(t => t.einheit_id === 'test-1').length, 2);
+  pruefe('durchnummeriert', d.teilthemen.find(t => t.id === 'tt-2').reihenfolge, 2);
+
+  teilthemaUmbenennen('tt-1', 'Umbenanntes Teilthema');
+  d = ladeAlles();
+  pruefe('umbenannt', d.teilthemen.find(t => t.id === 'tt-1').titel, 'Umbenanntes Teilthema');
+
+  teilthemenReihenfolge('test-1', ['tt-2', 'tt-1']);
+  d = ladeAlles();
+  pruefe('neu geordnet', d.teilthemen.find(t => t.id === 'tt-2').reihenfolge, 1);
+
+  let geworfen = '';
+  try { teilthemaErstellen('gibtsnicht', 'X'); } catch (e) { geworfen = e.message; }
+  pruefe('Teilthema ohne Einheit abgewiesen', /nicht gefunden/.test(geworfen), true);
+}
+
+console.log('\n=== Fortschritt je Klasse ===');
+{
+  fortschrittSpeichern([
+    { teilthema_id: 'tt-1', klasse: '3L', erledigt: true },
+    { teilthema_id: 'tt-2', klasse: '3M', erledigt: true }
+  ]);
+  let d = ladeAlles();
+  pruefe('zwei Eintraege', d.einheitFortschritt.length, 2);
+  pruefe('3L hat tt-1 erledigt',
+    d.einheitFortschritt.some(f => f.teilthema_id === 'tt-1' && f.klasse === '3L' && f.erledigt), true);
+  pruefe('3M nicht',
+    d.einheitFortschritt.some(f => f.teilthema_id === 'tt-1' && f.klasse === '3M'), false);
+  pruefe('Datum wurde gesetzt',
+    /^\d{4}-\d{2}-\d{2}$/.test(d.einheitFortschritt[0].datum), true);
+
+  // Zuruecknehmen loescht die Zeile, statt sie auf falsch zu setzen.
+  fortschrittSpeichern([{ teilthema_id: 'tt-1', klasse: '3L', erledigt: false }]);
+  d = ladeAlles();
+  pruefe('Zuruecknehmen entfernt die Zeile', d.einheitFortschritt.length, 1);
+
+  let geworfen = '';
+  try { fortschrittSpeichern([{ teilthema_id: 'tt-2', klasse: '9Z', erledigt: true }]); }
+  catch (e) { geworfen = e.message; }
+  pruefe('unbekannte Klasse abgewiesen', /Klasse/.test(geworfen), true);
+
+  geworfen = '';
+  try { fortschrittSpeichern([{ teilthema_id: 'gibtsnicht', klasse: '3L', erledigt: true }]); }
+  catch (e) { geworfen = e.message; }
+  pruefe('unbekanntes Teilthema abgewiesen', /Teilthema/.test(geworfen), true);
+
+  d = ladeAlles();
+  pruefe('nach den Fehlern nichts dazugekommen', d.einheitFortschritt.length, 1);
+}
+
+console.log('\n=== Kaskaden beim Loeschen ===');
+{
+  fortschrittSpeichern([{ teilthema_id: 'tt-2', klasse: '3L', erledigt: true }]);
+  let d = ladeAlles();
+  pruefe('zwei Fortschrittszeilen zu tt-2',
+    d.einheitFortschritt.filter(f => f.teilthema_id === 'tt-2').length, 2);
+
+  teilthemaLoeschen('tt-2');
+  d = ladeAlles();
+  pruefe('Teilthema weg', d.teilthemen.some(t => t.id === 'tt-2'), false);
+  pruefe('… und sein Fortschritt gleich mit',
+    d.einheitFortschritt.filter(f => f.teilthema_id === 'tt-2').length, 0);
+
+  const bericht = einheitLoeschen('test-1');
+  pruefe('Einheit geloescht', bericht.id, 'test-1');
+  pruefe('das letzte Teilthema mit', bericht.geloeschteTeilthemen, 1);
+  d = ladeAlles();
+  pruefe('Einheit ist fort', d.einheiten.some(e => e.id === 'test-1'), false);
+  pruefe('kein verwaistes Teilthema', d.teilthemen.some(t => t.einheit_id === 'test-1'), false);
+
+  let geworfen = '';
+  try { einheitLoeschen('test-1'); } catch (e) { geworfen = e.message; }
+  pruefe('zweites Loeschen abgewiesen', /nicht gefunden/.test(geworfen), true);
+}
+
+console.log('\n=== Einheiten ueber doPost erreichbar ===');
+{
+  const a = doPost({ postData: { contents: JSON.stringify({
+    token: holeToken_(), aktion: 'einheitErstellen', titel: 'Über doPost', spur: 'GR', dauer_wochen: 2
+  }) } });
+  pruefe('einheitErstellen ueber doPost', JSON.parse(a.text).ok, true);
+
+  const id = JSON.parse(a.text).ergebnis.einheit.id;
+  const b = doPost({ postData: { contents: JSON.stringify({
+    token: holeToken_(), aktion: 'einheitLoeschen', id: id
+  }) } });
+  pruefe('einheitLoeschen ueber doPost', JSON.parse(b.text).ok, true);
+}
+
+console.log('\n=== Einheiten: keine Klarnamen im Datenpaket ===');
+{
+  const roh = JSON.stringify(ladeAlles());
+  pruefe('kein Klarname in Einheiten oder Fortschritt',
     /Musterfrau|Beispiel|Anna|Ben|Bruno/.test(roh), false);
 }
 
