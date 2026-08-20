@@ -97,6 +97,13 @@ console.log('=== Montag 09:20, laufende Stunde ===');
   pruefe('LESEN zeigt den Zusatz', ersteZeile.includes('+4H'), true);
   pruefe('LESEN nennt die eigene Klasse', ersteZeile.includes('3L'), true);
 
+  // 3L hat keine eigene Farbe hinterlegt, faellt also auf k-farbe-1 zurueck
+  // (--klassenfarbe-text: #1d6b93). Nicht nur der Punkt, auch der Name selbst.
+  pruefe('der Klassenname selbst zeigt die Klassenfarbe, nicht nur der Punkt davor',
+    await p.locator('ul.tagesplan li').first().locator('.bezeichnung')
+      .evaluate((el) => getComputedStyle(el).color),
+    'rgb(29, 107, 147)');
+
   // Anklickbarkeit
   pruefe('DEUTSCH/LESEN der eigenen Klassen sind Links',
     await p.locator('ul.tagesplan a.eintrag').count(), 4);
@@ -359,26 +366,50 @@ console.log('\n=== Merklisten: To-Do, Deadlines, Termine ===');
     '.widgetraster .widget[data-id="todo"], .widgetraster .widget[data-id="deadline"], ' +
     '.widgetraster .widget[data-id="events"]').count(), 3);
 
+  // Jede der drei bekommt ihre eigene, gedeckte Kopffarbe.
+  const griffFarbe = (id) => p.locator(`.widget[data-id="${id}"] .widget-griff`)
+    .evaluate((el) => getComputedStyle(el).backgroundColor);
+  pruefe('To-Do: dunkles Gelb', await griffFarbe('todo'), 'rgb(107, 83, 22)');
+  pruefe('Deadlines: dunkles Rot', await griffFarbe('deadline'), 'rgb(110, 47, 47)');
+  pruefe('Termine: dunkles Blau', await griffFarbe('events'), 'rgb(39, 74, 114)');
+  pruefe('… und die drei Farben sind tatsaechlich verschieden',
+    new Set([await griffFarbe('todo'), await griffFarbe('deadline'), await griffFarbe('events')]).size, 3);
+
   // --- To-Do: hinzufuegen, Sortierung, Abhaken --------------------------------
   const todoWidget = p.locator('.widget[data-id="todo"]');
-  async function todoHinzufuegen(text, datum) {
+  async function todoHinzufuegen(text, datum, { perEnter = false } = {}) {
     await todoWidget.locator('.merkliste-plus').click();
-    await todoWidget.locator('.merkliste-felder input[type="text"]').fill(text);
-    if (datum) await todoWidget.locator('.merkliste-felder input[type="date"]').fill(datum);
-    await todoWidget.locator('button:has-text("Hinzufügen")').click();
+    const textFeld = todoWidget.locator('.merkliste-felder input[type="text"]');
+    await textFeld.fill(text);
+    if (!datum && perEnter) {
+      await textFeld.press('Enter');
+    } else {
+      if (datum) await todoWidget.locator('.merkliste-felder input[type="date"]').fill(datum);
+      if (perEnter) await todoWidget.locator('.merkliste-felder input[type="date"]').press('Enter');
+      else await todoWidget.locator('button:has-text("Hinzufügen")').click();
+    }
     await p.waitForTimeout(150);
   }
-  await todoHinzufuegen('Einkaufen', '');
-  await todoHinzufuegen('Formular ausfüllen', '2026-09-20');
+  // Die ersten zwei ueber Enter statt Klick — einmal im Textfeld, einmal im
+  // Datumfeld — die dritte ganz klassisch ueber den Knopf.
+  await todoHinzufuegen('Einkaufen', '', { perEnter: true });
+  await todoHinzufuegen('Formular ausfüllen', '2026-09-20', { perEnter: true });
   await todoHinzufuegen('Urlaub planen', '2026-09-18');
-
-  pruefe('drei To-Do-Eintraege', await todoWidget.locator('.merkliste-liste li').count(), 3);
+  pruefe('alle drei kamen an, zwei davon per Enter statt per Klick',
+    await todoWidget.locator('.merkliste-liste li').count(), 3);
   pruefe('nach Datum sortiert, undatiert ans Ende',
     await todoWidget.locator('.merkliste-text').allInnerTexts(),
     ['Urlaub planen', 'Formular ausfüllen', 'Einkaufen']);
   pruefe('Fälligkeitstext: Wochentag und Datum ohne Jahr',
     await todoWidget.locator('.merkliste-liste li').first().locator('.merkliste-datum').innerText(),
     'Freitag, 18.9.');
+
+  // Die Liste beginnt jetzt auf Hoehe des Plus-Knopfs, nicht mehr darunter
+  // haengend — beide oben in derselben Zeile ausgerichtet.
+  const knopfOben = (await todoWidget.locator('.merkliste-plus').boundingBox()).y;
+  const ersterEintragOben = (await todoWidget.locator('.merkliste-liste li').first().boundingBox()).y;
+  pruefe('erster Eintrag beginnt auf Hoehe des Plus-Knopfs, haengt nicht mehr tief',
+    Math.abs(knopfOben - ersterEintragOben) < 10, true);
 
   await todoWidget.locator('.merkliste-liste li').first().locator('input[type="checkbox"]').click();
   await p.waitForTimeout(150);

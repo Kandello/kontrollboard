@@ -774,13 +774,26 @@ function merklisteWidget(daten, typ, tag) {
   const konfig = MERKLISTE_KONFIG[typ];
   const heuteIso = alsIso(tag);
 
+  // Auf Enter abschicken, egal in welchem Feld — nicht nur per Klick auf
+  // „Hinzufügen". Ein <form>-Element bräuchte es dafür nicht: preventDefault
+  // reicht, weil die Felder ohnehin in keinem <form> stecken.
+  function aufEingabetaste(ev) {
+    if (ev.key !== 'Enter') return;
+    ev.preventDefault();
+    hinzufuegen();
+  }
+
   const liste = e('ul', { klasse: 'merkliste-liste' });
   const textFeld = e('input', {
     type: 'text', placeholder: konfig.textPlatzhalter, 'aria-label': 'Text',
-    autocomplete: 'off'
+    autocomplete: 'off', auf: { keydown: aufEingabetaste }
   });
-  const datumFeld = e('input', { type: 'date', 'aria-label': konfig.datumBeschriftung });
-  const zeitFeld = konfig.zeitFeld ? e('input', { type: 'time', 'aria-label': 'Uhrzeit (optional)' }) : null;
+  const datumFeld = e('input', {
+    type: 'date', 'aria-label': konfig.datumBeschriftung, auf: { keydown: aufEingabetaste }
+  });
+  const zeitFeld = konfig.zeitFeld
+    ? e('input', { type: 'time', 'aria-label': 'Uhrzeit (optional)', auf: { keydown: aufEingabetaste } })
+    : null;
   const fehlerZeile = e('div', { klasse: 'feldhilfe merkliste-fehler', hidden: true });
 
   const formular = e('div', { klasse: 'merkliste-formular', hidden: true }, [
@@ -793,7 +806,7 @@ function merklisteWidget(daten, typ, tag) {
   ]);
 
   const plusKnopf = e('button', {
-    klasse: 'klein leise merkliste-plus', text: '+', title: 'Eintrag hinzufügen',
+    klasse: 'klein merkliste-plus', text: '+', title: 'Eintrag hinzufügen',
     'aria-label': 'Eintrag hinzufügen',
     auf: { click: () => {
       formular.hidden = !formular.hidden;
@@ -801,10 +814,12 @@ function merklisteWidget(daten, typ, tag) {
     } }
   });
 
+  // Liste und Knopf in derselben Zeile: die Eintraege beginnen dadurch direkt
+  // oben, quasi neben dem Knopf, statt unter einer eigenen, sonst leeren
+  // Kopfzeile zu haengen.
   const wrapper = e('div', { klasse: 'merkliste' }, [
-    e('div', { klasse: 'merkliste-kopf' }, [plusKnopf]),
     formular,
-    liste
+    e('div', { klasse: 'merkliste-reihe' }, [liste, plusKnopf])
   ]);
   zeichneListe();
   return wrapper;

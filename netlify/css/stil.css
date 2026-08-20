@@ -280,9 +280,12 @@ ul.tagesplan li:first-child { border-top: 0; }
   display: flex; align-items: baseline; gap: var(--s2);
   flex: 1; min-width: 0; flex-wrap: wrap;
 }
-.tagesplan .bezeichnung { font-family: var(--serif); font-size: 17px; line-height: 1.2; }
+.tagesplan .bezeichnung {
+  font-family: var(--serif); font-size: 17px; line-height: 1.2;
+  color: var(--klassenfarbe-text, inherit);
+}
 .tagesplan .art { font-size: var(--t-klein); color: var(--text-leise); }
-.tagesplan a.eintrag .bezeichnung { color: var(--akzent); }
+.tagesplan a.eintrag .bezeichnung { color: var(--klassenfarbe-text, var(--akzent)); }
 
 .tagesplan li.ist-laufend { background: var(--akzent-leis); border-radius: 10px; }
 .tagesplan li.ist-laufend .bezeichnung { font-weight: 600; }
@@ -334,10 +337,15 @@ ul.tagesplan li:first-child { border-top: 0; }
    Alle drei teilen sich dieses Aussehen, siehe ansichten/start.js. Kompakt
    gehalten wie die uebrigen Widget-Inhalte — kein 96px-Kopf, keine grosse
    Schrift. */
-.merkliste-kopf { display: flex; justify-content: flex-end; margin-bottom: var(--s2); }
+/* Liste und Knopf in derselben Zeile, oben ausgerichtet: die Eintraege
+   beginnen dadurch sofort oben, quasi links neben dem Knopf, statt unter
+   einer eigenen, sonst leeren Kopfzeile zu haengen. */
+.merkliste-reihe { display: flex; align-items: flex-start; gap: var(--s2); }
 .merkliste-plus {
+  flex: none;
   width: 26px; height: 26px; padding: 0; line-height: 1;
   font-size: 17px; border-radius: var(--radius);
+  background: var(--gut); color: #fff; border-color: var(--gut);
 }
 
 .merkliste-formular { margin-bottom: var(--s3); }
@@ -347,7 +355,7 @@ ul.tagesplan li:first-child { border-top: 0; }
 }
 .merkliste-fehler { color: var(--schlecht); }
 
-ul.merkliste-liste { list-style: none; margin: 0; padding: 0; }
+ul.merkliste-liste { list-style: none; margin: 0; padding: 0; flex: 1; min-width: 0; }
 ul.merkliste-liste li {
   display: flex; align-items: flex-start; gap: var(--s2);
   padding: 7px 0; border-top: 1px solid var(--linie);
@@ -377,6 +385,19 @@ li.ist-erledigt .merkliste-datum { color: var(--text-leise); }
 @container widget (max-width: 260px) {
   .merkliste-liste li { gap: var(--s1); padding: 5px 0; }
   .merkliste-text, .merkliste-felder input { font-size: 13px; }
+}
+
+/* Merklisten: eigene, gedeckte Kopffarbe je Art — macht auf einen Blick
+   unterscheidbar, ohne knallig zu wirken. Setzt nur die drei --griff-*
+   Variablen, die .widget-griff & Co. weiter oben mit Fallback lesen. */
+.widget[data-id="deadline"] {
+  --griff-hg: #6e2f2f; --griff-rand: #5a2626; --griff-text: #f5dcdc; --griff-text-leise: #e0b8b8;
+}
+.widget[data-id="todo"] {
+  --griff-hg: #6b5316; --griff-rand: #59440f; --griff-text: #fbecc7; --griff-text-leise: #e6cd93;
+}
+.widget[data-id="events"] {
+  --griff-hg: #274a72; --griff-rand: #1f3b5c; --griff-text: #dbe8f7; --griff-text-leise: #b7cfe8;
 }
 
 @media (max-width: 520px) {
@@ -824,32 +845,38 @@ ul.teilthemen-abhaken li.ist-erledigt label span { color: var(--text-leise); }
 }
 body.zieht-gerade .widget:hover { transform: none; }
 
-/* Die Griffleiste: hier und nur hier wird verschoben. */
+/* Die Griffleiste: hier und nur hier wird verschoben. Farbe ist normalerweise
+   neutral; die drei Merklisten-Widgets faerben sie ueber --griff-* ein
+   (siehe „Merklisten: eigene Kopffarbe" weiter unten) — deshalb hier ueberall
+   mit Fallback auf die bisherigen, neutralen Werte. */
 .widget-griff {
   display: flex; align-items: center; gap: var(--s2); flex: none;
   padding: 6px var(--s3) 6px var(--s2);
-  border-bottom: 1px solid var(--linie);
-  background: linear-gradient(180deg, rgba(255,255,255,.7), rgba(233,240,247,.7));
+  border-bottom: 1px solid var(--griff-rand, var(--linie));
+  background: var(--griff-hg, linear-gradient(180deg, rgba(255,255,255,.7), rgba(233,240,247,.7)));
   cursor: grab; touch-action: none; user-select: none;
 }
 .widget-griff:active { cursor: grabbing; }
 
 .widget-punkte {
   width: 14px; height: 16px; flex: none; opacity: .5;
-  background: radial-gradient(circle, var(--text-sehrleis) 1.3px, transparent 1.3px) 0 0 / 5px 5px;
+  background: radial-gradient(circle, var(--griff-text-leise, var(--text-sehrleis)) 1.3px, transparent 1.3px) 0 0 / 5px 5px;
 }
 .widget:hover .widget-punkte { opacity: .9; }
 
 .widget-name {
   font-family: var(--serif); font-size: var(--t-klein);
-  text-transform: uppercase; letter-spacing: .06em; color: var(--text-leise);
+  text-transform: uppercase; letter-spacing: .06em; color: var(--griff-text, var(--text-leise));
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
 .widget-knoepfe { margin-left: auto; display: flex; gap: 2px; opacity: 0; transition: opacity .12s; }
 .widget:hover .widget-knoepfe,
 .widget:focus-within .widget-knoepfe { opacity: 1; }
-.widget-knoepfe button { min-height: 26px; padding: 0 8px; line-height: 1.2; }
+.widget-knoepfe button {
+  min-height: 26px; padding: 0 8px; line-height: 1.2;
+  color: var(--griff-text, var(--akzent)); border-color: var(--griff-rand, var(--linie-stark));
+}
 
 /* Der Zurueckhol-Knopf zeigt sich nur in der Ablage, der Ausblenden-Knopf
    nur im Raster. */
