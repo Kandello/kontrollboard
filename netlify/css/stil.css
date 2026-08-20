@@ -120,26 +120,31 @@ button.klein { min-height: 34px; padding: var(--s1) var(--s3); font-size: var(--
 }
 .schub { margin-left: auto; }
 
-/* --- Klassenknoepfe (Ebene 1) --------------------------------------------- */
+/* --- Klassenknoepfe (Ebene 1) ---------------------------------------------
+   Bewusst kompakt: eine Klassenkachel muss nur den Namen, die Kinderzahl und
+   einen Fortschrittsbalken tragen — dafuer braucht es keine 27px-Schrift und
+   keinen 200px-Mindestplatz. Je schmaler das Widget, desto kleiner die
+   Kachel (container query weiter unten), statt in ein Zeilenumbruch- oder
+   Ueberlaufproblem zu laufen. */
 .klassenraster {
-  display: grid; gap: var(--s4);
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  display: grid; gap: var(--s3);
+  grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
 }
 .klassenknopf {
   display: block; text-align: center; text-decoration: none;
   background: var(--flaeche); color: var(--text);
-  border: 1px solid var(--linie); border-radius: var(--radius-gross);
+  border: 1px solid var(--linie); border-radius: var(--radius);
   border-top: 3px solid var(--klassenfarbe, var(--linie-stark));
-  padding: var(--s3) var(--s3) var(--s2);
+  padding: var(--s2) var(--s2) var(--s2);
   min-height: 0;
 }
 .klassenknopf:hover { border-color: var(--akzent); border-top-color: var(--klassenfarbe, var(--akzent)); }
 .klassenknopf .name {
-  font-family: var(--serif); font-size: 27px; display: block; line-height: 1.15;
+  font-family: var(--serif); font-size: 19px; display: block; line-height: 1.15;
   color: var(--klassenfarbe-text, var(--text));
 }
-.klassenknopf .zusatz { font-size: var(--t-klein); color: var(--text-leise); display: block; }
-.klassenknopf .balken { margin-top: var(--s2); }
+.klassenknopf .zusatz { font-size: 12px; color: var(--text-leise); display: block; }
+.klassenknopf .balken { margin-top: var(--s2); height: 4px; }
 .klassenknopf .balken > i { background: var(--klassenfarbe, var(--akzent)); }
 
 /* Klassenfarbe auch im Tagesplan und in der Kopfzeile der Klassenseite. */
@@ -290,16 +295,18 @@ ul.tagesplan li:first-child { border-top: 0; }
 .marke.naechste { border-style: dashed; }
 .marke.ruhend   { border-color: var(--linie-stark); }
 
-/* --- Startseite: Wochenaufgaben ------------------------------------------- */
+/* --- Startseite: Wochenaufgaben -------------------------------------------
+   Ebenfalls bewusst kompakt statt bloss zwei grosse Kacheln: PEAK und Weekly
+   Note brauchen nur Titel, Status und eine Frist — kein 96px-Mindestkopf. */
 .kachelreihe {
-  display: grid; gap: var(--s4); margin-bottom: var(--s4);
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  display: grid; gap: var(--s3); margin-bottom: var(--s4);
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 }
 
 .kachel {
   position: relative;
   background: var(--flaeche); border: 1px solid var(--linie);
-  border-radius: var(--radius-gross);
+  border-radius: var(--radius);
 }
 .kachel.offen    { border-color: var(--schlecht); }
 .kachel.erledigt { border-color: var(--gut); }
@@ -309,13 +316,13 @@ ul.tagesplan li:first-child { border-top: 0; }
   display: grid; width: 100%; text-align: left;
   grid-template-columns: 1fr auto;
   grid-template-areas: 'titel zeichen' 'stand zeichen' 'hilfe zeichen';
-  gap: 2px var(--s4); align-items: center;
-  padding: var(--s4); background: none; border: 0; border-radius: var(--radius-gross);
-  color: inherit; min-height: 96px;
+  gap: 2px var(--s3); align-items: center;
+  padding: var(--s3); background: none; border: 0; border-radius: var(--radius);
+  color: inherit; min-height: var(--tippziel);
 }
 .kachel-kopf:hover { border: 0; background: var(--grund); }
-.kachel-titel  { grid-area: titel; font-family: var(--serif); font-size: var(--t-gross); }
-.kachel-stand  { grid-area: stand; font-size: 15px; }
+.kachel-titel  { grid-area: titel; font-family: var(--serif); font-size: var(--t-normal); }
+.kachel-stand  { grid-area: stand; font-size: 13px; }
 .kachel-kopf .feldhilfe { grid-area: hilfe; margin: 0; }
 
 .kachel-bereich { padding: 0 var(--s4) var(--s4); }
@@ -357,7 +364,7 @@ ul.tagesplan li:first-child { border-top: 0; }
 .kachel-kopf {
   grid-template-columns: 1fr;
   grid-template-areas: 'titel' 'stand' 'hilfe';
-  min-height: 0; padding: var(--s3) var(--s4);
+  min-height: 0; padding: var(--s2) var(--s3);
 }
 .kachel.offen .kachel-stand { color: var(--schlecht); font-weight: 600; }
 .kachel.erledigt .kachel-stand { color: var(--gut); }
@@ -841,18 +848,26 @@ body.zieht-gerade .widget:hover { transform: none; }
   margin-bottom: var(--s4);
 }
 
-/* --- Inhalt reagiert auf die eigene Breite, nicht auf die Fensterbreite --- */
+/* --- Inhalt reagiert auf die eigene Breite, nicht auf die Fensterbreite ---
+   Grid-`auto-fit` reflowt Kachelreihe und Klassenraster schon von sich aus
+   mit der Breite ihres Elternelements — die Regeln hier verfeinern zusaetzlich
+   Schrift und Abstand, damit ein schmales Widget nicht nur schmalere Spalten
+   bekommt, sondern auch wirklich kompakter aussieht. */
 @container widget (max-width: 260px) {
   .uhr-zeit { font-size: 30px; }
   .tagesplan-wochentag { font-size: 22px; }
   .widget-inhalt { padding: var(--s3); }
+  .klassenknopf .name { font-size: 16px; }
+  .kachel-titel { font-size: var(--t-klein); }
 }
 @container widget (max-width: 200px) {
   .uhr-zeit { font-size: 24px; }
   .uhr-tag { font-size: 13px; }
-}
-@container widget (min-width: 620px) {
-  .klassenraster { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+  .klassenknopf { padding: var(--s1) var(--s2); }
+  .klassenknopf .name { font-size: 14px; }
+  .klassenknopf .zusatz { font-size: 11px; }
+  .kachel-kopf { padding: var(--s1) var(--s2); gap: 0 var(--s2); }
+  .kachel-stand, .kachel-kopf .feldhilfe { font-size: 11px; }
 }
 
 /* Die Spaltenzahl bleibt bei zwoelf, auch auf schmalen Bildschirmen: die

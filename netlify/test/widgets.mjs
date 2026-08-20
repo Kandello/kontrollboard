@@ -4,13 +4,15 @@
  * stufenlos in Breite und Hoehe veraenderbar, der Inhalt passt sich der
  * eigenen Breite an.
  *
- * Die reine Rasterlogik (Kollision, Platzierung, Kurzform-Vertraeglichkeit)
- * ist bereits in layout.mjs erschoepfend geprueft. Hier geht es um die
- * Verdrahtung im Browser: dass ein Ziehen an der Griffleiste tatsaechlich
- * frei nach x UND y bewegt (nicht nur senkrecht wie in der ersten Fassung),
- * dass der Anfassgriff unten rechts die Groesse stufenlos aendert, dass eine
- * Kollision durch die Oberflaeche hindurch abgelehnt wird, dass der Inhalt
- * bei geringerer Breite kleiner wird, und dass alles das Neuladen uebersteht.
+ * Die reine Rasterlogik (Verdraengen statt Blockieren, Platzierung,
+ * Kurzform-Vertraeglichkeit) ist bereits in layout.mjs erschoepfend geprueft.
+ * Hier geht es um die Verdrahtung im Browser: dass ein Ziehen an der
+ * Griffleiste tatsaechlich frei nach x UND y bewegt (nicht nur senkrecht wie
+ * in der ersten Fassung), dass der Anfassgriff unten rechts die Groesse
+ * stufenlos aendert, dass ein im Weg stehendes Widget durch die Oberflaeche
+ * hindurch ausweicht statt die Bewegung zu blockieren — und dabei unbeteiligte
+ * Widgets samt ihren Luecken unangetastet laesst —, dass der Inhalt bei
+ * geringerer Breite kleiner wird, und dass alles das Neuladen uebersteht.
  *
  *   node mock.js &
  *   node widgets.mjs
@@ -209,25 +211,34 @@ let y1;
 }
 
 // ---------------------------------------------------------------------------
-console.log('\n=== Eine Kollision wird durch die Oberflaeche hindurch abgelehnt ===');
+console.log('\n=== Ein im Weg stehendes Widget weicht aus, statt zu blockieren ===');
+let y3;
 {
+  const rechtecke = await alleRechtecke(p);
+  const untenRand = Math.max(...Object.values(rechtecke).map((r) => r.y + r.h));
+  y3 = untenRand + 3;
+
+  // Tagesplan und ein unbeteiligtes Widget (Ferien) an isolierte, bekannte
+  // Stellen holen — mit deutlichem Zwischenraum dazwischen, genau die Art
+  // Luecke, die eine Lehrkraft bewusst haette anlegen koennen.
+  await ziehen(p, 'tagesplan', 0, y3);
+  await ziehen(p, 'ferien', 0, y3 + 20);
   const vorher = await alleRechtecke(p);
-  const zielRechteck = vorher.tagesplan;
-  // Die tatsaechliche Zielflaeche behaelt die eigene Groesse von Aufgaben —
-  // versetze() aendert nur x/y, nie w/h.
-  const kandidat = { x: zielRechteck.x, y: zielRechteck.y, w: vorher.aufgaben.w, h: vorher.aufgaben.h };
 
   // Aufgaben genau auf die Stelle des Tagesplans ziehen — dort steht schon
-  // ein anderes sichtbares Widget, die Bewegung darf nicht ankommen.
-  pruefe('die Zielstelle ist zur Kontrolle tatsaechlich belegt',
-    celleFrei(kandidat, [vorher.tagesplan]), false);
-
-  await ziehen(p, 'aufgaben', zielRechteck.x, zielRechteck.y);
+  // ein anderes sichtbares Widget.
+  await ziehen(p, 'aufgaben', vorher.tagesplan.x, vorher.tagesplan.y);
   const nachher = await alleRechtecke(p);
-  pruefe('Aufgaben ist an der alten Stelle geblieben', nachher.aufgaben, vorher.aufgaben);
-  pruefe('der Tagesplan ist unangetastet', nachher.tagesplan, vorher.tagesplan);
-  pruefe('keine Ueberschneidung entstanden',
+
+  pruefe('Aufgaben kommt an der Zielstelle an, statt abgewiesen zu werden',
+    { x: nachher.aufgaben.x, y: nachher.aufgaben.y }, { x: vorher.tagesplan.x, y: vorher.tagesplan.y });
+  pruefe('der Tagesplan weicht senkrecht aus, direkt unter Aufgaben',
+    { x: nachher.tagesplan.x, y: nachher.tagesplan.y },
+    { x: vorher.tagesplan.x, y: nachher.aufgaben.y + nachher.aufgaben.h });
+  pruefe('keine Ueberschneidung zwischen Aufgaben und dem Tagesplan entstanden',
     celleFrei(nachher.aufgaben, [nachher.tagesplan]), true);
+  pruefe('Ferien bleibt trotz der Umraeumung oben exakt an seiner Stelle — die Luecke bleibt erhalten',
+    nachher.ferien, vorher.ferien);
 }
 
 // ---------------------------------------------------------------------------
@@ -257,12 +268,15 @@ let y2;
   fr = (await alleRechtecke(p)).ferien;
   pruefe('Ferien steht nun buendig an der Kante der Einheit', { x: fr.x, y: fr.y }, { x: 9, y: y2 });
 
-  // Weiter wachsen, jetzt in die belegte Stelle hinein — muss abgelehnt werden.
+  // Weiter wachsen, jetzt in die belegte Stelle hinein — waechst trotzdem,
+  // Ferien weicht aus statt die Groessenaenderung zu blockieren.
   await groesseZiehen(p, 'einheit', 2, 0);
   r = (await alleRechtecke(p)).einheit;
-  pruefe('das Wachsen in ein belegtes Widget hinein wurde abgelehnt', { w: r.w, h: r.h }, { w: 9, h: 9 });
-  pruefe('keine Ueberschneidung mit Ferien entstanden',
-    celleFrei(r, [(await alleRechtecke(p)).ferien]), true);
+  pruefe('waechst auch in ein belegtes Widget hinein, statt blockiert zu werden', { w: r.w, h: r.h }, { w: 11, h: 9 });
+  const ferienNachDemWachsen = (await alleRechtecke(p)).ferien;
+  pruefe('Ferien weicht dabei nach unten aus',
+    { x: ferienNachDemWachsen.x, y: ferienNachDemWachsen.y }, { x: 9, y: y2 + 9 });
+  pruefe('keine Ueberschneidung mit Ferien entstanden', celleFrei(r, [ferienNachDemWachsen]), true);
 
   // Schrumpfen bis unter die Mindestgroesse: bleibt an der Mindestgroesse
   // stehen (minBreite 4, minHoehe 4 fuer die Einheit), statt unbrauchbar zu werden.

@@ -66,9 +66,9 @@ function planTag(jetzt = new Date()) {
 const BAUSTEINE = [
   { id: 'uhr',       titel: 'Uhr',                         breiteVorgabe: 4,  hoeheVorgabe: 6,  minBreite: 3, minHoehe: 4 },
   { id: 'tagesplan', titel: 'Tagesplan',                   breiteVorgabe: 8,  hoeheVorgabe: 12, minBreite: 4, minHoehe: 6 },
-  { id: 'aufgaben',  titel: 'Wochenaufgaben',              breiteVorgabe: 8,  hoeheVorgabe: 5,  minBreite: 4, minHoehe: 3 },
+  { id: 'aufgaben',  titel: 'Wochenaufgaben',              breiteVorgabe: 8,  hoeheVorgabe: 5,  minBreite: 3, minHoehe: 3 },
   { id: 'einheit',   titel: 'Aktuelle Unterrichtseinheit', breiteVorgabe: 8,  hoeheVorgabe: 8,  minBreite: 4, minHoehe: 4 },
-  { id: 'klassen',   titel: 'Klassen',                     breiteVorgabe: 12, hoeheVorgabe: 5,  minBreite: 4, minHoehe: 3 },
+  { id: 'klassen',   titel: 'Klassen',                     breiteVorgabe: 12, hoeheVorgabe: 5,  minBreite: 3, minHoehe: 3 },
   { id: 'ferien',    titel: 'Ferienmodus',                 breiteVorgabe: 8,  hoeheVorgabe: 3,  minBreite: 3, minHoehe: 2 }
 ];
 

@@ -4,7 +4,11 @@
  *
  * Der heikle Teil ist die Kollisionsregel: zwei sichtbare Widgets duerfen
  * sich niemals ueberschneiden, egal ob durch Ziehen, Groessenaendern oder
- * automatisches Platzieren. Und die Vertraeglichkeit mit der alten,
+ * automatisches Platzieren — aber ein Widget im Weg wird nicht blockiert,
+ * sondern weicht nach unten aus, und zwar nur so weit wie noetig. Leerer
+ * Platz zwischen unbeteiligten Widgets bleibt dabei unangetastet stehen; ein
+ * automatisches Zusammenruecken waere genau das Gegenteil von dem, was das
+ * freie Raster ermoeglichen soll. Und die Vertraeglichkeit mit der alten,
  * eindimensionalen Speicherform darf keine Widgets verschlucken.
  *
  *   node layout.mjs
@@ -153,7 +157,6 @@ const ZWEI = BAUSTEINE.slice(0, 2);
     [finde(verschoben, 'uhr').w, finde(verschoben, 'uhr').h], [4, 4]);
   pruefe('das andere Widget bleibt unberuehrt', finde(verschoben, 'tagesplan').x, 4);
 
-  pruefe('Verschieben auf belegte Flaeche wird abgelehnt', versetze(l, 'uhr', 5, 0), null);
   pruefe('Verschieben ueber den Rand wird begrenzt, nicht abgelehnt',
     finde(versetze(l, 'uhr', 20, 0), 'uhr').x, GRID_SPALTEN - 4);
   pruefe('negative Zeile wird auf 0 begrenzt', finde(versetze(l, 'uhr', 0, -5), 'uhr').y, 0);
@@ -166,6 +169,37 @@ const ZWEI = BAUSTEINE.slice(0, 2);
   pruefe('wird beim Verschieben sichtbar', finde(neu, 'tagesplan').sichtbar, true);
 }
 
+console.log('\n=== Weichen statt Blockieren ===');
+{
+  const l = leseLayout('uhr:0:0:4:4:1,tagesplan:4:0:4:4:1', ZWEI);
+  // Die Uhr auf die Stelle des Tagesplans ziehen: statt abgelehnt zu werden,
+  // kommt die Uhr an, und der Tagesplan weicht nach unten aus.
+  const verdraengt = versetze(l, 'uhr', 5, 0);
+  pruefe('die Uhr kommt an der gewuenschten Stelle an', [finde(verdraengt, 'uhr').x, finde(verdraengt, 'uhr').y], [5, 0]);
+  pruefe('der Tagesplan weicht senkrecht aus, direkt unter die Uhr',
+    [finde(verdraengt, 'tagesplan').x, finde(verdraengt, 'tagesplan').y], [4, 4]);
+  pruefe('… und behaelt dabei seine eigene Groesse',
+    [finde(verdraengt, 'tagesplan').w, finde(verdraengt, 'tagesplan').h], [4, 4]);
+}
+{
+  // Kaskade: A verdraengt B, B trifft dabei C und muss ebenfalls ausweichen.
+  const drei = [...ZWEI, { id: 'aufgaben', titel: 'Aufgaben', breiteVorgabe: 4, hoeheVorgabe: 4, minBreite: 2, minHoehe: 2 }];
+  const l = leseLayout('uhr:0:0:4:4:1,tagesplan:4:0:4:4:1,aufgaben:4:4:4:4:1', drei);
+  const verdraengt = versetze(l, 'uhr', 5, 0);
+  pruefe('der Tagesplan weicht aus', [finde(verdraengt, 'tagesplan').x, finde(verdraengt, 'tagesplan').y], [4, 4]);
+  pruefe('… und stoesst dabei auf Aufgaben, das seinerseits ausweicht',
+    [finde(verdraengt, 'aufgaben').x, finde(verdraengt, 'aufgaben').y], [4, 8]);
+}
+{
+  // Leerer Platz zwischen unbeteiligten Widgets bleibt stehen — kein
+  // automatisches Zusammenruecken nach einem Verdraengen anderswo.
+  const drei = [...ZWEI, { id: 'aufgaben', titel: 'Aufgaben', breiteVorgabe: 2, hoeheVorgabe: 2, minBreite: 2, minHoehe: 2 }];
+  const l = leseLayout('uhr:0:0:4:4:1,tagesplan:4:0:4:4:1,aufgaben:0:10:2:2:1', drei);
+  const verdraengt = versetze(l, 'uhr', 5, 0);
+  pruefe('Aufgaben liegt weit unten mit viel Luecke davor — und bleibt genau dort stehen',
+    [finde(verdraengt, 'aufgaben').x, finde(verdraengt, 'aufgaben').y], [0, 10]);
+}
+
 console.log('\n=== Groesse aendern ===');
 {
   const l = leseLayout('uhr:0:0:4:4:1,tagesplan:4:0:4:4:1', ZWEI);
@@ -173,8 +207,11 @@ console.log('\n=== Groesse aendern ===');
   pruefe('waechst nach unten', [finde(groesser, 'uhr').w, finde(groesser, 'uhr').h], [4, 8]);
   pruefe('Position bleibt (linke obere Ecke)', [finde(groesser, 'uhr').x, finde(groesser, 'uhr').y], [0, 0]);
 
-  pruefe('Wachstum in ein belegtes Feld wird abgelehnt',
-    groesseAendern(l, 'uhr', 8, 4, ZWEI), null);
+  // In ein belegtes Feld hinein waechst die Uhr trotzdem — der Tagesplan
+  // weicht aus, statt die Groessenaenderung zu blockieren.
+  const verdraengt = groesseAendern(l, 'uhr', 8, 4, ZWEI);
+  pruefe('waechst auch in ein belegtes Feld hinein', [finde(verdraengt, 'uhr').w, finde(verdraengt, 'uhr').h], [8, 4]);
+  pruefe('der Tagesplan weicht dabei aus', [finde(verdraengt, 'tagesplan').x, finde(verdraengt, 'tagesplan').y], [4, 4]);
 
   const geschrumpft = groesseAendern(l, 'tagesplan', 3, 6, ZWEI);
   pruefe('Schrumpfen auf die Mindestgroesse klappt', [finde(geschrumpft, 'tagesplan').w, finde(geschrumpft, 'tagesplan').h], [3, 6]);
@@ -186,11 +223,12 @@ console.log('\n=== Groesse aendern ===');
   pruefe('unbekanntes Widget liefert null', groesseAendern(l, 'gibtsnicht', 4, 4, ZWEI), null);
 }
 {
-  // Ueber den rechten Rand hinaus waechst nicht — celleFrei lehnt das ab.
+  // Ueber den rechten Rand hinaus waechst nicht — wird auf den verfuegbaren
+  // Platz begrenzt, wie beim Verschieben an die Kante.
   const nurKlassen = BAUSTEINE.filter((b) => b.id === 'klassen');
-  const l = leseLayout('klassen:8:0:4:4:1', nurKlassen);
-  pruefe('Wachstum ueber den Rasterrand wird abgelehnt',
-    groesseAendern(l, 'klassen', 8, 4, nurKlassen), null);
+  const l = leseLayout('klassen:6:0:4:4:1', nurKlassen);
+  pruefe('Wachstum ueber den Rasterrand wird auf die Kante begrenzt',
+    finde(groesseAendern(l, 'klassen', 10, 4, nurKlassen), 'klassen').w, GRID_SPALTEN - 6);
 }
 
 console.log('\n=== Aus- und Einblenden ===');

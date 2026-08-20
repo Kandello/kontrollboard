@@ -17,6 +17,19 @@
  * wachsen nach unten mit. Zwei Rechtecke duerfen sich nie ueberschneiden —
  * das gilt als Regel dieser Datei, nicht nur als Wunsch der Oberflaeche.
  *
+ * WEICHEN STATT BLOCKIEREN: Steht beim Ziehen oder Vergroessern ein anderes
+ * sichtbares Widget im Weg, wird es nicht abgelehnt — das im Weg stehende
+ * Widget weicht nach unten aus, kaskadierend, falls es dabei ein drittes
+ * trifft, aber nur so weit wie fuer die Kollision noetig. Ein Ziehen oder
+ * Vergroessern innerhalb des Rasters schlaegt dadurch praktisch nie fehl —
+ * nur ein unbekanntes Widget liefert noch `null`.
+ *
+ * Bewusst NICHT automatisch aufgeraeumt: leerer Platz zwischen Widgets ist
+ * kein Fehler, sondern gehoert der Lehrkraft — eine Anordnung mit
+ * Zwischenraum ist genauso gueltig wie eine dichte. Ein automatisches
+ * Zusammenruecken wuerde genau das wieder zunichtemachen, was das freie
+ * Raster erst ermoeglicht.
+ *
  * SPEICHERFORM: eine Zeile im Blatt Meta, etwa
  *   layout_start = uhr:0:0:4:8:1,tagesplan:4:0:8:14:1
  * Also `id:x:y:w:h:sichtbar`, durch Komma getrennt. Bewusst kein JSON: die
@@ -177,10 +190,70 @@ function andereRechtecke(layout, id) {
 }
 
 /**
+ * Draengt jedes Widget aus `rechtecke` (Map id -> Rechteck), das `ziel`
+ * ueberschneidet, nach unten ab — direkt unter das am weitesten unten
+ * liegende Hindernis, das es noch trifft. Trifft ein verdraengtes Widget
+ * dabei ein drittes, weicht das ebenfalls aus (Kaskade). Aendert `rechtecke`
+ * nicht, liefert eine neue Map mit denselben Schluesseln.
+ */
+function verdraenge(rechtecke, ziel) {
+  const arbeitskopie = new Map(rechtecke);
+  const fixiert = [ziel];
+  const erledigt = new Set();
+
+  function weiche(id) {
+    if (erledigt.has(id)) return;
+    erledigt.add(id);
+    const r = arbeitskopie.get(id);
+    let neuY = r.y;
+    let bewegt = true;
+    while (bewegt) {
+      bewegt = false;
+      for (const hindernis of fixiert) {
+        if (ueberschneidenSich({ x: r.x, y: neuY, w: r.w, h: r.h }, hindernis)) {
+          neuY = hindernis.y + hindernis.h;
+          bewegt = true;
+        }
+      }
+    }
+    const neu = { x: r.x, y: neuY, w: r.w, h: r.h };
+    arbeitskopie.set(id, neu);
+    fixiert.push(neu);
+    arbeitskopie.forEach((andereR, andereId) => {
+      if (!erledigt.has(andereId) && ueberschneidenSich(andereR, neu)) weiche(andereId);
+    });
+  }
+
+  arbeitskopie.forEach((r, id) => { if (ueberschneidenSich(r, ziel)) weiche(id); });
+  return arbeitskopie;
+}
+
+/**
+ * Setzt das Widget `id` auf `ziel` (muss bereits innerhalb des Rasters
+ * liegen — das prueft der Aufrufer) und verdraengt dabei im Weg stehende
+ * Widgets nur so weit wie fuer die Kollision noetig — kein Zusammenruecken
+ * der uebrigen, unbeteiligten Widgets. Liefert immer ein Ergebnis, nie
+ * `null` — nur ein unbekanntes Widget wird von den Aufrufern selbst
+ * abgefangen.
+ */
+function platziereMitVerdraengung(layout, id, ziel) {
+  const rechtecke = new Map(
+    layout.filter((w) => w.id !== id && w.sichtbar).map((w) => [w.id, { x: w.x, y: w.y, w: w.w, h: w.h }])
+  );
+  const verdraengt = verdraenge(rechtecke, ziel);
+
+  return layout.map((eintrag) => {
+    if (eintrag.id === id) return { ...eintrag, x: ziel.x, y: ziel.y, w: ziel.w, h: ziel.h, sichtbar: true };
+    if (!eintrag.sichtbar) return eintrag;
+    const r = verdraengt.get(eintrag.id);
+    return { ...eintrag, x: r.x, y: r.y };
+  });
+}
+
+/**
  * Verschiebt ein Widget an eine neue Stelle (linke obere Ecke `x`,`y`),
- * Groesse bleibt gleich. Liefert `null`, wenn die Stelle ausserhalb des
- * Rasters liegt oder ein anderes sichtbares Widget dort schon steht — der
- * Aufrufer haelt dann einfach die letzte gueltige Stelle.
+ * Groesse bleibt gleich. Im Weg stehende Widgets weichen aus, siehe
+ * `platziereMitVerdraengung`. Liefert nur bei unbekanntem Widget `null`.
  */
 export function versetze(layout, id, x, y) {
   const eigenes = layout.find((w) => w.id === id);
@@ -189,21 +262,17 @@ export function versetze(layout, id, x, y) {
   // Auf den gueltigen Bereich begrenzt, nicht nur auf x >= 0 — sonst liesse
   // sich ein Widget an den rechten Rand ziehen und die Bewegung wuerde dort
   // abgelehnt statt an der Kante anzuhalten.
-  const rechteck = { x: begrenzeInt(x, 0, GRID_SPALTEN - eigenes.w), y: Math.max(0, Math.round(y)),
+  const ziel = { x: begrenzeInt(x, 0, GRID_SPALTEN - eigenes.w), y: Math.max(0, Math.round(y)),
     w: eigenes.w, h: eigenes.h };
-  if (!celleFrei(rechteck, andereRechtecke(layout, id))) return null;
-
-  return layout.map((w) => w.id === id
-    ? { ...w, x: rechteck.x, y: rechteck.y, sichtbar: true }
-    : w);
+  return platziereMitVerdraengung(layout, id, ziel);
 }
 
 /**
  * Aendert Breite und Hoehe eines Widgets, die linke obere Ecke bleibt stehen
  * (Anfassen unten rechts waechst nach rechts und unten). `bausteine` liefert
  * die Mindestgroesse, damit ein Widget nicht auf unbrauchbare Ausmasse
- * schrumpft. Liefert `null` bei Kollision oder wenn es ueber den Rasterrand
- * hinausragen wuerde.
+ * schrumpft. Im Weg stehende Widgets weichen aus, siehe `platziereMitVerdraengung`.
+ * Liefert nur bei unbekanntem Widget `null`.
  */
 export function groesseAendern(layout, id, w, h, bausteine) {
   const eigenes = layout.find((x) => x.id === id);
@@ -212,14 +281,12 @@ export function groesseAendern(layout, id, w, h, bausteine) {
   const minBreite = baustein.minBreite || 1;
   const minHoehe = baustein.minHoehe || 1;
 
-  const rechteck = {
+  const ziel = {
     x: eigenes.x, y: eigenes.y,
-    w: begrenzeInt(w, minBreite, GRID_SPALTEN),
+    w: begrenzeInt(w, minBreite, GRID_SPALTEN - eigenes.x),
     h: begrenzeInt(h, minHoehe, MAX_SUCHZEILE)
   };
-  if (!celleFrei(rechteck, andereRechtecke(layout, id))) return null;
-
-  return layout.map((x) => x.id === id ? { ...x, w: rechteck.w, h: rechteck.h } : x);
+  return platziereMitVerdraengung(layout, id, ziel);
 }
 
 /** Blendet ein Widget aus. Seine Flaeche wird sofort fuer andere frei. */
