@@ -330,6 +330,55 @@ ul.tagesplan li:first-child { border-top: 0; }
 
 .ferienleiste { align-items: center; }
 
+/* --- Startseite: Merklisten (To-Do, Deadlines, Termine) --------------------
+   Alle drei teilen sich dieses Aussehen, siehe ansichten/start.js. Kompakt
+   gehalten wie die uebrigen Widget-Inhalte — kein 96px-Kopf, keine grosse
+   Schrift. */
+.merkliste-kopf { display: flex; justify-content: flex-end; margin-bottom: var(--s2); }
+.merkliste-plus {
+  width: 26px; height: 26px; padding: 0; line-height: 1;
+  font-size: 17px; border-radius: var(--radius);
+}
+
+.merkliste-formular { margin-bottom: var(--s3); }
+.merkliste-felder { display: flex; flex-direction: column; gap: var(--s2); }
+.merkliste-felder input {
+  min-height: 34px; padding: var(--s1) var(--s2); font-size: var(--t-klein);
+}
+.merkliste-fehler { color: var(--schlecht); }
+
+ul.merkliste-liste { list-style: none; margin: 0; padding: 0; }
+ul.merkliste-liste li {
+  display: flex; align-items: flex-start; gap: var(--s2);
+  padding: 7px 0; border-top: 1px solid var(--linie);
+}
+ul.merkliste-liste li:first-child { border-top: 0; }
+.merkliste-zeile {
+  display: flex; align-items: flex-start; gap: var(--s2);
+  cursor: pointer; min-width: 0; flex: 1;
+}
+.merkliste-zeile input[type="checkbox"] {
+  width: 18px; height: 18px; flex: none; margin-top: 1px;
+  accent-color: var(--gut);
+}
+.merkliste-inhalt { display: flex; flex-direction: column; min-width: 0; }
+.merkliste-text { overflow-wrap: anywhere; }
+.merkliste-datum { margin-top: 1px; }
+li.ist-erledigt .merkliste-text,
+li.ist-erledigt .merkliste-datum { color: var(--text-leise); }
+
+/* Rotes Ausrufezeichen: nur Deadlines, nur am Tag selbst oder danach,
+   solange niemand abgehakt hat (siehe istUeberfaellig in merkliste.js). */
+.merkliste-ausruf {
+  flex: none; color: var(--schlecht); font-weight: 700; font-size: 15px;
+  line-height: 1.4;
+}
+
+@container widget (max-width: 260px) {
+  .merkliste-liste li { gap: var(--s1); padding: 5px 0; }
+  .merkliste-text, .merkliste-felder input { font-size: 13px; }
+}
+
 @media (max-width: 520px) {
   .tagesplan .eintrag { flex-wrap: wrap; gap: var(--s2); }
   .tagesplan .zeit { min-width: 0; }

@@ -25,6 +25,7 @@ var SCHEMA = {
   Teilthemen:         ['id', 'einheit_id', 'titel', 'reihenfolge'],
   EinheitFortschritt: ['teilthema_id', 'klasse', 'erledigt', 'datum', 'notiz'],
   Wochenstatus:       ['kw', 'aufgabe', 'erledigt_am'],
+  Merkliste:          ['id', 'fach', 'typ', 'text', 'datum', 'uhrzeit', 'erledigt', 'erstellt_am'],
   Meta:               ['schluessel', 'wert']
 };
 
@@ -47,6 +48,7 @@ var TEXTSPALTEN = {
   Teilthemen:         ['id', 'einheit_id'],
   EinheitFortschritt: ['teilthema_id', 'klasse', 'datum'],
   Wochenstatus:       ['kw', 'erledigt_am'],
+  Merkliste:          ['id', 'datum', 'uhrzeit'],
   Meta:               ['wert']
 };
 

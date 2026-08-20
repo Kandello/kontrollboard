@@ -102,7 +102,9 @@ export function findePlatz(platzierte, w, h) {
 /**
  * Liest die gespeicherte Zeile und platziert alle bekannten Bausteine, die
  * darin fehlen, automatisch. `bausteine` ist die Liste aus dem Code:
- * [{ id, titel, breiteVorgabe, hoeheVorgabe, minBreite, minHoehe }].
+ * [{ id, titel, breiteVorgabe, hoeheVorgabe, minBreite, minHoehe,
+ * standardSichtbar }]. `standardSichtbar: false` laesst einen brandneuen
+ * Baustein ohne gespeicherte Zeile in der Ablage starten statt im Raster.
  */
 export function leseLayout(zeile, bausteine) {
   const gespeichert = new Map();
@@ -138,7 +140,11 @@ export function leseLayout(zeile, bausteine) {
   reihenfolge.forEach((id) => {
     const baustein = bausteine.find((b) => b.id === id);
     const eintrag = gespeichert.get(id);
-    const sichtbar = eintrag ? eintrag.sichtbar : true;
+    // Ein Baustein ganz ohne gespeicherte Zeile ist normalerweise sofort
+    // sichtbar. Ein neuer Baustein kann das per standardSichtbar: false
+    // abwaehlen — er taucht dann zunaechst in der Ablage auf, statt sich
+    // ungefragt ins Raster zu draengen.
+    const sichtbar = eintrag ? eintrag.sichtbar : baustein.standardSichtbar !== false;
 
     if (eintrag && eintrag.vollstaendig) {
       ergebnis.push({ id, titel: baustein.titel, x: eintrag.x, y: eintrag.y,

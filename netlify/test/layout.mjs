@@ -93,6 +93,24 @@ console.log('\n=== Lesen ohne gespeicherte Anordnung ===');
     l.every((w) => w.x >= 0 && w.x + w.w <= GRID_SPALTEN), true);
 }
 
+console.log('\n=== standardSichtbar: false laesst einen neuen Baustein in der Ablage starten ===');
+{
+  const mitVersteckt = [...BAUSTEINE, {
+    id: 'neu', titel: 'Neu', breiteVorgabe: 4, hoeheVorgabe: 4, minBreite: 2, minHoehe: 2,
+    standardSichtbar: false
+  }];
+  const l = leseLayout('', mitVersteckt);
+  pruefe('der neue Baustein ist da', l.some((w) => w.id === 'neu'), true);
+  pruefe('aber unsichtbar, ohne dass eine Zeile das je gesagt haette', finde(l, 'neu').sichtbar, false);
+  pruefe('alle anderen bleiben wie gehabt sichtbar (Vorgabewert unveraendert)',
+    l.filter((w) => w.id !== 'neu').every((w) => w.sichtbar), true);
+
+  // Steht eine Zeile in der Tabelle — egal ob sichtbar oder nicht —, hat sie
+  // Vorrang vor der Vorgabe aus dem Code.
+  const ausZeileSichtbar = leseLayout('neu:0:0:4:4:1', mitVersteckt);
+  pruefe('eine gespeicherte Zeile gewinnt gegen die Vorgabe', finde(ausZeileSichtbar, 'neu').sichtbar, true);
+}
+
 console.log('\n=== Lesen mit vollstaendig gespeicherter Anordnung ===');
 {
   const zeile = 'klassen:0:0:12:5:1,uhr:0:5:4:6:1,tagesplan:4:5:8:10:0,aufgaben:0:11:6:6:1';

@@ -163,8 +163,13 @@ await p.waitForSelector('.widgetraster', { timeout: 8000 });
 // ---------------------------------------------------------------------------
 console.log('=== Aufbau ===');
 pruefe('sechs Widgets im Raster', await p.locator('.widgetraster .widget').count(), 6);
-pruefe('Ablage ist zunaechst leer',
-  (await p.locator('.widget-ablage').innerText()).includes('Alles eingeblendet'), true);
+// Die drei Merklisten (To-Do, Deadlines, Termine) sind neu und starten mit
+// standardSichtbar: false — sie liegen darum von Anfang an in der Ablage,
+// nicht das Raster ist ohne sie leer.
+pruefe('die drei Merklisten liegen von Anfang an in der Ablage', await p.locator(
+  '.widget-ablage .widget[data-id="todo"], .widget-ablage .widget[data-id="deadline"], ' +
+  '.widget-ablage .widget[data-id="events"]').count(), 3);
+pruefe('sonst nichts in der Ablage', await p.locator('.widget-ablage .widget').count(), 3);
 pruefe('jedes Widget hat eine Griffleiste', await p.locator('.widgetraster .widget-griff').count(), 6);
 pruefe('jedes Widget hat einen Anfassgriff zum Skalieren',
   await p.locator('.widgetraster .widget-resize').count(), 6);
@@ -332,8 +337,8 @@ console.log('\n=== Aus- und Einblenden ueber die Knoepfe ===');
   await p.locator('.widget-ablage .widget[data-id="klassen"] button[title="Wieder einblenden"]').click();
   await p.waitForTimeout(900);
   pruefe('wieder im Raster', await p.locator('.widgetraster .widget').count(), 6);
-  pruefe('Ablage wieder leer',
-    (await p.locator('.widget-ablage').innerText()).includes('Alles eingeblendet'), true);
+  pruefe('Klassen nicht mehr in der Ablage — die drei Merklisten bleiben aber dort',
+    await p.locator('.widget-ablage .widget').count(), 3);
   pruefe('an der alten Stelle wieder aufgetaucht, weil sie noch frei war',
     (await alleRechtecke(p)).klassen, vorher);
 }

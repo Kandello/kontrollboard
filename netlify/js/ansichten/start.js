@@ -3,9 +3,11 @@
  *
  * Die Seite ist ein Raster aus Widgets, nicht mehr eine feste Abfolge von
  * Karten: Uhr, Tagesplan, Wochenaufgaben, laufende Unterrichtseinheit,
- * Ferienmodus und Klassen. Welche davon zu sehen sind, in welcher
- * Reihenfolge und wie breit, steht in der Tabelle (siehe layout.js) — und
- * laesst sich hier per Ziehen aendern.
+ * Ferienmodus, Klassen sowie die drei Merklisten To-Do/Deadlines/Termine.
+ * Welche davon zu sehen sind, in welcher Reihenfolge und wie breit, steht
+ * in der Tabelle (siehe layout.js) — und laesst sich hier per Ziehen
+ * aendern. Die Merklisten starten in der Ablage statt im Raster
+ * (standardSichtbar: false in BAUSTEINE) — neu, aber nicht aufgedraengt.
  *
  * Gezogen wird ausdruecklich nur an der Griffleiste oben in jedem Widget.
  * Die Inhalte enthalten Knoepfe und Verweise; waere die ganze Flaeche
@@ -13,7 +15,7 @@
  * ist es umgekehrt geloest, weil deren Boxen kaum Bedienelemente tragen.
  */
 
-import { e, setzeMeldung, hinweis } from '../ui.js';
+import { e, leere, setzeMeldung, hinweis } from '../ui.js';
 import {
   GRID_SPALTEN, metaSchluessel, leseLayout, schreibeLayout, sichtbare, ausgeblendete,
   versetze as versetzeWidget, groesseAendern, blendeAus, blendeEin
@@ -28,6 +30,9 @@ import {
   heute, morgen, uhrzeit, wochentag, wochentagName, istWochenende,
   kwKennung, alsMinuten, alsDeutsch, alsIso
 } from '../zeit.js';
+import {
+  eintraegeFuerTyp, istUeberfaellig, fuegeLokalHinzu, entferneLokal, setzeErledigtLokal
+} from '../merkliste.js';
 
 /** Ab dieser Stunde zeigt der Tagesplan schon den Folgetag. */
 const TAGESPLAN_VORSCHAU_AB_STUNDE = 17;
@@ -69,7 +74,13 @@ const BAUSTEINE = [
   { id: 'aufgaben',  titel: 'Wochenaufgaben',              breiteVorgabe: 8,  hoeheVorgabe: 5,  minBreite: 3, minHoehe: 3 },
   { id: 'einheit',   titel: 'Aktuelle Unterrichtseinheit', breiteVorgabe: 8,  hoeheVorgabe: 8,  minBreite: 4, minHoehe: 4 },
   { id: 'klassen',   titel: 'Klassen',                     breiteVorgabe: 12, hoeheVorgabe: 5,  minBreite: 3, minHoehe: 3 },
-  { id: 'ferien',    titel: 'Ferienmodus',                 breiteVorgabe: 8,  hoeheVorgabe: 3,  minBreite: 3, minHoehe: 2 }
+  { id: 'ferien',    titel: 'Ferienmodus',                 breiteVorgabe: 8,  hoeheVorgabe: 3,  minBreite: 3, minHoehe: 2 },
+  // Neu und bewusst noch nirgends im Raster: sie tauchen zunaechst in der
+  // Ablage auf (standardSichtbar: false), statt sich ungefragt zwischen die
+  // bestehenden Widgets zu draengen. Wer sie will, zieht sie selbst hoch.
+  { id: 'todo',      titel: 'To-Do',                       breiteVorgabe: 4,  hoeheVorgabe: 8,  minBreite: 3, minHoehe: 4, standardSichtbar: false },
+  { id: 'deadline',  titel: 'Deadlines',                   breiteVorgabe: 4,  hoeheVorgabe: 8,  minBreite: 3, minHoehe: 4, standardSichtbar: false },
+  { id: 'events',    titel: 'Termine',                     breiteVorgabe: 4,  hoeheVorgabe: 8,  minBreite: 3, minHoehe: 4, standardSichtbar: false }
 ];
 
 /** Hoehe einer Rasterzeile in Pixeln — muss zu `grid-auto-rows` im CSS passen. */
@@ -115,7 +126,10 @@ export function zeichneStart(ziel, { daten, verbergen, neuZeichnen }) {
     ]),
     einheit: aktuelleEinheit(daten, tag),
     klassen: klassenknoepfe(daten, verbergen),
-    ferien: ferienschalter(ferien, neuZeichnen)
+    ferien: ferienschalter(ferien, neuZeichnen),
+    todo: merklisteWidget(daten, 'TODO', tag),
+    deadline: merklisteWidget(daten, 'DEADLINE', tag),
+    events: merklisteWidget(daten, 'EVENT', tag)
   };
 
   // Die Seite bleibt oft stundenlang offen. Ohne diesen Takt bliebe die
@@ -716,6 +730,162 @@ function klassenknoepfe(daten, verbergen) {
   });
 
   return raster;
+}
+
+// --- Merklisten: To-Do, Deadlines, Termine ----------------------------------
+//
+// Alle drei teilen sich Datenmodell und Sortierung (merkliste.js) und fast
+// die ganze Oberflaeche — sie unterscheiden sich nur in den Eingabefeldern,
+// ob abgehakt werden kann und ob eine ueberfaellige Deadline ein rotes
+// Ausrufezeichen zeigt.
+const MERKLISTE_KONFIG = {
+  TODO: {
+    datumErforderlich: false, zeitFeld: false, checkbox: true, ausrufezeichen: false,
+    datumBeschriftung: 'Datum (optional)', textPlatzhalter: 'Was ist zu tun?',
+    leerText: 'Noch nichts eingetragen.'
+  },
+  DEADLINE: {
+    datumErforderlich: false, zeitFeld: true, checkbox: true, ausrufezeichen: true,
+    datumBeschriftung: 'Deadline (optional)', textPlatzhalter: 'Was ist fällig?',
+    leerText: 'Noch keine Deadline eingetragen.'
+  },
+  EVENT: {
+    datumErforderlich: true, zeitFeld: true, checkbox: false, ausrufezeichen: false,
+    datumBeschriftung: 'Datum', textPlatzhalter: 'Was steht an?',
+    leerText: 'Noch kein Termin eingetragen.'
+  }
+};
+
+/** „Freitag, 28.8." bzw. mit Uhrzeit „Freitag, 28.8. · 14:00". Ohne Datum: nichts. */
+function formatiereFaelligkeit(eintrag) {
+  if (!eintrag.datum) return '';
+  const tag = zerlegeIso(eintrag.datum);
+  const text = `${wochentagName(wochentag(tag))}, ${tag.tag}.${tag.monat}.`;
+  return eintrag.uhrzeit ? `${text} · ${eintrag.uhrzeit}` : text;
+}
+
+/**
+ * Eine der drei Merklisten. Aendert sich etwas (neuer Eintrag, Haken
+ * gesetzt), zeichnet die Funktion nur ihre eigene Liste neu — ein
+ * Seitenweites neuZeichnen() ist dafuer nicht noetig, die Aenderung betrifft
+ * ja nur dieses eine Widget.
+ */
+function merklisteWidget(daten, typ, tag) {
+  const konfig = MERKLISTE_KONFIG[typ];
+  const heuteIso = alsIso(tag);
+
+  const liste = e('ul', { klasse: 'merkliste-liste' });
+  const textFeld = e('input', {
+    type: 'text', placeholder: konfig.textPlatzhalter, 'aria-label': 'Text',
+    autocomplete: 'off'
+  });
+  const datumFeld = e('input', { type: 'date', 'aria-label': konfig.datumBeschriftung });
+  const zeitFeld = konfig.zeitFeld ? e('input', { type: 'time', 'aria-label': 'Uhrzeit (optional)' }) : null;
+  const fehlerZeile = e('div', { klasse: 'feldhilfe merkliste-fehler', hidden: true });
+
+  const formular = e('div', { klasse: 'merkliste-formular', hidden: true }, [
+    e('div', { klasse: 'merkliste-felder' }, [textFeld, datumFeld, zeitFeld].filter(Boolean)),
+    fehlerZeile,
+    e('div', { klasse: 'leiste', style: 'margin:8px 0 0' }, [
+      e('button', { klasse: 'klein wichtig', text: 'Hinzufügen', auf: { click: hinzufuegen } }),
+      e('button', { klasse: 'klein leise', text: 'Abbrechen', auf: { click: () => { formular.hidden = true; } } })
+    ])
+  ]);
+
+  const plusKnopf = e('button', {
+    klasse: 'klein leise merkliste-plus', text: '+', title: 'Eintrag hinzufügen',
+    'aria-label': 'Eintrag hinzufügen',
+    auf: { click: () => {
+      formular.hidden = !formular.hidden;
+      if (!formular.hidden) textFeld.focus();
+    } }
+  });
+
+  const wrapper = e('div', { klasse: 'merkliste' }, [
+    e('div', { klasse: 'merkliste-kopf' }, [plusKnopf]),
+    formular,
+    liste
+  ]);
+  zeichneListe();
+  return wrapper;
+
+  function zeigeFehler(text) {
+    fehlerZeile.textContent = text;
+    fehlerZeile.hidden = false;
+  }
+
+  function hinzufuegen() {
+    const text = textFeld.value.trim();
+    const datum = datumFeld.value;
+    const uhrzeit = zeitFeld ? zeitFeld.value : '';
+    fehlerZeile.hidden = true;
+
+    if (!text) { zeigeFehler('Bitte einen Text eingeben.'); return; }
+    if (konfig.datumErforderlich && !datum) { zeigeFehler('Bitte ein Datum eingeben.'); return; }
+
+    const id = crypto.randomUUID();
+    fuegeLokalHinzu(daten, {
+      id, typ, text, datum, uhrzeit, erledigt: false, erstellt_am: new Date().toISOString()
+    });
+    textFeld.value = '';
+    datumFeld.value = '';
+    if (zeitFeld) zeitFeld.value = '';
+    formular.hidden = true;
+    zeichneListe();
+
+    sende('merklisteHinzufuegen', { id, typ, text, datum, uhrzeit }).catch((fehler) => {
+      entferneLokal(daten, id);
+      zeichneListe();
+      window.alert('Eintrag konnte nicht gespeichert werden: ' + fehler.message);
+    });
+  }
+
+  function umschalten(eintrag, checked) {
+    const vorher = setzeErledigtLokal(daten, eintrag.id, checked);
+    zeichneListe();
+    sende('merklisteErledigt', { id: eintrag.id, erledigt: checked }).catch((fehler) => {
+      setzeErledigtLokal(daten, eintrag.id, vorher);
+      zeichneListe();
+      window.alert('Änderung konnte nicht gespeichert werden: ' + fehler.message);
+    });
+  }
+
+  function zeichneListe() {
+    leere(liste);
+    const eintraege = eintraegeFuerTyp(daten, typ);
+    if (!eintraege.length) {
+      liste.appendChild(e('div', { klasse: 'leer', style: 'padding:8px 2px', text: konfig.leerText }));
+      return;
+    }
+    eintraege.forEach((eintrag) => liste.appendChild(zeile(eintrag)));
+  }
+
+  function zeile(eintrag) {
+    const faellig = konfig.ausrufezeichen && istUeberfaellig(eintrag, heuteIso);
+    const faelligkeitText = formatiereFaelligkeit(eintrag);
+    const inhalt = e('div', { klasse: 'merkliste-inhalt' }, [
+      e('span', { klasse: 'merkliste-text', text: eintrag.text }),
+      faelligkeitText ? e('span', { klasse: 'feldhilfe merkliste-datum', text: faelligkeitText }) : null
+    ]);
+
+    const kinder = [];
+    if (konfig.checkbox) {
+      const kasten = e('input', {
+        type: 'checkbox', checked: eintrag.erledigt, 'aria-label': eintrag.text,
+        auf: { change: (ev) => umschalten(eintrag, ev.target.checked) }
+      });
+      kinder.push(e('label', { klasse: 'merkliste-zeile' }, [kasten, inhalt]));
+    } else {
+      kinder.push(inhalt);
+    }
+    if (faellig) {
+      kinder.push(e('span', {
+        klasse: 'merkliste-ausruf', 'aria-label': 'Deadline heute oder überfällig', text: '!'
+      }));
+    }
+
+    return e('li', { klasse: eintrag.erledigt ? 'ist-erledigt' : '' }, kinder);
+  }
 }
 
 /**

@@ -175,6 +175,13 @@ function doPost(e) {
       case 'fortschritt':
         return antwort_({ ok: true, ergebnis: fortschrittSpeichern(rumpf.aenderungen) });
 
+      case 'merklisteHinzufuegen':
+        return antwort_({ ok: true, ergebnis:
+          merklisteHinzufuegen(rumpf.typ, rumpf.text, rumpf.datum, rumpf.uhrzeit, rumpf.id) });
+
+      case 'merklisteErledigt':
+        return antwort_({ ok: true, ergebnis: merklisteErledigt(rumpf.id, rumpf.erledigt) });
+
       case 'schuelerImport':
         return antwort_({ ok: true, ergebnis: importSchuelerAusText(rumpf.csv || '') });
 

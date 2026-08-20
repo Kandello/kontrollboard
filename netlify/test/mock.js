@@ -81,7 +81,7 @@ global.ContentService = {
   createTextOutput: (t) => ({ setMimeType() { return { text: t }; } })
 };
 
-for (const datei of ['Setup', 'Daten', 'Boards', 'Noten', 'Einheiten', 'Jahresplan', 'Code']) {
+for (const datei of ['Setup', 'Daten', 'Boards', 'Noten', 'Einheiten', 'Jahresplan', 'Merkliste', 'Code']) {
   const quelle = fs.readFileSync(`${APPS_SCRIPT}/${datei}.gs`, 'utf8');
   (0, eval)(quelle.replace(/^function (\w+)/gm, 'global.$1 = function $1')
                   .replace(/^var (\w+) =/gm, 'global.$1 ='));

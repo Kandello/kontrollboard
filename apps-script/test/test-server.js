@@ -84,7 +84,7 @@ global.ContentService = {
   createTextOutput: t => ({ setMimeType() { return { text: t }; } })
 };
 
-for (const f of ['Setup', 'Daten', 'Boards', 'Noten', 'Einheiten', 'Jahresplan', 'Code']) {
+for (const f of ['Setup', 'Daten', 'Boards', 'Noten', 'Einheiten', 'Jahresplan', 'Merkliste', 'Code']) {
   const src = fs.readFileSync(`../${f}.gs`, 'utf8');
   (0, eval)(src.replace(/^function (\w+)/gm, 'global.$1 = function $1')
               .replace(/^var (\w+) =/gm, 'global.$1 ='));
@@ -99,7 +99,7 @@ const pruefe = (name, ist, soll) => {
 
 console.log('=== setupSheets ===');
 const b1 = setupSheets();
-pruefe('alle 18 Blaetter angelegt', b1.angelegt.length, 18);
+pruefe('alle 19 Blaetter angelegt', b1.angelegt.length, 19);
 pruefe('Stundenplan 22 Zeilen', holeBlatt_('Stundenplan').getLastRow() - 1, 22);
 pruefe('Kategorien 3 Zeilen', holeBlatt_('Kategorien').getLastRow() - 1, 3);
 pruefe('Notenschluessel 6 Zeilen', holeBlatt_('Notenschluessel').getLastRow() - 1, 6);
@@ -107,7 +107,7 @@ pruefe('Notenschluessel 6 Zeilen', holeBlatt_('Notenschluessel').getLastRow() - 
 console.log('\n=== setupSheets erneut (darf nichts zerstoeren) ===');
 const b2 = setupSheets();
 pruefe('nichts neu angelegt', b2.angelegt.length, 0);
-pruefe('alle unveraendert', b2.unveraendert.length, 18);
+pruefe('alle unveraendert', b2.unveraendert.length, 19);
 pruefe('Stundenplan weiterhin 22', holeBlatt_('Stundenplan').getLastRow() - 1, 22);
 
 console.log('\n=== importSchuelerAusText ===');
@@ -956,6 +956,91 @@ console.log('\n=== Jahresplan zuruecksetzen ===');
   pruefe('Seitenangaben nennen das Heft', /\(gr[üu]n, S\. /.test(alleThemen), true);
   pruefe('… auch das pinke', /\(pink, S\. /.test(alleThemen), true);
   pruefe('keine rohen Kuerzel mehr', /\((RS|GR) \d/.test(alleThemen), false);
+}
+
+console.log('\n=== Merkliste: anlegen ===');
+{
+  const r1 = merklisteHinzufuegen('todo', 'Formular ausfüllen', '2026-08-28', '', '');
+  pruefe('Typ normalisiert auf Grossbuchstaben', r1.eintrag.typ, 'TODO');
+  pruefe('id wurde erzeugt', r1.eintrag.id.length > 0, true);
+  pruefe('erledigt startet auf false', r1.eintrag.erledigt, false);
+
+  const eigeneId = 'client-erzeugte-id';
+  const r2 = merklisteHinzufuegen('DEADLINE', 'Zeugnisse fertig', '2026-09-10', '14:00', eigeneId);
+  pruefe('vom Client vorgegebene id wird uebernommen', r2.eintrag.id, eigeneId);
+
+  const r3 = merklisteHinzufuegen('EVENT', 'Elternabend', '2026-09-15', '', '');
+  pruefe('Termin ohne Uhrzeit ist gueltig', r3.eintrag.uhrzeit, '');
+
+  const d = ladeAlles();
+  pruefe('drei Eintraege in ladeAlles', d.merkliste.length, 3);
+  pruefe('das To-Do liegt drin', d.merkliste.some(m => m.text === 'Formular ausfüllen' && m.typ === 'TODO'), true);
+}
+
+console.log('\n=== Merkliste: unsinnige Eingaben werden abgewiesen ===');
+{
+  const vorher = ladeAlles().merkliste.length;
+  let m = '';
+  try { merklisteHinzufuegen('QUATSCH', 'Text', '', '', ''); } catch (e) { m = e.message; }
+  pruefe('unbekannte Art abgewiesen', /Unbekannte Art/.test(m), true);
+
+  m = '';
+  try { merklisteHinzufuegen('TODO', '', '', '', ''); } catch (e) { m = e.message; }
+  pruefe('leerer Text abgewiesen', /Text/.test(m), true);
+
+  m = '';
+  try { merklisteHinzufuegen('EVENT', 'Ohne Datum', '', '', ''); } catch (e) { m = e.message; }
+  pruefe('Termin ohne Datum abgewiesen', /Datum/.test(m), true);
+
+  m = '';
+  try { merklisteHinzufuegen('TODO', 'Text', '28.8.2026', '', ''); } catch (e) { m = e.message; }
+  pruefe('deutsches statt ISO-Datum abgewiesen', /Ungültiges Datum/.test(m), true);
+
+  m = '';
+  try { merklisteHinzufuegen('DEADLINE', 'Text', '2026-09-10', '14 Uhr', ''); } catch (e) { m = e.message; }
+  pruefe('unklare Uhrzeit abgewiesen', /Ungültige Uhrzeit/.test(m), true);
+
+  pruefe('nach allen Fehlern nichts geschrieben', ladeAlles().merkliste.length, vorher);
+}
+
+console.log('\n=== Merkliste: abhaken und zurueckholen, keine Dublette ===');
+{
+  const id = ladeAlles().merkliste.find(m => m.typ === 'TODO').id;
+  const r1 = merklisteErledigt(id, true);
+  pruefe('erledigt gesetzt', r1.erledigt, true);
+  pruefe('in ladeAlles uebernommen', ladeAlles().merkliste.find(m => m.id === id).erledigt, true);
+  pruefe('weiterhin nur drei Eintraege (kein Duplikat)', ladeAlles().merkliste.length, 3);
+  pruefe('Text und Datum bleiben beim Abhaken erhalten',
+    ladeAlles().merkliste.find(m => m.id === id).text, 'Formular ausfüllen');
+
+  merklisteErledigt(id, false);
+  pruefe('laesst sich zurücknehmen', ladeAlles().merkliste.find(m => m.id === id).erledigt, false);
+
+  let m = '';
+  try { merklisteErledigt('gibtsnicht', true); } catch (e) { m = e.message; }
+  pruefe('unbekannte id abgewiesen', /nicht gefunden/.test(m), true);
+}
+
+console.log('\n=== Merkliste: ueber doPost erreichbar ===');
+{
+  const t = holeToken_();
+  const p1 = JSON.parse(doPost({ postData: { contents: JSON.stringify({
+    token: t, aktion: 'merklisteHinzufuegen', typ: 'EVENT', text: 'Konferenz', datum: '2026-10-01', uhrzeit: ''
+  }) } }).text);
+  pruefe('merklisteHinzufuegen ueber doPost', p1.ok, true);
+  pruefe('liegt in der Tabelle', ladeAlles().merkliste.some(m => m.text === 'Konferenz'), true);
+
+  const id = p1.ergebnis.eintrag.id;
+  const p2 = JSON.parse(doPost({ postData: { contents: JSON.stringify({
+    token: t, aktion: 'merklisteErledigt', id, erledigt: true
+  }) } }).text);
+  pruefe('merklisteErledigt ueber doPost', p2.ok, true);
+}
+
+console.log('\n=== Merkliste: keine Klarnamen im Datenpaket (hier steht ohnehin nie ein Kuerzel) ===');
+{
+  const roh = JSON.stringify(ladeAlles().merkliste);
+  pruefe('kein Kuerzel-Feld', /kuerzel/i.test(roh), false);
 }
 
 console.log('\n=== Menue in der Tabelle ===');

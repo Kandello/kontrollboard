@@ -19,7 +19,7 @@ var FACH = 'DE';
 var TRENNER = '\u0000';
 
 /** Blaetter, die eine fach-Spalte tragen und danach gefiltert werden. */
-var MIT_FACH = ['Erhebungen', 'Gruppengewichte', 'Boards', 'Einheiten', 'Schueler', 'Tests', 'Beteiligungspunkte'];
+var MIT_FACH = ['Erhebungen', 'Gruppengewichte', 'Boards', 'Einheiten', 'Schueler', 'Tests', 'Beteiligungspunkte', 'Merkliste'];
 
 function holeBlatt_(name) {
   var blatt = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name);
@@ -404,6 +404,21 @@ function ladeAlles() {
         kw: alsText_(z.kw),
         aufgabe: alsText_(z.aufgabe).toUpperCase(),
         erledigt_am: alsText_(z.erledigt_am)
+      };
+    }),
+
+    // Persoenliche Merklisten der Lehrkraft (To-Do, Deadlines, Termine) —
+    // ohne jeden Bezug zu Schuelerdaten, deshalb kein Kuerzel in Sicht.
+    // Sortiert wird ausschliesslich im Browser (merkliste.js).
+    merkliste: liesBlatt_('Merkliste').map(function (z) {
+      return {
+        id: alsText_(z.id),
+        typ: alsText_(z.typ).toUpperCase(),
+        text: alsText_(z.text),
+        datum: alsText_(z.datum),
+        uhrzeit: alsText_(z.uhrzeit),
+        erledigt: istWahr_(z.erledigt),
+        erstellt_am: alsText_(z.erstellt_am)
       };
     }),
 

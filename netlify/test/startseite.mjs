@@ -335,6 +335,109 @@ console.log('\n=== Jahreswechsel ===');
   await setzeStatus('2026-W53', 'WEEKLY', false);
 }
 
+// ---------------------------------------------------------------------------
+// Merklisten: To-Do, Deadlines, Termine — neu, starten ausgeblendet.
+// ---------------------------------------------------------------------------
+console.log('\n=== Merklisten: To-Do, Deadlines, Termine ===');
+{
+  const { p, ctx } = await oeffne('2026-09-15T09:00:00Z'); // Dienstag
+
+  pruefe('To-Do startet in der Ablage, nicht im Raster',
+    await p.locator('.widgetraster .widget[data-id="todo"]').count(), 0);
+  pruefe('… auch Deadlines', await p.locator('.widgetraster .widget[data-id="deadline"]').count(), 0);
+  pruefe('… auch Termine', await p.locator('.widgetraster .widget[data-id="events"]').count(), 0);
+  pruefe('alle drei liegen in der Ablage', await p.locator(
+    '.widget-ablage .widget[data-id="todo"], .widget-ablage .widget[data-id="deadline"], ' +
+    '.widget-ablage .widget[data-id="events"]').count(), 3);
+
+  // Hochziehen ueber den „Wieder einblenden"-Knopf, wie in widgets.mjs etabliert.
+  for (const id of ['todo', 'deadline', 'events']) {
+    await p.locator(`.widget-ablage .widget[data-id="${id}"] button[title="Wieder einblenden"]`).click();
+    await p.waitForTimeout(900);
+  }
+  pruefe('jetzt alle drei im Raster', await p.locator(
+    '.widgetraster .widget[data-id="todo"], .widgetraster .widget[data-id="deadline"], ' +
+    '.widgetraster .widget[data-id="events"]').count(), 3);
+
+  // --- To-Do: hinzufuegen, Sortierung, Abhaken --------------------------------
+  const todoWidget = p.locator('.widget[data-id="todo"]');
+  async function todoHinzufuegen(text, datum) {
+    await todoWidget.locator('.merkliste-plus').click();
+    await todoWidget.locator('.merkliste-felder input[type="text"]').fill(text);
+    if (datum) await todoWidget.locator('.merkliste-felder input[type="date"]').fill(datum);
+    await todoWidget.locator('button:has-text("Hinzufügen")').click();
+    await p.waitForTimeout(150);
+  }
+  await todoHinzufuegen('Einkaufen', '');
+  await todoHinzufuegen('Formular ausfüllen', '2026-09-20');
+  await todoHinzufuegen('Urlaub planen', '2026-09-18');
+
+  pruefe('drei To-Do-Eintraege', await todoWidget.locator('.merkliste-liste li').count(), 3);
+  pruefe('nach Datum sortiert, undatiert ans Ende',
+    await todoWidget.locator('.merkliste-text').allInnerTexts(),
+    ['Urlaub planen', 'Formular ausfüllen', 'Einkaufen']);
+  pruefe('Fälligkeitstext: Wochentag und Datum ohne Jahr',
+    await todoWidget.locator('.merkliste-liste li').first().locator('.merkliste-datum').innerText(),
+    'Freitag, 18.9.');
+
+  await todoWidget.locator('.merkliste-liste li').first().locator('input[type="checkbox"]').click();
+  await p.waitForTimeout(150);
+  pruefe('abgehakter Eintrag rutscht ans Ende',
+    await todoWidget.locator('.merkliste-text').allInnerTexts(),
+    ['Formular ausfüllen', 'Einkaufen', 'Urlaub planen']);
+  pruefe('abgehakter Eintrag ist ausgegraut (Klasse ist-erledigt)',
+    await todoWidget.locator('.merkliste-liste li').last().getAttribute('class'), 'ist-erledigt');
+
+  // --- Deadline: rotes Ausrufezeichen am Fälligkeitstag -----------------------
+  const deadlineWidget = p.locator('.widget[data-id="deadline"]');
+  async function deadlineHinzufuegen(text, datum, uhrzeit) {
+    await deadlineWidget.locator('.merkliste-plus').click();
+    await deadlineWidget.locator('.merkliste-felder input[type="text"]').fill(text);
+    if (datum) await deadlineWidget.locator('.merkliste-felder input[type="date"]').fill(datum);
+    if (uhrzeit) await deadlineWidget.locator('.merkliste-felder input[type="time"]').fill(uhrzeit);
+    await deadlineWidget.locator('button:has-text("Hinzufügen")').click();
+    await p.waitForTimeout(150);
+  }
+  await deadlineHinzufuegen('Zeugnisse fertig', '2026-09-15', '14:00'); // heute
+  await deadlineHinzufuegen('Elternbrief', '2026-10-01', '');
+
+  pruefe('heute fällige Deadline zeigt das rote Ausrufezeichen',
+    await deadlineWidget.locator('.merkliste-liste li').first().locator('.merkliste-ausruf').count(), 1);
+  pruefe('zukünftige Deadline zeigt keins',
+    await deadlineWidget.locator('.merkliste-liste li').last().locator('.merkliste-ausruf').count(), 0);
+  pruefe('Fälligkeitstext zeigt auch die Uhrzeit',
+    await deadlineWidget.locator('.merkliste-liste li').first().locator('.merkliste-datum').innerText(),
+    'Dienstag, 15.9. · 14:00');
+
+  await deadlineWidget.locator('.merkliste-liste li').first().locator('input[type="checkbox"]').click();
+  await p.waitForTimeout(150);
+  pruefe('nach dem Abhaken verschwindet das Ausrufezeichen',
+    await deadlineWidget.locator('li.ist-erledigt .merkliste-ausruf').count(), 0);
+
+  // --- Termine: Datum ist Pflicht, keine Checkbox -----------------------------
+  const eventsWidget = p.locator('.widget[data-id="events"]');
+  await eventsWidget.locator('.merkliste-plus').click();
+  await eventsWidget.locator('.merkliste-felder input[type="text"]').fill('Elternabend');
+  await eventsWidget.locator('button:has-text("Hinzufügen")').click();
+  await p.waitForTimeout(150);
+  pruefe('Termin ohne Datum wird abgewiesen', await eventsWidget.locator('.merkliste-fehler').isVisible(), true);
+  pruefe('… und nicht in die Liste übernommen', await eventsWidget.locator('.merkliste-liste li').count(), 0);
+
+  await eventsWidget.locator('.merkliste-felder input[type="date"]').fill('2026-09-25');
+  await eventsWidget.locator('button:has-text("Hinzufügen")').click();
+  await p.waitForTimeout(150);
+  pruefe('mit Datum wird der Termin übernommen', await eventsWidget.locator('.merkliste-liste li').count(), 1);
+  pruefe('Termine haben keine Checkbox', await eventsWidget.locator('.merkliste-liste input[type="checkbox"]').count(), 0);
+
+  // --- übersteht das Neuladen ---------------------------------------------------
+  await p.reload();
+  await p.waitForSelector('.widgetraster', { timeout: 8000 });
+  pruefe('To-Dos überstehen das Neuladen', await p.locator('.widget[data-id="todo"] .merkliste-liste li').count(), 3);
+  pruefe('Termin übersteht das Neuladen', await p.locator('.widget[data-id="events"] .merkliste-liste li').count(), 1);
+
+  await ctx.close();
+}
+
 console.log('\nJS-Fehler:', fehler.length ? fehler : 'keine');
 console.log(schlecht === 0 && !fehler.length
   ? `\nALLE ${n} TESTS BESTANDEN`
