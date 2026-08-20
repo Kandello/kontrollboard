@@ -1,5 +1,5 @@
 /**
- * Prueft die Oberflaeche des Notentrackers: Testkacheln mit Thema, Erfassung,
+ * Prueft die Oberflaeche des Notentrackers: Testkacheln mit Thema, Eingabe,
  * gebuendeltes verzoegertes Speichern, Uebersicht und Auswertung.
  *
  * Die Notenformel selbst wird in noten.mjs gegen die bisherige Tabelle
@@ -58,7 +58,7 @@ pruefe('keine JS-Fehler bisher', fehler.length, 0);
 console.log('\n=== Testkacheln: drei Tests je Halbjahr, Thema als kleine Zeile ===');
 {
   const titel = await p.locator('.werkzeug .titel').allInnerTexts();
-  pruefe('genau drei Tests, keine Monatskacheln mehr in der Erfassung', titel, ['Test 1', 'Test 2', 'Test 3']);
+  pruefe('genau drei Tests, keine Monatskacheln mehr', titel, ['Test 1', 'Test 2', 'Test 3']);
   pruefe('Thema anfangs leer',
     (await kachel('Test 1').innerText()).includes('Thema noch nicht eingetragen'), true);
   pruefe('Erfassungsstand anfangs leer',
@@ -178,7 +178,7 @@ console.log('\n=== Beteiligung: eigene Ansicht, Monat- und Wochenwahl, 1-10 Punk
 
   await knopf('Zurück').click(); await p.waitForTimeout(400);
   pruefe('Fortschritt auf der Monatskachel', (await kachel('September').innerText()).includes('1 von 4 Wochen erfasst'), true);
-  await knopf('Erfassung').click(); await p.waitForTimeout(300);
+  await knopf('Tests').click(); await p.waitForTimeout(300);
 }
 
 console.log('\n=== Übersicht rechnet wie die bisherige Tabelle ===');
@@ -223,7 +223,7 @@ console.log('\n=== Auswertung: Verteilung und Schnitt ===');
 
 console.log('\n=== Halbjahre sind getrennt ===');
 {
-  await knopf('Erfassung').click(); await p.waitForTimeout(300);
+  await knopf('Tests').click(); await p.waitForTimeout(300);
   await knopf('Zweites Halbjahr').click(); await p.waitForTimeout(400);
   pruefe('zweites Halbjahr: noch nichts erfasst',
     (await kachel('Test 1').innerText()).includes('noch nichts erfasst'), true);
@@ -244,7 +244,7 @@ console.log('\n=== Klassen sind getrennt ===');
   const zeile = (await p.locator('table.liste tbody tr').first().innerText()).split('\t');
   pruefe('3M hat noch keine Noten', zeile[6], '–');
 
-  await knopf('Erfassung').click(); await p.waitForTimeout(400);
+  await knopf('Tests').click(); await p.waitForTimeout(400);
   pruefe('Thema gilt aber klassenübergreifend',
     (await kachel('Test 1').innerText()).includes('Wortarten'), true);
 }

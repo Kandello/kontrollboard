@@ -3,7 +3,7 @@
  *
  * Vier Ebenen:
  *
- *   Erfassung   — Testkacheln (grosse Nummer, klein und grau das Thema).
+ *   Tests       — Testkacheln (grosse Nummer, klein und grau das Thema).
  *                 Ein Klick oeffnet die Eingabeliste der Klasse.
  *   Beteiligung — woechentliche 1-10-Punkte je Kind fuer muendliche und
  *                 schriftliche Beteiligung (Praesentation ist darin
@@ -107,7 +107,7 @@ export function zeichneNoten(ziel, kontext) {
     e('span', { klasse: 'feldhilfe',
       text: `Schuljahr ${zustand.schuljahr}/${String(zustand.schuljahr + 1).slice(2)}` }),
     e('div', { klasse: 'schub', style: 'display:flex;gap:6px', role: 'group', 'aria-label': 'Ansicht wählen' }, [
-      ansichtKnopf('erfassung', 'Erfassung', neuZeichnen),
+      ansichtKnopf('erfassung', 'Tests', neuZeichnen),
       ansichtKnopf('beteiligung', 'Beteiligung', neuZeichnen),
       ansichtKnopf('uebersicht', 'Übersicht', neuZeichnen),
       ansichtKnopf('auswertung', 'Auswertung', neuZeichnen)
@@ -144,7 +144,7 @@ function ansichtKnopf(id, beschriftung, neuZeichnen) {
   });
 }
 
-// --- Erfassung ---------------------------------------------------------------
+// --- Tests ---------------------------------------------------------------
 
 /** Anlassbezeichnung eines Tests — stabil, damit sie als Schluessel taugt. */
 function testAnlass(schuljahr, halbjahr, nummer) {
