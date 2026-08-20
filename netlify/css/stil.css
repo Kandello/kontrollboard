@@ -341,11 +341,38 @@ ul.tagesplan li:first-child { border-top: 0; }
    beginnen dadurch sofort oben, quasi links neben dem Knopf, statt unter
    einer eigenen, sonst leeren Kopfzeile zu haengen. */
 .merkliste-reihe { display: flex; align-items: flex-start; gap: var(--s2); }
+/* Ein rundes, glaenzendes Knoepfchen statt eines flachen Textbuttons — die
+   Verlaeufe und Schatten geben ihm eine spuerbare Woelbung nach aussen, das
+   Antippen druecken es sichtbar wieder hinein. */
 .merkliste-plus {
   flex: none;
-  width: 26px; height: 26px; padding: 0; line-height: 1;
-  font-size: 17px; border-radius: var(--radius);
-  background: var(--gut); color: #fff; border-color: var(--gut);
+  width: 30px; height: 30px; padding: 0; line-height: 1;
+  font-size: 19px; font-weight: 300; border-radius: 50%;
+  border: 1px solid #17512f;
+  background: radial-gradient(circle at 34% 26%, #5ecf8f 0%, #219456 42%, #146238 100%);
+  color: #f2fff6;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, .35);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, .5),
+    inset 0 -2px 3px rgba(0, 0, 0, .28),
+    0 2px 3px rgba(15, 55, 32, .35),
+    0 4px 9px rgba(15, 55, 32, .28);
+  transition: transform .1s ease, box-shadow .1s ease;
+}
+.merkliste-plus:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, .55),
+    inset 0 -2px 3px rgba(0, 0, 0, .28),
+    0 3px 5px rgba(15, 55, 32, .4),
+    0 7px 14px rgba(15, 55, 32, .32);
+}
+.merkliste-plus:active {
+  transform: translateY(1px);
+  box-shadow:
+    inset 0 2px 3px rgba(0, 0, 0, .35),
+    inset 0 1px 1px rgba(0, 0, 0, .2),
+    0 1px 2px rgba(15, 55, 32, .3);
 }
 
 .merkliste-formular { margin-bottom: var(--s3); }

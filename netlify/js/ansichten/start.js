@@ -20,7 +20,7 @@ import {
   GRID_SPALTEN, metaSchluessel, leseLayout, schreibeLayout, sichtbare, ausgeblendete,
   versetze as versetzeWidget, groesseAendern, blendeAus, blendeEin
 } from '../layout.js';
-import { starteZug, starteGroessenzug, messeAlle, gleite } from '../ziehen.js';
+import { starteZug, starteGroessenzug, messeAlle, gleite, ROLLRAND } from '../ziehen.js';
 import { klassenlehrkraftEintrag } from '../zuordnung.js';
 import { sende, leereDaten, ladeDaten } from '../server.js';
 import {
@@ -208,6 +208,11 @@ export function zeichneStart(ziel, { daten, verbergen, neuZeichnen }) {
    * unter dem Zeiger. Ein 2D-Raster kennt keine Nachbarn, vor die man
    * einsortiert, nur Koordinaten.
    */
+  function istUeberAblage(x, y) {
+    return document.elementsFromPoint(x, y)
+      .some((el) => el === ablage || (el.closest && el.closest('.widget-ablage')));
+  }
+
   function starteWidgetZug(ev, id) {
     const huelle = huellen.get(id);
     const kasten = huelle.getBoundingClientRect();
@@ -218,17 +223,33 @@ export function zeichneStart(ziel, { daten, verbergen, neuZeichnen }) {
     starteZug({
       ev, element: huelle,
       zielSuche: (x, y) => {
-        for (const el of document.elementsFromPoint(x, y)) {
-          if (el === ablage || (el.closest && el.closest('.widget-ablage'))) {
-            return { ablegen: true };
-          }
-        }
+        if (istUeberAblage(x, y)) return { ablegen: true };
         const geo = rasterGeometrie(raster);
         const gx = Math.round((x - versatzX - geo.links) / geo.spaltenraster);
-        const gy = Math.round((y - versatzY - geo.oben) / geo.zeilenraster);
+        let gy = Math.round((y - versatzY - geo.oben) / geo.zeilenraster);
+        // Nur direkt am unteren Bildschirmrand (der Zone, die das Mitrollen
+        // ausloest) nicht tiefer vorschlagen, als der Rest des Rasters
+        // ohnehin reicht. Sonst waechst das Raster bei jedem Rollschritt
+        // selbst ein Stueck mit (der Zeiger bleibt am Rand stehen, waehrend
+        // die Seite darunter mitrollt, also rutscht die vorgeschlagene Zeile
+        // bei jedem Schritt weiter nach unten) — und das Rollziel liefe dem
+        // Rollen immer einen Schritt voraus, ohne je anzukommen. Ausserhalb
+        // dieser Randzone bleibt das gewollte Ablegen weit unterhalb allen
+        // Inhalts (Luecken bewusst offen lassen) uneingeschraenkt moeglich.
+        if (y > window.innerHeight - ROLLRAND) {
+          const tiefsteAndere = layout.reduce(
+            (m, w) => (w.sichtbar && w.id !== id ? Math.max(m, w.y + w.h) : m), 0);
+          gy = Math.min(gy, tiefsteAndere);
+        }
         return { ablegen: false, gx, gy };
       },
       gleich: (a, b) => a.ablegen === b.ablegen && a.gx === b.gx && a.gy === b.gy,
+      // Steht der Zeiger schon ueber der Ablage, nicht weiter mitrollen —
+      // die Ablage liegt ganz unten auf der Seite, direkt im Bereich, der
+      // sonst das Mitrollen ausloest. Ohne diese Bremse rollte die Seite
+      // immer weiter, sobald man nah genug heran ist, um die Ablage
+      // ueberhaupt zu treffen — sie war so praktisch nie erreichbar.
+      sollRollen: (x, y) => !istUeberAblage(x, y),
       vorschau: (ziel) => {
         const kandidat = ziel.ablegen ? blendeAus(layout, id) : versetzeWidget(layout, id, ziel.gx, ziel.gy);
         if (kandidat) { entwurf = kandidat; platziere(entwurf, true); }

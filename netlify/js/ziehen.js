@@ -32,7 +32,8 @@ export const ZIEHSCHWELLE = 5;
 /** Dauer der Umsortier-Animation. Kurz genug, um nicht zu bremsen. */
 export const GLEITDAUER = 170;
 
-const ROLLRAND = 90;
+/** Randbreite in Pixeln, in der das Mitrollen beim Ziehen ausloest. */
+export const ROLLRAND = 90;
 const ROLLTEMPO = 18;
 
 /**
@@ -47,8 +48,16 @@ const ROLLTEMPO = 18;
  * `vorschau`  (ziel) -> zeichnet, wie es nach dem Loslassen aussaehe.
  * `abschluss` (ziel) -> uebernimmt endgueltig; `null`, wenn nie ein Ziel
  *             gefunden wurde.
+ * `sollRollen` optional (x, y) -> ob am Rand mitgerollt werden darf. Ohne
+ *             Angabe immer erlaubt. Steht der Zeiger schon ueber dem
+ *             gewuenschten Ziel, kann der Aufrufer damit das Mitrollen
+ *             abschalten — sonst liesse sich ein Ziel, das selbst nahe am
+ *             Bildschirmrand liegt (etwa die Ablage ganz unten auf der
+ *             Startseite), nie ruhig treffen: die Seite rollte immer weiter,
+ *             sobald der Zeiger nah genug heran ist, um das Ziel ueberhaupt
+ *             zu erreichen.
  */
-export function starteZug({ ev, element, zielSuche, gleich, vorschau, abschluss }) {
+export function starteZug({ ev, element, zielSuche, gleich, vorschau, abschluss, sollRollen }) {
   if (ev.pointerType === 'mouse' && ev.button !== 0) return;
 
   const startX = ev.clientX;
@@ -111,6 +120,15 @@ export function starteZug({ ev, element, zielSuche, gleich, vorschau, abschluss 
     let schritt = 0;
     if (zeigerY < ROLLRAND) schritt = -ROLLTEMPO * (1 - zeigerY / ROLLRAND);
     else if (zeigerY > hoehe - ROLLRAND) schritt = ROLLTEMPO * (1 - (hoehe - zeigerY) / ROLLRAND);
+
+    // Wird das Rollen hier unterdrueckt, muss trotzdem weiter geprueft
+    // werden, wo der Zeiger gerade steht — sonst bliebe das Ziel auf dem
+    // Stand von kurz vor der Ablage stehen: das Rollen haelt zwar an, aber
+    // niemand hat je vermerkt, dass jetzt die Ablage darunter liegt.
+    if (schritt && sollRollen && !sollRollen(zeigerX, zeigerY)) {
+      schritt = 0;
+      pruefeZiel();
+    }
 
     if (schritt) {
       const vorherOben = window.scrollY;

@@ -359,6 +359,90 @@ console.log('\n=== Die Anordnung uebersteht das Neuladen ===');
     /^([\w]+:\d+:\d+:\d+:\d+:[01],?)+$/.test(meta.layout_start || ''), true);
 }
 
+// ---------------------------------------------------------------------------
+// Eigener, realistisch kleiner Bildschirm: die bisherigen Tests laufen
+// bewusst auf einem ueberhohen Fenster, damit kein Mitrollen noetig ist.
+// Genau das Mitrollen ist hier aber der Pruefgegenstand — die Ablage liegt
+// ganz unten auf der Seite, im selben Bereich, der das Mitrollen ausloest.
+// ---------------------------------------------------------------------------
+console.log('\n=== Die Ablage bleibt beim Mitrollen erreichbar (nicht nur ueberrollt) ===');
+{
+  const ctx2 = await browser.newContext({
+    viewport: { width: 900, height: 800 }, locale: 'de-DE', timezoneId: 'Europe/Berlin'
+  });
+  const p2 = await ctx2.newPage();
+  const fehler2 = [];
+  p2.on('pageerror', (e) => fehler2.push('PAGEERROR: ' + e.message));
+  p2.on('console', (m) => { if (m.type() === 'error') fehler2.push('CONSOLE: ' + m.text()); });
+
+  await p2.clock.setFixedTime(new Date('2026-09-16T08:00:00Z'));
+  await p2.goto(ADRESSE + '/');
+  await p2.evaluate((t) => localStorage.setItem('kz.verbindung',
+    JSON.stringify({ url: 'http://localhost:8901/exec', token: t })), TOKEN);
+  await p2.reload();
+  await p2.waitForSelector('.widgetraster', { timeout: 8000 });
+
+  const ablageOben = () => p2.locator('.widget-ablage').evaluate((el) => el.getBoundingClientRect().top);
+  pruefe('die Ablage ist zu Beginn nicht im sichtbaren Bereich — ohne Rollen unerreichbar',
+    (await ablageOben()) > 800, true);
+
+  // „Klassen" greifen: das einzige Widget, das in den vorigen Abschnitten
+  // dieser Datei nie an eine isolierte Stelle irgendwo weit unten gezogen
+  // wurde (nur aus- und wieder eingeblendet) — es steht darum zuverlaessig
+  // noch nahe an seiner urspruenglichen, sichtbaren Stelle oben im Raster.
+  const obersteId = 'klassen';
+  const griffLocator = p2.locator(`.widget[data-id="${obersteId}"] .widget-griff`);
+  await griffLocator.scrollIntoViewIfNeeded();
+  const griff = await griffLocator.boundingBox();
+  await p2.mouse.move(griff.x + 20, griff.y + griff.height / 2);
+  await p2.mouse.down();
+  // In die untere Rollzone (die letzten 90px des Fensters), aber nicht ganz
+  // an die aeusserste Kante — dort bliebe sonst kein Spielraum, um die
+  // Ablage noch exakt zu treffen.
+  await p2.mouse.move(450, 740, { steps: 10 });
+  await p2.waitForTimeout(600);
+
+  const scrollA = await p2.evaluate(() => window.scrollY);
+  pruefe('die Seite ist tatsaechlich losgerollt', scrollA > 0, true);
+
+  // Wie hoch die Seite in diesem Testlauf gerade ist, haengt von allem ab,
+  // was die vorigen Abschnitte schon damit angestellt haben — statt eine
+  // feste Wartezeit zu raten, wird wiederholt gemessen, bis sich der
+  // Rollstand zwischen zwei Messungen nicht mehr aendert (oder das Limit
+  // erreicht ist, was hier als Fehlschlag zaehlen soll).
+  let stand = scrollA;
+  let stabil = false;
+  for (let i = 0; i < 40 && !stabil; i++) {
+    await p2.waitForTimeout(400);
+    const neu = await p2.evaluate(() => window.scrollY);
+    stabil = neu === stand;
+    stand = neu;
+  }
+  pruefe('… und kommt zur Ruhe, statt endlos weiterzurollen', stabil, true);
+  pruefe('die Ablage steht jetzt tatsaechlich im sichtbaren Bereich',
+    (await ablageOben()) < 800, true);
+
+  // Letzter, kleiner Feinschliff, wie ihn auch eine Person von Hand macht:
+  // die Ablage ist jetzt sichtbar, der Zeiger wandert die letzten Pixel
+  // dorthin — und darf das, ohne dass die Seite dabei wieder lostrollt.
+  const ablageKasten = await p2.locator('.widget-ablage').boundingBox();
+  await p2.mouse.move(ablageKasten.x + ablageKasten.width / 2, ablageKasten.y + 20, { steps: 5 });
+  await p2.waitForTimeout(300);
+  pruefe('am Zeiger steht jetzt tatsaechlich die Ablage',
+    await p2.evaluate(({ x, y }) => document.elementsFromPoint(x, y)
+      .some((el) => el.closest && el.closest('.widget-ablage')),
+      { x: ablageKasten.x + ablageKasten.width / 2, y: ablageKasten.y + 20 }), true);
+
+  await p2.mouse.up();
+  await p2.waitForTimeout(900);
+  pruefe('das gegriffene Widget ist wirklich in der Ablage gelandet',
+    await p2.locator(`.widget-ablage .widget[data-id="${obersteId}"]`).count(), 1);
+
+  console.log('JS-Fehler (eigener Bildschirm):', fehler2.length ? fehler2 : 'keine');
+  fehler.push(...fehler2);
+  await ctx2.close();
+}
+
 console.log('\nJS-Fehler:', fehler.length ? fehler : 'keine');
 console.log(schlecht === 0 && !fehler.length
   ? `\nALLE ${n} TESTS BESTANDEN`
