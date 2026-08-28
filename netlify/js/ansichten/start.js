@@ -17,10 +17,10 @@
 
 import { e, leere, setzeMeldung, hinweis } from '../ui.js';
 import {
-  GRID_SPALTEN, metaSchluessel, leseLayout, schreibeLayout, sichtbare, ausgeblendete,
+  GRID_SPALTEN, MAX_ZEILEN, metaSchluessel, leseLayout, schreibeLayout, sichtbare, ausgeblendete,
   versetze as versetzeWidget, groesseAendern, blendeAus, blendeEin
 } from '../layout.js';
-import { starteZug, starteGroessenzug, messeAlle, gleite, ROLLRAND } from '../ziehen.js';
+import { starteZug, starteGroessenzug, messeAlle, gleite } from '../ziehen.js';
 import { klassenlehrkraftEintrag } from '../zuordnung.js';
 import { sende, leereDaten, ladeDaten } from '../server.js';
 import {
@@ -49,9 +49,27 @@ const KLICKBAR = ['DEUTSCH', 'LESEN'];
  * dieselbe Aussage stumpfen nur ab.
  */
 const AUFGABEN = {
-  PEAK:   { titel: 'PEAK',        frist: 'Frist: Dienstagabend' },
-  WEEKLY: { titel: 'Weekly Note', frist: 'Frist: Freitag' }
+  PEAK:        { titel: 'PEAK',        frist: 'Frist: Dienstagabend', link: 'link_peak' },
+  WEEKLY:      { titel: 'Weekly Note', frist: 'Frist: Freitag',       link: 'link_weekly' },
+  // Der Schriftzug selbst fuehrt zur Vorlage — bei den beiden oberen liegt
+  // der Verweis stattdessen im aufgeklappten Bereich, weil dort ohnehin
+  // schon der Knopf zum Abhaken steht.
+  LERNWOERTER: { titel: 'Lernwörter',  frist: 'Frist: Freitag',       link: 'link_lernwoerter',
+                 titelVerweist: true }
 };
+
+/**
+ * Seesaw ist die einzige Wochenaufgabe, die je Klasse einzeln ansteht: die
+ * Beitraege gehen an drei verschiedene Gruppen. „Erledigt" ist sie erst,
+ * wenn alle Klassen versorgt sind.
+ *
+ * Die Seite selbst ist fuer alle dieselbe, anders als bei PEAK und Weekly
+ * Note — deshalb steht sie hier und nicht in den Einstellungen.
+ */
+const SEESAW_ADRESSE = 'https://app.seesaw.me/';
+
+/** Ab Donnerstag (1 = Montag) faellt auf, was noch offen ist. */
+const SEESAW_MAHNUNG_AB = 4;
 
 let uhrGeber = null;
 
@@ -122,7 +140,9 @@ export function zeichneStart(ziel, { daten, verbergen, neuZeichnen }) {
       text: 'Ferienmodus — der Tagesplan ruht.' }),
     aufgaben: e('div', { klasse: 'kachelreihe' }, [
       wochenkachel('PEAK', daten, kw, tag, ferien, neuZeichnen),
-      wochenkachel('WEEKLY', daten, kw, tag, ferien, neuZeichnen)
+      wochenkachel('WEEKLY', daten, kw, tag, ferien, neuZeichnen),
+      seesawKachel(daten, kw, tag, ferien),
+      wochenkachel('LERNWOERTER', daten, kw, tag, ferien, neuZeichnen)
     ]),
     einheit: aktuelleEinheit(daten, tag),
     klassen: klassenknoepfe(daten, verbergen),
@@ -147,7 +167,14 @@ export function zeichneStart(ziel, { daten, verbergen, neuZeichnen }) {
   // --- Raster --------------------------------------------------------------
   let layout = leseLayout(daten.meta[metaSchluessel('start')], BAUSTEINE);
 
-  const raster = e('div', { klasse: 'widgetraster' });
+  // Das Raster bekommt seine Zeilen fest zugeteilt, statt sie sich nach
+  // Bedarf wachsen zu lassen. Dadurch ist die Seite immer gleich hoch — beim
+  // Ziehen bleibt die Ablage darunter also da, wo sie ist, statt vor dem
+  // Zeiger herzuwandern. Einzige Quelle der Wahrheit ist MAX_ZEILEN.
+  const raster = e('div', {
+    klasse: 'widgetraster',
+    style: `grid-template-rows: repeat(${MAX_ZEILEN}, ${RASTER_REIHE_PX}px)`
+  });
   const ablage = e('div', { klasse: 'widget-ablage' });
   const ablageLeer = e('div', { klasse: 'leer', style: 'padding:12px',
     text: 'Alles eingeblendet. Hierher gezogene Widgets verschwinden von der Startseite, ohne dass Daten verlorengehen.' });
@@ -226,21 +253,10 @@ export function zeichneStart(ziel, { daten, verbergen, neuZeichnen }) {
         if (istUeberAblage(x, y)) return { ablegen: true };
         const geo = rasterGeometrie(raster);
         const gx = Math.round((x - versatzX - geo.links) / geo.spaltenraster);
-        let gy = Math.round((y - versatzY - geo.oben) / geo.zeilenraster);
-        // Nur direkt am unteren Bildschirmrand (der Zone, die das Mitrollen
-        // ausloest) nicht tiefer vorschlagen, als der Rest des Rasters
-        // ohnehin reicht. Sonst waechst das Raster bei jedem Rollschritt
-        // selbst ein Stueck mit (der Zeiger bleibt am Rand stehen, waehrend
-        // die Seite darunter mitrollt, also rutscht die vorgeschlagene Zeile
-        // bei jedem Schritt weiter nach unten) — und das Rollziel liefe dem
-        // Rollen immer einen Schritt voraus, ohne je anzukommen. Ausserhalb
-        // dieser Randzone bleibt das gewollte Ablegen weit unterhalb allen
-        // Inhalts (Luecken bewusst offen lassen) uneingeschraenkt moeglich.
-        if (y > window.innerHeight - ROLLRAND) {
-          const tiefsteAndere = layout.reduce(
-            (m, w) => (w.sichtbar && w.id !== id ? Math.max(m, w.y + w.h) : m), 0);
-          gy = Math.min(gy, tiefsteAndere);
-        }
+        const gy = Math.round((y - versatzY - geo.oben) / geo.zeilenraster);
+        // Beide duerfen ruhig ueber den Rand hinauszeigen: `versetze` haelt
+        // sie an der Kante an. Weil das Raster feste Zeilen hat, waechst die
+        // Seite dabei nicht mit — das Ziel laeuft dem Zeiger also nicht davon.
         return { ablegen: false, gx, gy };
       },
       gleich: (a, b) => a.ablegen === b.ablegen && a.gx === b.gx && a.gy === b.gy,
@@ -610,7 +626,7 @@ function wochenkachel(aufgabe, daten, kw, tag, ferien, neuZeichnen) {
   const eintrag = daten.wochenstatus.find((w) => w.kw === kw && w.aufgabe === aufgabe);
   const erledigt = Boolean(eintrag);
 
-  const link = aufgabe === 'PEAK' ? daten.meta.link_peak : daten.meta.link_weekly;
+  const link = daten.meta[einstellung.link];
 
   // Aufklappbarer Bereich: ein versehentliches Antippen darf nichts ausloesen.
   const bereich = e('div', { klasse: 'kachel-bereich', hidden: true });
@@ -645,16 +661,28 @@ function wochenkachel(aufgabe, daten, kw, tag, ferien, neuZeichnen) {
          : e('span', { klasse: 'feldhilfe', text: 'Kein Link hinterlegt (Einstellungen).' })
   ]));
 
+  // Fuehrt der Schriftzug selbst zur Vorlage, kann er nicht im Klappknopf
+  // stehen — ein Verweis in einem Knopf waere weder gueltig noch bedienbar.
+  // Er steht dann darueber, und im Knopf bleiben Stand und Frist.
+  const verweisenderTitel = einstellung.titelVerweist && link;
+  const marke = verweisenderTitel
+    ? e('a', {
+        klasse: 'kachel-marke', href: link, target: '_blank', rel: 'noopener noreferrer',
+        title: einstellung.titel + ' öffnen', text: einstellung.titel
+      })
+    : null;
+
   const kopf = e('button', {
     klasse: 'kachel-kopf',
     'aria-expanded': 'false',
+    'aria-label': verweisenderTitel ? einstellung.titel + ' abhaken' : null,
     auf: { click: () => {
       const zu = bereich.hidden;
       bereich.hidden = !zu;
       kopf.setAttribute('aria-expanded', String(zu));
     } }
   }, [
-    e('span', { klasse: 'kachel-titel', text: einstellung.titel }),
+    marke ? null : e('span', { klasse: 'kachel-titel', text: einstellung.titel }),
     e('span', { klasse: 'kachel-stand',
                 text: ferien ? 'pausiert' : (erledigt ? 'erledigt' : 'offen') }),
     e('span', { klasse: 'feldhilfe',
@@ -664,8 +692,111 @@ function wochenkachel(aufgabe, daten, kw, tag, ferien, neuZeichnen) {
   ]);
 
   return e('div', {
-    klasse: 'kachel' + (ferien ? ' ruhend' : (erledigt ? ' erledigt' : ' offen'))
-  }, [kopf, bereich]);
+    klasse: 'kachel' + (ferien ? ' ruhend' : (erledigt ? ' erledigt' : ' offen')),
+    daten: { aufgabe }
+  }, [marke, kopf, bereich]);
+}
+
+/**
+ * Die Seesaw-Kachel: oben das Zeichen, das auf Seesaw fuehrt, darunter ein
+ * Kaestchen je Klasse. Anders als die uebrigen Wochenaufgaben ist sie erst
+ * erledigt, wenn alle Klassen versorgt sind — dann faerbt sie sich gruen.
+ * Ab Donnerstag mahnt ein rotes Ausrufezeichen, was dann noch offen ist.
+ *
+ * Abgehakt wird ohne Neuzeichnen der ganzen Startseite: das Kaestchen soll
+ * sofort reagieren. Scheitert das Speichern, springt es zurueck und sagt,
+ * woran es lag.
+ */
+function seesawKachel(daten, kw, tag, ferien) {
+  const kachel = e('div', { klasse: 'kachel seesaw', daten: { aufgabe: 'SEESAW' } });
+
+  function eintragFuer(klasse) {
+    return daten.wochenstatus.find(
+      (w) => w.kw === kw && w.aufgabe === 'SEESAW' && w.klasse === klasse);
+  }
+
+  function merkeLokal(klasse, erledigt) {
+    const vorher = eintragFuer(klasse);
+    if (vorher) daten.wochenstatus.splice(daten.wochenstatus.indexOf(vorher), 1);
+    if (erledigt) {
+      daten.wochenstatus.push({ kw, aufgabe: 'SEESAW', klasse, erledigt_am: alsIso(tag) });
+    }
+    return Boolean(vorher);
+  }
+
+  function umschalten(klasse, erledigt) {
+    merkeLokal(klasse, erledigt);
+    zeichne();
+    sende('wochenstatus', { kw, aufgabe: 'SEESAW', klasse, erledigt }).catch((fehler) => {
+      merkeLokal(klasse, !erledigt);
+      zeichne();
+      window.alert('Änderung konnte nicht gespeichert werden: ' + fehler.message);
+    });
+  }
+
+  function zeichne() {
+    leere(kachel);
+    const klassen = daten.klassen;
+    const offen = klassen.filter((k) => !eintragFuer(k.klasse));
+    const alleVersorgt = klassen.length > 0 && offen.length === 0;
+    const mahnt = !ferien && !alleVersorgt && wochentag(tag) >= SEESAW_MAHNUNG_AB;
+
+    kachel.className = 'kachel seesaw' +
+      (ferien ? ' ruhend' : (alleVersorgt ? ' erledigt voll' : ''));
+
+    kachel.appendChild(e('div', { klasse: 'seesaw-kopf' }, [
+      e('a', {
+        klasse: 'kachel-marke seesaw-marke', href: SEESAW_ADRESSE,
+        target: '_blank', rel: 'noopener noreferrer', title: 'Seesaw öffnen'
+      }, [seesawZeichen(), e('span', { klasse: 'seesaw-wort', text: 'Seesaw' })]),
+      mahnt ? e('span', {
+        klasse: 'kachel-ausruf',
+        'aria-label': 'Noch nicht alle Klassen versorgt', text: '!'
+      }) : null
+    ]));
+
+    if (!klassen.length) {
+      kachel.appendChild(e('div', { klasse: 'leer', style: 'padding:0 var(--s3) var(--s3)',
+        text: 'Keine aktive Klasse eingetragen.' }));
+      return;
+    }
+
+    kachel.appendChild(e('div', { klasse: 'seesaw-klassen' }, klassen.map((k) => {
+      const fertig = Boolean(eintragFuer(k.klasse));
+      return e('label', { klasse: 'seesaw-klasse' + (fertig ? ' ist-erledigt' : '') }, [
+        e('input', {
+          type: 'checkbox', checked: fertig, disabled: ferien,
+          'aria-label': 'Seesaw für ' + k.bezeichnung + ' erledigt',
+          auf: { change: (ev) => umschalten(k.klasse, ev.target.checked) }
+        }),
+        e('span', { text: k.bezeichnung })
+      ]);
+    })));
+  }
+
+  zeichne();
+  return kachel;
+}
+
+/**
+ * Das Seesaw-Zeichen: ein aus zwei Boegen gesetztes „S". Als Zeichnung im
+ * Dokument statt als Bilddatei — so traegt es die Schriftfarbe mit und
+ * bleibt in jeder Groesse scharf.
+ */
+function seesawZeichen() {
+  const raum = 'http://www.w3.org/2000/svg';
+  const bild = document.createElementNS(raum, 'svg');
+  bild.setAttribute('class', 'seesaw-zeichen');
+  bild.setAttribute('viewBox', '0 0 44 48');
+  bild.setAttribute('aria-hidden', 'true');
+  const bogen = document.createElementNS(raum, 'path');
+  bogen.setAttribute('d', 'M31 15 A9 9 0 1 0 22 24 A9 9 0 1 1 13 33');
+  bogen.setAttribute('fill', 'none');
+  bogen.setAttribute('stroke', 'currentColor');
+  bogen.setAttribute('stroke-width', '7');
+  bogen.setAttribute('stroke-linecap', 'round');
+  bild.appendChild(bogen);
+  return bild;
 }
 
 function zerlegeIso(iso) {

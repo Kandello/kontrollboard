@@ -403,6 +403,8 @@ function ladeAlles() {
       return {
         kw: alsText_(z.kw),
         aufgabe: alsText_(z.aufgabe).toUpperCase(),
+        // Nur bei Seesaw gefuellt — dort wird je Klasse einzeln abgehakt.
+        klasse: alsText_(z.klasse),
         erledigt_am: alsText_(z.erledigt_am)
       };
     }),
@@ -437,6 +439,12 @@ function setzeMeta(paare) {
   });
 }
 
+/** Die Wochenaufgaben, die abgehakt werden koennen. */
+var WOCHENAUFGABEN = ['PEAK', 'WEEKLY', 'LERNWOERTER', 'SEESAW'];
+
+/** Seesaw wird je Klasse einzeln abgehakt, die uebrigen nur einmal fuer alle. */
+var WOCHENAUFGABE_JE_KLASSE = 'SEESAW';
+
 /**
  * Setzt oder entfernt einen Eintrag im Blatt Wochenstatus.
  *
@@ -446,15 +454,27 @@ function setzeMeta(paare) {
  * Die Kalenderwoche wird im Browser nach ISO-8601 und Europe/Berlin
  * bestimmt und hier nur noch auf ihre Form geprueft — die Skript-Zeitzone
  * spielt also keine Rolle.
+ *
+ * Seesaw wird je Klasse getrennt gefuehrt (eine Zeile je Klasse und Woche);
+ * fuer alle uebrigen Aufgaben bleibt die Spalte `klasse` leer. Der
+ * Schluessel umfasst sie in beiden Faellen — bei den uebrigen mit leerem
+ * Wert, wodurch bereits vorhandene Zeilen ohne diese Spalte weiter passen.
  */
-function setzeWochenstatus(kw, aufgabe, erledigt) {
+function setzeWochenstatus(kw, aufgabe, erledigt, klasse) {
   var kennung = String(kw || '').trim();
   if (!/^\d{4}-W\d{2}$/.test(kennung)) {
     throw new Error('Ungültige Kalenderwoche.');
   }
   var welche = String(aufgabe || '').trim().toUpperCase();
-  if (welche !== 'WEEKLY' && welche !== 'PEAK') {
+  if (WOCHENAUFGABEN.indexOf(welche) === -1) {
     throw new Error('Unbekannte Wochenaufgabe.');
+  }
+  var wessen = String(klasse || '').trim();
+  if (welche === WOCHENAUFGABE_JE_KLASSE && !wessen) {
+    throw new Error('Keine Klasse angegeben.');
+  }
+  if (welche !== WOCHENAUFGABE_JE_KLASSE && wessen) {
+    throw new Error('Diese Wochenaufgabe kennt keine Klassen.');
   }
 
   return mitSperre_(function () {
@@ -462,11 +482,12 @@ function setzeWochenstatus(kw, aufgabe, erledigt) {
       schreibeNachSchluessel_('Wochenstatus', [{
         kw: kennung,
         aufgabe: welche,
+        klasse: wessen,
         erledigt_am: Utilities.formatDate(new Date(), 'Europe/Berlin', 'yyyy-MM-dd')
-      }], ['kw', 'aufgabe']);
+      }], ['kw', 'aufgabe', 'klasse']);
     } else {
-      loescheNachSchluessel_('Wochenstatus', ['kw', 'aufgabe'], [[kennung, welche]]);
+      loescheNachSchluessel_('Wochenstatus', ['kw', 'aufgabe', 'klasse'], [[kennung, welche, wessen]]);
     }
-    return { kw: kennung, aufgabe: welche, erledigt: Boolean(erledigt) };
+    return { kw: kennung, aufgabe: welche, klasse: wessen, erledigt: Boolean(erledigt) };
   });
 }

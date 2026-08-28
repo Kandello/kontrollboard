@@ -15,7 +15,7 @@
  */
 
 import {
-  GRID_SPALTEN, metaSchluessel, celleFrei, findePlatz, leseLayout, schreibeLayout,
+  GRID_SPALTEN, MAX_ZEILEN, metaSchluessel, celleFrei, findePlatz, leseLayout, schreibeLayout,
   sichtbare, ausgeblendete, versetze, groesseAendern, blendeAus, blendeEin
 } from '../js/layout.js';
 
@@ -271,6 +271,56 @@ console.log('\n=== Aus- und Einblenden ===');
   pruefe('weicht auf eine freie Stelle aus, wenn die alte belegt ist',
     celleFrei(rechteck(finde(wieder, 'uhr')), [rechteck(finde(wieder, 'tagesplan'))]), true);
   pruefe('behaelt seine Groesse dabei', [finde(wieder, 'uhr').w, finde(wieder, 'uhr').h], [4, 4]);
+}
+
+// ---------------------------------------------------------------------------
+// Die Seite hat unten ein Ende. Eine endlos mitwachsende Startseite ergibt
+// keinen Sinn — und beim Ziehen liefe das Ziel dem Zeiger sonst davon.
+// ---------------------------------------------------------------------------
+console.log('\n=== Das Raster endet unten ===');
+{
+  const l = leseLayout('uhr:0:0:4:4:1,tagesplan:4:0:4:4:1', ZWEI);
+
+  const zuTief = versetze(l, 'uhr', 0, MAX_ZEILEN + 50);
+  pruefe('weit unter das Ende gezogen: haelt an der letzten Zeile an',
+    finde(zuTief, 'uhr').y, MAX_ZEILEN - 4);
+  pruefe('… und behaelt dabei seine Hoehe', finde(zuTief, 'uhr').h, 4);
+
+  pruefe('genau bis an die Kante ist erlaubt',
+    finde(versetze(l, 'uhr', 0, MAX_ZEILEN - 4), 'uhr').y, MAX_ZEILEN - 4);
+
+  const gewachsen = groesseAendern(versetze(l, 'uhr', 0, MAX_ZEILEN - 4), 'uhr', 4, 30, ZWEI);
+  pruefe('Wachsen ueber das Ende hinaus wird an der Kante gestoppt',
+    finde(gewachsen, 'uhr').y + finde(gewachsen, 'uhr').h, MAX_ZEILEN);
+
+  pruefe('ein Rechteck hinter dem Ende gilt nicht als frei',
+    celleFrei({ x: 0, y: MAX_ZEILEN - 2, w: 4, h: 4 }, []), false);
+  pruefe('findePlatz bleibt innerhalb der Seite',
+    findePlatz([], 4, 4).y + 4 <= MAX_ZEILEN, true);
+}
+{
+  // Wer beim Ausweichen unten hinausgeschoben wuerde, rueckt nach oben an die
+  // naechste freie Stelle — er bleibt auf der Seite, statt dahinter zu
+  // verschwinden.
+  const l = leseLayout(
+    `uhr:0:${MAX_ZEILEN - 4}:4:4:1,tagesplan:0:0:4:4:1`, ZWEI);
+  const gedraengt = versetze(l, 'tagesplan', 0, MAX_ZEILEN - 4);
+  const geflohen = finde(gedraengt, 'uhr');
+  pruefe('das verdraengte Widget bleibt vollstaendig auf der Seite',
+    geflohen.y + geflohen.h <= MAX_ZEILEN, true);
+  pruefe('… und ueberschneidet sich dabei mit niemandem',
+    celleFrei(rechteck(geflohen), [rechteck(finde(gedraengt, 'tagesplan'))]), true);
+  pruefe('… es ist nach oben ausgewichen, nicht nach unten',
+    geflohen.y < MAX_ZEILEN - 4, true);
+}
+{
+  // Eine gespeicherte Zeile aus der Fassung ohne Seitenende wird hereingeholt,
+  // nicht verworfen — sonst waere das Widget nach dem Umstieg spurlos weg.
+  const l = leseLayout('uhr:0:300:4:8:1,tagesplan:4:0:4:4:1', ZWEI);
+  const u = finde(l, 'uhr');
+  pruefe('eine Zeile von weit unterhalb wird auf die Seite geholt',
+    u.y + u.h <= MAX_ZEILEN, true);
+  pruefe('… und das Widget ist weiterhin da und sichtbar', u.sichtbar, true);
 }
 
 console.log(schlecht === 0 ? `\nALLE ${n} TESTS BESTANDEN` : `\n${schlecht} von ${n} FEHLGESCHLAGEN`);

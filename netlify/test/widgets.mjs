@@ -19,7 +19,7 @@
  */
 
 import { chromium } from 'playwright';
-import { celleFrei } from '../js/layout.js';
+import { celleFrei, MAX_ZEILEN } from '../js/layout.js';
 
 const ADRESSE = 'http://localhost:8901';
 const TOKEN = 'testtoken123';
@@ -252,7 +252,10 @@ let y2;
 {
   const rechtecke = await alleRechtecke(p);
   const untenRand = Math.max(...Object.values(rechtecke).map((r) => r.y + r.h));
-  y2 = untenRand + 3;
+  // Unterhalb von allem — aber mit genug Luft bis zum Seitenende: die Einheit
+  // waechst hier gleich auf neun Zeilen, und Ferien (zwei Zeilen hoch) muss
+  // darunter noch ausweichen koennen, ohne an die Kante zu stossen.
+  y2 = Math.min(untenRand + 3, MAX_ZEILEN - 11);
   await ziehen(p, 'einheit', 0, y2);
   let r = (await alleRechtecke(p)).einheit;
   pruefe('die Einheit steht isoliert bereit', { x: r.x, y: r.y }, { x: 0, y: y2 });
@@ -394,6 +397,8 @@ console.log('\n=== Die Ablage bleibt beim Mitrollen erreichbar (nicht nur ueberr
   const griffLocator = p2.locator(`.widget[data-id="${obersteId}"] .widget-griff`);
   await griffLocator.scrollIntoViewIfNeeded();
   const griff = await griffLocator.boundingBox();
+  const rasterhoehe = () => p2.locator('.widgetraster').evaluate((el) => el.getBoundingClientRect().height);
+  const hoeheVorher = await rasterhoehe();
   await p2.mouse.move(griff.x + 20, griff.y + griff.height / 2);
   await p2.mouse.down();
   // In die untere Rollzone (die letzten 90px des Fensters), aber nicht ganz
@@ -421,6 +426,16 @@ console.log('\n=== Die Ablage bleibt beim Mitrollen erreichbar (nicht nur ueberr
   pruefe('… und kommt zur Ruhe, statt endlos weiterzurollen', stabil, true);
   pruefe('die Ablage steht jetzt tatsaechlich im sichtbaren Bereich',
     (await ablageOben()) < 800, true);
+
+  // Der Kern des Ganzen: das Raster ist waehrend des Zugs kein Stueck
+  // gewachsen. Genau daran scheiterte es vorher — es wuchs bei jedem
+  // Rollschritt mit, die Ablage darunter rutschte mit nach unten, und man
+  // jagte ihr hinterher, ohne sie je einzuholen. (Dass die Ablage selbst
+  // etwas hoeher wird, sobald das Widget in der Vorschau darin liegt, ist
+  // etwas anderes: das geschieht genau einmal und erst, wenn man schon da
+  // ist — dort wird ohnehin nicht mehr weitergerollt.)
+  pruefe('das Raster ist waehrend des Ziehens nicht gewachsen',
+    await rasterhoehe(), hoeheVorher);
 
   // Letzter, kleiner Feinschliff, wie ihn auch eine Person von Hand macht:
   // die Ablage ist jetzt sichtbar, der Zeiger wandert die letzten Pixel

@@ -13,9 +13,16 @@
  * Code anzufassen — und sie folgt der Lehrkraft auf jedes Geraet, weil sie
  * in der Tabelle liegt und nicht im Browser.
  *
- * Das Raster hat GRID_SPALTEN Spalten und beliebig viele Zeilen; die Zeilen
- * wachsen nach unten mit. Zwei Rechtecke duerfen sich nie ueberschneiden —
- * das gilt als Regel dieser Datei, nicht nur als Wunsch der Oberflaeche.
+ * Das Raster hat GRID_SPALTEN Spalten und MAX_ZEILEN Zeilen — eine feste,
+ * endliche Flaeche. Zwei Rechtecke duerfen sich nie ueberschneiden — das
+ * gilt als Regel dieser Datei, nicht nur als Wunsch der Oberflaeche.
+ *
+ * WARUM DIE SEITE EIN ENDE HAT: Eine nach unten endlos mitwachsende
+ * Startseite ergibt keinen Sinn — sie soll alles auf einen Blick zeigen, und
+ * was man erst herunterrollen muss, sieht man eben nicht. Ein festes Ende
+ * macht ausserdem das Ziehen erst berechenbar: waechst die Seite waehrend
+ * des Zugs mit dem Widget mit, laeuft das Ziel dem Zeiger unendlich davon
+ * (die Ablage unter dem Raster war so praktisch nicht zu treffen).
  *
  * WEICHEN STATT BLOCKIEREN: Steht beim Ziehen oder Vergroessern ein anderes
  * sichtbares Widget im Weg, wird es nicht abgelehnt — das im Weg stehende
@@ -48,8 +55,14 @@
  *  eine einstellbare Dichte noetig waere. */
 export const GRID_SPALTEN = 12;
 
-/** Obergrenze, bis zu der die automatische Platzierung nach unten sucht. */
-const MAX_SUCHZEILE = 400;
+/**
+ * Zeilenzahl des Rasters — das Ende der Seite, nicht bloss eine Suchgrenze.
+ * Die Standardanordnung aller neun Widgets braucht 33 Zeilen; die knapp
+ * anderthalbfache Hoehe laesst genug Luft zum freien Verteilen mit Luecken,
+ * ohne dass unter dem letzten Widget noch ein ganzer leerer Bildschirm
+ * haengt, durch den man sich bis zur Ablage rollen muesste.
+ */
+export const MAX_ZEILEN = 48;
 
 export function metaSchluessel(seite) {
   return 'layout_' + seite;
@@ -76,6 +89,7 @@ function ueberschneidenSich(a, b) {
 export function celleFrei(rechteck, andere) {
   if (rechteck.x < 0 || rechteck.y < 0) return false;
   if (rechteck.x + rechteck.w > GRID_SPALTEN) return false;
+  if (rechteck.y + rechteck.h > MAX_ZEILEN) return false;
   if (rechteck.w < 1 || rechteck.h < 1) return false;
   return !andere.some((a) => ueberschneidenSich(rechteck, a));
 }
@@ -87,16 +101,18 @@ export function celleFrei(rechteck, andere) {
  */
 export function findePlatz(platzierte, w, h) {
   const breite = Math.min(w, GRID_SPALTEN);
-  for (let y = 0; y <= MAX_SUCHZEILE; y++) {
+  const hoehe = Math.min(h, MAX_ZEILEN);
+  for (let y = 0; y <= MAX_ZEILEN - hoehe; y++) {
     for (let x = 0; x <= GRID_SPALTEN - breite; x++) {
-      const kandidat = { x, y, w: breite, h };
+      const kandidat = { x, y, w: breite, h: hoehe };
       if (celleFrei(kandidat, platzierte)) return kandidat;
     }
   }
-  // Praktisch unerreichbar bei so wenigen Widgets — ganz unten anhaengen
-  // statt eine Ausnahme zu werfen.
-  const unten = platzierte.reduce((m, r) => Math.max(m, r.y + r.h), 0);
-  return { x: 0, y: unten, w: breite, h };
+  // Praktisch unerreichbar bei so wenigen Widgets. Da die Seite ein Ende
+  // hat, kann hier nicht mehr einfach nach unten angehaengt werden — dann
+  // lieber die letzte moegliche Zeile, wo es notfalls sichtbar ueberlappt,
+  // als ein Platz ausserhalb der Seite, wo es gar nicht mehr auftaucht.
+  return { x: 0, y: MAX_ZEILEN - hoehe, w: breite, h: hoehe };
 }
 
 /**
@@ -115,9 +131,12 @@ export function leseLayout(zeile, bausteine) {
 
     if (felder.length >= 6) {
       // Neues Format: id:x:y:w:h:sichtbar
+      // Eine Zeile aus einer Fassung ohne Seitenende kann weit unterhalb des
+      // heutigen Rasters liegen — sie wird hereingeholt statt verworfen.
+      const hoehe = begrenzeInt(d, 1, MAX_ZEILEN);
       gespeichert.set(id, {
-        x: begrenzeInt(a, 0, GRID_SPALTEN - 1), y: begrenzeInt(b, 0, MAX_SUCHZEILE),
-        w: begrenzeInt(c, 1, GRID_SPALTEN), h: begrenzeInt(d, 1, MAX_SUCHZEILE),
+        x: begrenzeInt(a, 0, GRID_SPALTEN - 1), y: begrenzeInt(b, 0, MAX_ZEILEN - hoehe),
+        w: begrenzeInt(c, 1, GRID_SPALTEN), h: hoehe,
         sichtbar: e === undefined || e === '' ? true : e === '1',
         vollstaendig: true
       });
@@ -156,7 +175,7 @@ export function leseLayout(zeile, bausteine) {
     // Kurzform), Position an die naechste freie Stelle unter den bereits
     // platzierten SICHTBAREN Widgets — ausgeblendete brauchen keinen Platz.
     const w = Math.min((eintrag && eintrag.w) || baustein.breiteVorgabe || 4, GRID_SPALTEN);
-    const h = baustein.hoeheVorgabe || 8;
+    const h = Math.min(baustein.hoeheVorgabe || 8, MAX_ZEILEN);
     if (!sichtbar) {
       ergebnis.push({ id, titel: baustein.titel, x: 0, y: 0, w, h, sichtbar: false });
       return;
@@ -165,7 +184,7 @@ export function leseLayout(zeile, bausteine) {
       ergebnis.filter((r) => r.sichtbar).map((r) => ({ x: r.x, y: r.y, w: r.w, h: r.h })),
       w, h
     );
-    ergebnis.push({ id, titel: baustein.titel, x: platz.x, y: platz.y, w: platz.w, h, sichtbar: true });
+    ergebnis.push({ id, titel: baustein.titel, x: platz.x, y: platz.y, w: platz.w, h: platz.h, sichtbar: true });
   });
 
   return ergebnis;
@@ -201,6 +220,11 @@ function andereRechtecke(layout, id) {
  * liegende Hindernis, das es noch trifft. Trifft ein verdraengtes Widget
  * dabei ein drittes, weicht das ebenfalls aus (Kaskade). Aendert `rechtecke`
  * nicht, liefert eine neue Map mit denselben Schluesseln.
+ *
+ * Weil die Seite unten ein Ende hat, kann nicht immer nach unten ausgewichen
+ * werden. Wer dabei hinausgeschoben wuerde, rueckt stattdessen an die
+ * naechste freie Stelle von oben — er bleibt damit auf der Seite, statt
+ * unsichtbar dahinter zu verschwinden.
  */
 function verdraenge(rechtecke, ziel) {
   const arbeitskopie = new Map(rechtecke);
@@ -222,7 +246,9 @@ function verdraenge(rechtecke, ziel) {
         }
       }
     }
-    const neu = { x: r.x, y: neuY, w: r.w, h: r.h };
+    const neu = neuY + r.h <= MAX_ZEILEN
+      ? { x: r.x, y: neuY, w: r.w, h: r.h }
+      : findePlatz(fixiert, r.w, r.h);
     arbeitskopie.set(id, neu);
     fixiert.push(neu);
     arbeitskopie.forEach((andereR, andereId) => {
@@ -266,10 +292,14 @@ export function versetze(layout, id, x, y) {
   if (!eigenes) return null;
 
   // Auf den gueltigen Bereich begrenzt, nicht nur auf x >= 0 — sonst liesse
-  // sich ein Widget an den rechten Rand ziehen und die Bewegung wuerde dort
-  // abgelehnt statt an der Kante anzuhalten.
-  const ziel = { x: begrenzeInt(x, 0, GRID_SPALTEN - eigenes.w), y: Math.max(0, Math.round(y)),
-    w: eigenes.w, h: eigenes.h };
+  // sich ein Widget ueber den Rand ziehen und die Bewegung wuerde dort
+  // abgelehnt statt an der Kante anzuhalten. Unten haelt es genauso an: die
+  // Seite hat ein Ende, hinter das nichts geschoben werden kann.
+  const ziel = {
+    x: begrenzeInt(x, 0, GRID_SPALTEN - eigenes.w),
+    y: begrenzeInt(Math.round(y), 0, MAX_ZEILEN - eigenes.h),
+    w: eigenes.w, h: eigenes.h
+  };
   return platziereMitVerdraengung(layout, id, ziel);
 }
 
@@ -290,7 +320,7 @@ export function groesseAendern(layout, id, w, h, bausteine) {
   const ziel = {
     x: eigenes.x, y: eigenes.y,
     w: begrenzeInt(w, minBreite, GRID_SPALTEN - eigenes.x),
-    h: begrenzeInt(h, minHoehe, MAX_SUCHZEILE)
+    h: begrenzeInt(h, minHoehe, MAX_ZEILEN - eigenes.y)
   };
   return platziereMitVerdraengung(layout, id, ziel);
 }

@@ -85,6 +85,8 @@ export function zeichneEinstellungen(ziel, { daten, neuZeichnen }) {
   // --- Links und Halbjahr -------------------------------------------------
   const weekly = feld({ id: 'e-weekly', beschriftung: 'Link „Weekly Note"', wert: daten.meta.link_weekly || '', typ: 'url' });
   const peak   = feld({ id: 'e-peak',   beschriftung: 'Link „PEAK"',        wert: daten.meta.link_peak || '',   typ: 'url' });
+  const lernw  = feld({ id: 'e-lernwoerter', beschriftung: 'Link „Lernwörter"',
+                        wert: daten.meta.link_lernwoerter || '', typ: 'url' });
   const grenze = feld({ id: 'e-grenze', beschriftung: 'Letzter Tag des ersten Halbjahres (MM-TT)',
                         wert: daten.meta.halbjahresgrenze || '01-31', platzhalter: '01-31' });
   const beginn = feld({ id: 'e-beginn', beschriftung: 'Schuljahresbeginn (JJJJ-MM-TT)',
@@ -92,7 +94,7 @@ export function zeichneEinstellungen(ziel, { daten, neuZeichnen }) {
   const metaStand = e('div', {});
 
   ziel.appendChild(karte('Links und Schuljahr', [
-    weekly, peak, grenze, beginn,
+    weekly, peak, lernw, grenze, beginn,
     e('div', { klasse: 'leiste', style: 'margin-bottom:0' }, [
       e('button', {
         klasse: 'wichtig', text: 'Speichern',
@@ -102,6 +104,7 @@ export function zeichneEinstellungen(ziel, { daten, neuZeichnen }) {
             await sende('meta', { werte: {
               link_weekly: weekly.querySelector('input').value.trim(),
               link_peak: peak.querySelector('input').value.trim(),
+              link_lernwoerter: lernw.querySelector('input').value.trim(),
               halbjahresgrenze: grenze.querySelector('input').value.trim(),
               schuljahresbeginn: beginn.querySelector('input').value.trim()
             } });

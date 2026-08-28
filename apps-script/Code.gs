@@ -93,7 +93,7 @@ function doPost(e) {
 
       case 'wochenstatus':
         return antwort_({ ok: true, ergebnis:
-          setzeWochenstatus(rumpf.kw, rumpf.aufgabe, rumpf.erledigt) });
+          setzeWochenstatus(rumpf.kw, rumpf.aufgabe, rumpf.erledigt, rumpf.klasse) });
 
       case 'boardErstellen':
         return antwort_({ ok: true, ergebnis:

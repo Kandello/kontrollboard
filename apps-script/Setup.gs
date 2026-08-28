@@ -24,7 +24,12 @@ var SCHEMA = {
   Einheiten:          ['id', 'fach', 'titel', 'beschreibung', 'reihenfolge', 'geplante_stunden', 'lehrplanbezug', 'status', 'aktiv', 'spur', 'dauer_wochen'],
   Teilthemen:         ['id', 'einheit_id', 'titel', 'reihenfolge'],
   EinheitFortschritt: ['teilthema_id', 'klasse', 'erledigt', 'datum', 'notiz'],
-  Wochenstatus:       ['kw', 'aufgabe', 'erledigt_am'],
+  // `klasse` steht bewusst hinten: setupSheets haengt fehlende Spalten hinten
+  // an, und geschrieben wird nach dieser Reihenfolge. Vorne eingefuegt wuerde
+  // sie in bereits bestehenden Tabellen gegen die vorhandene Kopfzeile
+  // verrutschen. Nur die Seesaw-Aufgabe fuehrt sie je, eine Zeile je Klasse;
+  // bei PEAK, Weekly Note und Lernwoertern bleibt sie leer.
+  Wochenstatus:       ['kw', 'aufgabe', 'erledigt_am', 'klasse'],
   Merkliste:          ['id', 'fach', 'typ', 'text', 'datum', 'uhrzeit', 'erledigt', 'erstellt_am'],
   Meta:               ['schluessel', 'wert']
 };
@@ -47,7 +52,7 @@ var TEXTSPALTEN = {
   Einheiten:          ['id', 'spur'],
   Teilthemen:         ['id', 'einheit_id'],
   EinheitFortschritt: ['teilthema_id', 'klasse', 'datum'],
-  Wochenstatus:       ['kw', 'erledigt_am'],
+  Wochenstatus:       ['kw', 'erledigt_am', 'klasse'],
   Merkliste:          ['id', 'datum', 'uhrzeit'],
   Meta:               ['wert']
 };
@@ -114,6 +119,7 @@ var VORBELEGUNG = {
     ['ferienmodus',       'FALSE'],
     ['link_weekly',       ''],
     ['link_peak',         ''],
+    ['link_lernwoerter',  ''],
     ['schema_version',    '1']
   ]
 };

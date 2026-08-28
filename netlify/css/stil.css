@@ -20,6 +20,8 @@
   --warn-leis:    #fbf7ea;
   --schlecht:     #b3261e;
   --schlecht-leis:#fdf3f2;
+  /* Hausfarbe von Seesaw — nur fuer dessen Zeichen und Schriftzug. */
+  --seesaw:       #6f2da8;
 
   --serif: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
   --sans:  -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
@@ -301,9 +303,12 @@ ul.tagesplan li:first-child { border-top: 0; }
 /* --- Startseite: Wochenaufgaben -------------------------------------------
    Ebenfalls bewusst kompakt statt bloss zwei grosse Kacheln: PEAK und Weekly
    Note brauchen nur Titel, Status und eine Frist — kein 96px-Mindestkopf. */
+/* Schmal genug, dass alle vier Aufgaben in der Regelbreite des Widgets noch
+   nebeneinander stehen — sonst rutschte die vierte in eine zweite Reihe und
+   damit aus dem sichtbaren Bereich. */
 .kachelreihe {
   display: grid; gap: var(--s3); margin-bottom: var(--s4);
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(136px, 1fr));
 }
 
 .kachel {
@@ -330,6 +335,51 @@ ul.tagesplan li:first-child { border-top: 0; }
 
 .kachel-bereich { padding: 0 var(--s4) var(--s4); }
 .kachel-bereich[hidden] { display: none; }
+
+/* Ein Schriftzug, der selbst zur Vorlage fuehrt (Lernwoerter, Seesaw). Er
+   steht ueber dem Klappknopf statt darin: ein Verweis in einem Knopf waere
+   weder gueltig noch bedienbar. */
+.kachel-marke {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: var(--s3) var(--s3) 0;
+  font-family: var(--serif); font-size: var(--t-normal);
+  color: var(--akzent); text-decoration: none;
+}
+.kachel-marke:hover { text-decoration: underline; }
+.kachel-marke + .kachel-kopf { padding-top: var(--s1); min-height: 0; }
+
+/* Rotes Ausrufezeichen, wenn die Zeit knapp wird — dieselbe Sprache wie bei
+   einer ueberfaelligen Deadline. */
+.kachel-ausruf {
+  flex: none; color: var(--schlecht); font-weight: 700; font-size: 17px; line-height: 1;
+}
+
+/* --- Seesaw ---------------------------------------------------------------
+   Die einzige Wochenaufgabe, die je Klasse einzeln ansteht: das Zeichen oben
+   fuehrt zu Seesaw, darunter steht ein Kaestchen je Klasse. Sind alle
+   versorgt, faerbt sich die ganze Kachel gruen. */
+.seesaw-kopf {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--s2); padding-right: var(--s3);
+}
+.seesaw-marke { color: var(--seesaw); padding-bottom: 0; }
+.seesaw-zeichen { flex: none; width: 21px; height: 23px; }
+.seesaw-wort {
+  font-family: var(--sans); font-size: 18px; font-weight: 700; letter-spacing: -.015em;
+}
+
+.seesaw-klassen {
+  display: flex; flex-wrap: wrap; gap: var(--s1) var(--s2);
+  padding: var(--s2) var(--s3) var(--s3);
+}
+.seesaw-klasse {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: var(--t-klein); white-space: nowrap;
+}
+.seesaw-klasse input { flex: none; width: 15px; height: 15px; margin: 0; }
+.seesaw-klasse.ist-erledigt { color: var(--text-leise); }
+
+.kachel.voll { background: var(--gut-leis); }
 
 .ferienleiste { align-items: center; }
 
@@ -838,6 +888,10 @@ ul.teilthemen-abhaken li.ist-erledigt label span { color: var(--text-leise); }
    layout.js gesetzt) und laesst sich frei verschieben und in beide
    Richtungen skalieren. Der Koerper folgt denselben Werten wie die
    Unterrichtseinheiten, damit sich Ziehbares ueberall gleich anfuehlt. */
+/* Die Zeilenzahl setzt start.js als feste `grid-template-rows` aus
+   MAX_ZEILEN — die Seite hat dadurch immer dieselbe Hoehe, und die Ablage
+   darunter bleibt beim Ziehen an Ort und Stelle. `grid-auto-rows` bleibt als
+   Rueckfall fuer den Fall, dass doch einmal eine Zeile mehr entsteht. */
 .widgetraster {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));

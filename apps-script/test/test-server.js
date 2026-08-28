@@ -158,7 +158,7 @@ setzeMeta({ ferienmodus: 'TRUE', link_peak: 'https://example.org/peak' });
 const d2 = ladeAlles();
 pruefe('ferienmodus gesetzt', d2.meta.ferienmodus, 'TRUE');
 pruefe('link gesetzt', d2.meta.link_peak, 'https://example.org/peak');
-pruefe('Meta nicht dupliziert', holeBlatt_('Meta').getLastRow() - 1, 7);
+pruefe('Meta nicht dupliziert', holeBlatt_('Meta').getLastRow() - 1, VORBELEGUNG.Meta.length);
 
 console.log('\n=== Boolean-Toleranz ===');
 [['TRUE',true],['true',true],['WAHR',true],[1,true],[true,true],['ja',true],
@@ -301,6 +301,47 @@ console.log('\n=== Wochenstatus ===');
     { token: t, aktion: 'wochenstatus', kw: '2026-W36', aufgabe: 'PEAK', erledigt: true }) } }).text);
   pruefe('ueber doPost erreichbar', p.ok, true);
   pruefe('doPost hat geschrieben', ladeAlles().wochenstatus.length, 3);
+}
+
+// Seesaw wird je Klasse abgehakt, Lernwoerter wie PEAK nur einmal fuer alle.
+console.log('\n=== Wochenstatus: Seesaw je Klasse, Lernwoerter ===');
+{
+  holeBlatt_('Wochenstatus').d = [SCHEMA.Wochenstatus.slice()];
+
+  setzeWochenstatus('2026-W34', 'SEESAW', true, '3L');
+  setzeWochenstatus('2026-W34', 'SEESAW', true, '3M');
+  let w = ladeAlles().wochenstatus;
+  pruefe('zwei Klassen, zwei Zeilen', w.length, 2);
+  pruefe('die Klasse steht dabei', w.map((z) => z.klasse).sort(), ['3L', '3M']);
+
+  setzeWochenstatus('2026-W34', 'SEESAW', true, '3L');
+  pruefe('dieselbe Klasse zweimal erzeugt keine Dublette', ladeAlles().wochenstatus.length, 2);
+
+  setzeWochenstatus('2026-W34', 'SEESAW', false, '3L');
+  w = ladeAlles().wochenstatus;
+  pruefe('nur diese eine Klasse zurueckgenommen', w.length, 1);
+  pruefe('die andere bleibt abgehakt', w[0].klasse, '3M');
+
+  setzeWochenstatus('2026-W34', 'LERNWOERTER', true);
+  w = ladeAlles().wochenstatus;
+  pruefe('Lernwoerter zusaetzlich', w.length, 2);
+  pruefe('… ohne Klasse', w.filter((z) => z.aufgabe === 'LERNWOERTER')[0].klasse, '');
+
+  let m = '';
+  try { setzeWochenstatus('2026-W34', 'SEESAW', true); } catch (e) { m = e.message; }
+  pruefe('Seesaw ohne Klasse abgewiesen', /Keine Klasse angegeben/.test(m), true);
+
+  m = '';
+  try { setzeWochenstatus('2026-W34', 'PEAK', true, '3L'); } catch (e) { m = e.message; }
+  pruefe('PEAK mit Klasse abgewiesen', /kennt keine Klassen/.test(m), true);
+  pruefe('nach beiden Fehlern unveraendert', ladeAlles().wochenstatus.length, 2);
+
+  // Eine Tabelle aus der Fassung vor Seesaw hat die Spalte `klasse` noch
+  // nicht. Bestehende Zeilen muessen weiter gefunden und geloescht werden.
+  holeBlatt_('Wochenstatus').d = [['kw', 'aufgabe', 'erledigt_am'], ['2026-W40', 'PEAK', '2026-10-01']];
+  pruefe('alte Zeile ohne Spalte klasse wird gelesen', ladeAlles().wochenstatus.length, 1);
+  setzeWochenstatus('2026-W40', 'PEAK', false);
+  pruefe('… und laesst sich zuruecknehmen', ladeAlles().wochenstatus.length, 0);
 }
 
 console.log('\n=== Boards: anlegen (gemeinsam fuer alle Klassen, keine Klassen-Spalte mehr) ===');

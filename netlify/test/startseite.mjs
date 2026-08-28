@@ -57,10 +57,17 @@ async function setzeFerien(an) {
   });
 }
 
-async function setzeStatus(kw, aufgabe, erledigt) {
+async function setzeStatus(kw, aufgabe, erledigt, klasse) {
   await fetch(ADRESSE + '/exec', {
     method: 'POST', headers: { 'Content-Type': 'text/plain' },
-    body: JSON.stringify({ token: TOKEN, aktion: 'wochenstatus', kw, aufgabe, erledigt })
+    body: JSON.stringify({ token: TOKEN, aktion: 'wochenstatus', kw, aufgabe, erledigt, klasse })
+  });
+}
+
+async function setzeMetaWert(werte) {
+  await fetch(ADRESSE + '/exec', {
+    method: 'POST', headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify({ token: TOKEN, aktion: 'meta', werte })
   });
 }
 
@@ -211,9 +218,10 @@ console.log('\n=== Wochenaufgaben am Montag ===');
   await setzeStatus('2026-W34', 'WEEKLY', false);
   const { p, ctx } = await oeffne('2026-08-17T07:20:00Z');
 
-  pruefe('zwei Kacheln', await p.locator('.kachel').count(), 2);
-  const peak = p.locator('.kachel').first();
-  const weekly = p.locator('.kachel').nth(1);
+  pruefe('vier Kacheln: PEAK, Weekly Note, Seesaw, Lernwörter',
+    await p.locator('.kachel').count(), 4);
+  const peak = p.locator('.kachel[data-aufgabe="PEAK"]');
+  const weekly = p.locator('.kachel[data-aufgabe="WEEKLY"]');
 
   pruefe('PEAK offen', (await peak.innerText()).includes('offen'), true);
   pruefe('PEAK nennt die Frist', (await peak.innerText()).includes('Dienstagabend'), true);
@@ -234,12 +242,12 @@ console.log('\n=== Wochenaufgaben am Montag ===');
 
   await peak.locator('button:has-text("Als erledigt markieren")').click();
   await p.waitForTimeout(900);
-  const peakNeu = p.locator('.kachel').first();
+  const peakNeu = p.locator('.kachel[data-aufgabe="PEAK"]');
   pruefe('nach dem Knopf erledigt', (await peakNeu.innerText()).includes('erledigt'), true);
   pruefe('Kachel wird als erledigt gezeichnet',
     (await peakNeu.getAttribute('class')).includes('erledigt'), true);
   pruefe('Datum wird genannt', /\d{2}\.\d{2}\.\d{4}/.test(await peakNeu.innerText()), true);
-  pruefe('Weekly bleibt offen', (await p.locator('.kachel').nth(1).innerText()).includes('offen'), true);
+  pruefe('Weekly bleibt offen', (await p.locator('.kachel[data-aufgabe="WEEKLY"]').innerText()).includes('offen'), true);
 
   // Zuruecknehmen ueber denselben Weg
   await peakNeu.locator('.kachel-kopf').click();
@@ -247,7 +255,7 @@ console.log('\n=== Wochenaufgaben am Montag ===');
   await peakNeu.locator('button:has-text("Doch noch offen")').click();
   await p.waitForTimeout(900);
   pruefe('lässt sich zurücknehmen',
-    (await p.locator('.kachel').first().innerText()).includes('offen'), true);
+    (await p.locator('.kachel[data-aufgabe="PEAK"]').innerText()).includes('offen'), true);
 
   await ctx.close();
 }
@@ -312,9 +320,9 @@ console.log('\n=== Ferienmodus ===');
 
   pruefe('Tagesplan ausgeblendet', await p.locator('ul.tagesplan').count(), 0);
   pruefe('Kacheln pausiert',
-    (await p.locator('.kachel').first().innerText()).includes('pausiert'), true);
+    (await p.locator('.kachel[data-aufgabe="PEAK"]').innerText()).includes('pausiert'), true);
   pruefe('Kachel neutral gezeichnet',
-    (await p.locator('.kachel').first().getAttribute('class')).includes('ruhend'), true);
+    (await p.locator('.kachel[data-aufgabe="PEAK"]').getAttribute('class')).includes('ruhend'), true);
   pruefe('Ferienmarke an der Uhr', await p.locator('.uhr .marke').count(), 1);
   pruefe('Klassen weiter erreichbar', await p.locator('.klassenknopf').count(), 3);
 
@@ -335,9 +343,9 @@ console.log('\n=== Jahreswechsel ===');
   await setzeStatus('2026-W53', 'WEEKLY', true);
   const { p, ctx } = await oeffne('2027-01-01T09:00:00Z');
   pruefe('Weekly aus 2026-W53 gilt am 01.01.2027',
-    (await p.locator('.kachel').nth(1).innerText()).includes('erledigt'), true);
+    (await p.locator('.kachel[data-aufgabe="WEEKLY"]').innerText()).includes('erledigt'), true);
   pruefe('PEAK derselben Woche weiterhin offen',
-    (await p.locator('.kachel').first().innerText()).includes('offen'), true);
+    (await p.locator('.kachel[data-aufgabe="PEAK"]').innerText()).includes('offen'), true);
   await ctx.close();
   await setzeStatus('2026-W53', 'WEEKLY', false);
 }
@@ -466,6 +474,143 @@ console.log('\n=== Merklisten: To-Do, Deadlines, Termine ===');
   pruefe('To-Dos überstehen das Neuladen', await p.locator('.widget[data-id="todo"] .merkliste-liste li').count(), 3);
   pruefe('Termin übersteht das Neuladen', await p.locator('.widget[data-id="events"] .merkliste-liste li').count(), 1);
 
+  await ctx.close();
+}
+
+// ---------------------------------------------------------------------------
+// Seesaw: eine Wochenaufgabe, die je Klasse einzeln ansteht. Erst wenn alle
+// versorgt sind, gilt sie als erledigt; ab Donnerstag mahnt sie, was fehlt.
+// ---------------------------------------------------------------------------
+console.log('\n=== Seesaw: je Klasse abhaken ===');
+{
+  // Mittwoch der KW 38 — vor dem Mahntag.
+  await setzeFerien(false);
+  for (const k of ['3L', '3M', '3OB']) await setzeStatus('2026-W38', 'SEESAW', false, k);
+  const { p, ctx } = await oeffne('2026-09-16T07:20:00Z');
+
+  const seesaw = p.locator('.kachel[data-aufgabe="SEESAW"]');
+  pruefe('die Seesaw-Kachel ist da', await seesaw.count(), 1);
+
+  const marke = seesaw.locator('.seesaw-marke');
+  pruefe('das Zeichen führt zu Seesaw', await marke.getAttribute('href'), 'https://app.seesaw.me/');
+  pruefe('… und öffnet einen eigenen Tab', await marke.getAttribute('target'), '_blank');
+  pruefe('… abgesichert gegen den öffnenden Tab',
+    await marke.getAttribute('rel'), 'noopener noreferrer');
+  pruefe('der Schriftzug steht dabei', await marke.locator('.seesaw-wort').innerText(), 'Seesaw');
+
+  const kaesten = seesaw.locator('.seesaw-klasse input');
+  pruefe('ein Kästchen je Klasse', await kaesten.count(), 3);
+  pruefe('zu Beginn ist keines gesetzt', await seesaw.locator('input:checked').count(), 0);
+  pruefe('jedes Kästchen nennt seine Klasse',
+    await seesaw.locator('.seesaw-klasse').allInnerTexts(), ['3L', '3M', '3OB']);
+  pruefe('am Mittwoch mahnt noch nichts', await seesaw.locator('.kachel-ausruf').count(), 0);
+  pruefe('… und die Kachel ist nicht grün',
+    (await seesaw.getAttribute('class')).includes('voll'), false);
+
+  // Zwei von drei abhaken — noch nicht vollstaendig.
+  await kaesten.nth(0).check();
+  await p.waitForTimeout(400);
+  await kaesten.nth(1).check();
+  await p.waitForTimeout(400);
+  pruefe('zwei Klassen abgehakt', await seesaw.locator('input:checked').count(), 2);
+  pruefe('zwei von drei reichen noch nicht für Grün',
+    (await seesaw.getAttribute('class')).includes('voll'), false);
+
+  // Die dritte macht es voll.
+  await seesaw.locator('.seesaw-klasse input').nth(2).check();
+  await p.waitForTimeout(500);
+  pruefe('alle drei abgehakt: die Kachel färbt sich grün',
+    (await seesaw.getAttribute('class')).includes('voll'), true);
+  pruefe('… und zählt als erledigt',
+    (await seesaw.getAttribute('class')).includes('erledigt'), true);
+
+  // Wieder abwaehlen wirkt genauso — und nur auf diese eine Klasse.
+  await seesaw.locator('.seesaw-klasse input').nth(1).uncheck();
+  await p.waitForTimeout(500);
+  pruefe('eine Klasse zurückgenommen: das Grün geht wieder weg',
+    (await seesaw.getAttribute('class')).includes('voll'), false);
+  pruefe('… und nur diese eine ist wieder offen',
+    await seesaw.locator('input:checked').count(), 2);
+
+  // Alles uebersteht das Neuladen, liegt also wirklich in der Tabelle.
+  await p.reload();
+  await p.waitForSelector('.klassenraster', { timeout: 8000 });
+  pruefe('die Haken überstehen das Neuladen',
+    await p.locator('.kachel[data-aufgabe="SEESAW"] input:checked').count(), 2);
+
+  await ctx.close();
+}
+
+console.log('\n=== Seesaw: ab Donnerstag mahnt es ===');
+{
+  // Donnerstag derselben Woche: 3L und 3OB stehen noch aus (siehe oben).
+  const { p, ctx } = await oeffne('2026-09-17T07:20:00Z');
+  const seesaw = p.locator('.kachel[data-aufgabe="SEESAW"]');
+  pruefe('ab Donnerstag steht ein rotes Ausrufezeichen da',
+    await seesaw.locator('.kachel-ausruf').count(), 1);
+  pruefe('… in der Warnfarbe',
+    await seesaw.locator('.kachel-ausruf').evaluate((el) => getComputedStyle(el).color),
+    'rgb(179, 38, 30)');
+
+  // Sind alle versorgt, verschwindet die Mahnung sofort wieder.
+  await seesaw.locator('.seesaw-klasse input').nth(1).check();
+  await p.waitForTimeout(500);
+  pruefe('vollständig versorgt: die Mahnung verschwindet',
+    await seesaw.locator('.kachel-ausruf').count(), 0);
+  pruefe('… und die Kachel ist grün', (await seesaw.getAttribute('class')).includes('voll'), true);
+
+  await ctx.close();
+}
+
+console.log('\n=== Seesaw: im Ferienmodus ruht auch das ===');
+{
+  await setzeFerien(true);
+  const { p, ctx } = await oeffne('2026-09-17T07:20:00Z');
+  const seesaw = p.locator('.kachel[data-aufgabe="SEESAW"]');
+  pruefe('die Kachel ruht', (await seesaw.getAttribute('class')).includes('ruhend'), true);
+  pruefe('keine Mahnung in den Ferien', await seesaw.locator('.kachel-ausruf').count(), 0);
+  pruefe('die Kästchen sind gesperrt',
+    await seesaw.locator('.seesaw-klasse input').first().isDisabled(), true);
+  await setzeFerien(false);
+  await ctx.close();
+}
+
+// ---------------------------------------------------------------------------
+// Lernwoerter: eine gewoehnliche Wochenaufgabe, deren Schriftzug aber selbst
+// zur Vorlage fuehrt.
+// ---------------------------------------------------------------------------
+console.log('\n=== Lernwörter: der Schriftzug führt zur Vorlage ===');
+{
+  await setzeMetaWert({ link_lernwoerter: '' });
+  let { p, ctx } = await oeffne('2026-09-16T07:20:00Z');
+  let lw = p.locator('.kachel[data-aufgabe="LERNWOERTER"]');
+  pruefe('die Lernwörter-Kachel ist da', await lw.count(), 1);
+  pruefe('ohne hinterlegten Link bleibt der Titel schlichter Text',
+    await lw.locator('.kachel-marke').count(), 0);
+  pruefe('… der Titel steht trotzdem da',
+    await lw.locator('.kachel-titel').innerText(), 'Lernwörter');
+  await ctx.close();
+
+  await setzeMetaWert({ link_lernwoerter: 'https://www.canva.com/design/BEISPIEL/edit' });
+  ({ p, ctx } = await oeffne('2026-09-16T07:20:00Z'));
+  lw = p.locator('.kachel[data-aufgabe="LERNWOERTER"]');
+  const marke = lw.locator('.kachel-marke');
+  pruefe('mit hinterlegtem Link wird der Schriftzug anklickbar', await marke.count(), 1);
+  pruefe('… und führt zur Vorlage',
+    await marke.getAttribute('href'), 'https://www.canva.com/design/BEISPIEL/edit');
+  pruefe('… in einem eigenen Tab', await marke.getAttribute('target'), '_blank');
+  pruefe('… mit dem richtigen Text', await marke.innerText(), 'Lernwörter');
+  pruefe('der Verweis steht NICHT im Klappknopf — das wäre weder gültig noch bedienbar',
+    await lw.locator('.kachel-kopf a').count(), 0);
+
+  // Abhaken funktioniert wie bei PEAK und Weekly Note.
+  pruefe('zunächst offen', (await lw.innerText()).includes('offen'), true);
+  await lw.locator('.kachel-kopf').click();
+  await p.waitForTimeout(200);
+  await lw.locator('button:has-text("Als erledigt markieren")').click();
+  await p.waitForTimeout(900);
+  pruefe('lässt sich abhaken wie die übrigen Wochenaufgaben',
+    (await p.locator('.kachel[data-aufgabe="LERNWOERTER"]').innerText()).includes('erledigt'), true);
   await ctx.close();
 }
 
