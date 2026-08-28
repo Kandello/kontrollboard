@@ -19,7 +19,7 @@ set -e
 cd "$(dirname "$0")"
 
 if ! command -v clasp >/dev/null 2>&1; then
-  echo "clasp ist nicht installiert.  ->  npm install -g @google/clasp" >&2
+  echo "clasp ist nicht installiert.  ->  npm install -g @google/clasp@2.4.2" >&2
   exit 1
 fi
 

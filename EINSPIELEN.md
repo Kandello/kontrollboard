@@ -15,8 +15,12 @@ Node.js von <https://nodejs.org> (die LTS-Fassung genügt), danach im
 Terminal bzw. in der Eingabeaufforderung:
 
 ```
-npm install -g @google/clasp
+npm install -g @google/clasp@2.4.2
 ```
+
+Die Version ist bewusst festgehalten: mit ihr sind die Befehle unten
+geprüft. Ohne Versionsangabe kommt die jeweils neueste, deren Befehle
+abweichen können.
 
 **2. Bei Google anmelden**
 
