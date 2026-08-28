@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>Netlify-Test</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230088b0'/%3E%3Cpath d='M9 16.5l4.5 4.5L23 11.5' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Netlify-Test">
+  <meta name="theme-color" content="#faf9f5">
+  <style>
+    :root {
+      --grund: #faf9f5; --flaeche: #fff; --text: #2c2a26; --leise: #6f6a61;
+      --linie: #e4e0d8; --akzent: #0088b0; --gut: #1e7a4c; --schlecht: #b3261e; --offen: #8a6d1f;
+      --serif: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+      --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 16px; background: var(--grund); color: var(--text);
+           font-family: var(--sans); font-size: 16px; line-height: 1.5;
+           -webkit-text-size-adjust: 100%; }
+    h1, h2 { font-family: var(--serif); font-weight: 600; }
+    h1 { font-size: 26px; margin: 0 0 4px; }
+    h2 { font-size: 19px; margin: 0 0 8px; }
+    .hinweis { color: var(--leise); font-size: 14px; margin: 0 0 24px; max-width: 60ch; }
+    .karte { background: var(--flaeche); border: 1px solid var(--linie); border-radius: 10px;
+             padding: 16px; margin-bottom: 16px; max-width: 760px; }
+    .kopf { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+    .nummer { font-family: var(--serif); font-size: 13px; color: var(--leise);
+              border: 1px solid var(--linie); border-radius: 999px; padding: 1px 9px; white-space: nowrap; }
+    .frage { color: var(--leise); font-size: 14px; margin: 0 0 14px; }
+    button { font-family: var(--sans); font-size: 15px; min-height: 44px; padding: 10px 18px;
+             margin: 0 8px 8px 0; background: var(--flaeche); color: var(--akzent);
+             border: 1px solid var(--akzent); border-radius: 8px; cursor: pointer;
+             -webkit-tap-highlight-color: transparent; }
+    button.wichtig { background: var(--akzent); color: #fff; }
+    .ergebnis { margin-top: 12px; padding: 11px 13px; border-radius: 8px;
+                border: 1px solid var(--linie); background: var(--grund); font-size: 14px;
+                white-space: pre-wrap; word-break: break-word; }
+    .ergebnis.gut { border-color: var(--gut); background: #f1f8f4; }
+    .ergebnis.schlecht { border-color: var(--schlecht); background: #fdf3f2; }
+    .ergebnis.offen { border-color: var(--offen); background: #fbf7ea; }
+    .technisch { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12.5px; word-break: break-all; }
+    .umgebung { font-size: 13px; color: var(--leise); }
+    .umgebung div { margin-bottom: 5px; }
+    .scrollbereich { height: 220px; overflow: auto; border: 1px solid var(--linie);
+                     border-radius: 8px; background: var(--flaeche); -webkit-overflow-scrolling: touch; }
+    .scrollbereich table { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; }
+    .scrollbereich th, .scrollbereich td { padding: 9px 14px; border-bottom: 1px solid var(--linie);
+                                           text-align: left; font-size: 14px; white-space: nowrap;
+                                           background: var(--flaeche); }
+    .scrollbereich thead th { position: -webkit-sticky; position: sticky; top: 0; z-index: 2; background: #f2efe8; }
+    .scrollbereich .haftlinks { position: -webkit-sticky; position: sticky; left: 0; z-index: 1;
+                                background: #f7f5f0; border-right: 1px solid var(--linie); }
+    .scrollbereich thead th.haftlinks { z-index: 3; background: #ece8df; }
+    textarea { width: 100%; min-height: 220px; font-family: ui-monospace, Menlo, Consolas, monospace;
+               font-size: 12.5px; padding: 11px; border: 1px solid var(--linie);
+               border-radius: 8px; background: var(--grund); color: var(--text); }
+    ol.anleitung { margin: 0 0 14px; padding-left: 22px; font-size: 14px; }
+    ol.anleitung li { margin-bottom: 5px; }
+    @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+  </style>
+</head>
+<body>
+
+  <h1>Netlify-Test</h1>
+  <p class="hinweis">
+    Dieselben Prüfungen wie zuvor — diesmal aber auf einer eigenständigen Adresse statt
+    innerhalb von Apps Script. Die entscheidende Frage: Überlebt der lokale Speicher hier
+    einen echten Neustart? Es werden keine Daten übertragen, alles bleibt im Browser.
+  </p>
+
+  <div class="karte">
+    <div class="kopf"><span class="nummer">Umgebung</span><h2>Wo läuft diese Seite?</h2></div>
+    <div class="umgebung" id="umgebung"></div>
+  </div>
+
+  <div class="karte">
+    <div class="kopf"><span class="nummer">Prüfung 1</span><h2>Überdauert der lokale Speicher?</h2></div>
+    <p class="frage">Die einzige Prüfung, die wirklich zählt.</p>
+    <ol class="anleitung">
+      <li><strong>„Marke setzen"</strong> antippen.</li>
+      <li>Seite neu laden — Marke muss gefunden werden.</li>
+      <li>App bzw. Browser <strong>vollständig wegwischen</strong> und neu starten.</li>
+      <li>Wieder hierher — steht die Marke noch?</li>
+    </ol>
+    <button class="wichtig" id="btnSetzen">Marke setzen</button>
+    <button id="btnLoeschen">Marke löschen</button>
+    <div class="ergebnis" id="erg1">wird geprüft …</div>
+  </div>
+
+  <div class="karte">
+    <div class="kopf"><span class="nummer">Prüfung 2</span><h2>Verhält sich der Speicher wie ein Sitzungsspeicher?</h2></div>
+    <p class="frage">Läuft automatisch. Verschwinden beide Marken gemeinsam, ist der Speicher wertlos.</p>
+    <div class="ergebnis" id="erg2">wird geprüft …</div>
+  </div>
+
+  <div class="karte">
+    <div class="kopf"><span class="nummer">Prüfung 3</span><h2>Funktioniert der komfortable Dateizugriff?</h2></div>
+    <p class="frage">
+      Innerhalb von Apps Script war dieser Weg gesperrt. Ohne Rahmen könnte er auf dem
+      Windows-PC funktionieren — dann findet die App die Zuordnungsdatei künftig selbst wieder.
+    </p>
+    <button id="btnPicker">Dateidialog versuchen</button>
+    <div class="ergebnis" id="erg3">noch nicht geprüft</div>
+  </div>
+
+  <div class="karte">
+    <div class="kopf"><span class="nummer">Prüfung 4</span><h2>Download und Druckfenster</h2></div>
+    <button id="btnDownload">Testdatei herunterladen</button>
+    <button id="btnFenster">Druckfenster öffnen</button>
+    <div class="ergebnis" id="erg4">noch nicht geprüft</div>
+    <button id="btn4ja">Beides hat geklappt</button>
+    <button id="btn4teil">Nur der Download</button>
+    <button id="btn4nein">Nichts davon</button>
+  </div>
+
+  <div class="karte">
+    <div class="kopf"><span class="nummer">Prüfung 5</span><h2>Bleiben Kopfzeile und Namensspalte stehen?</h2></div>
+    <p class="frage">Bitte in <strong>beide</strong> Richtungen scrollen.</p>
+    <div class="scrollbereich">
+      <table>
+        <thead><tr><th class="haftlinks">Nr.</th><th>Spalte A</th><th>Spalte B</th><th>Spalte C</th>
+        <th>Spalte D</th><th>Spalte E</th><th>Spalte F</th><th>Spalte G</th><th>Spalte H</th></tr></thead>
+        <tbody id="koerper"></tbody>
+      </table>
+    </div>
+    <div class="ergebnis" id="erg5">noch nicht bewertet</div>
+    <button id="btn5ja">Beides bleibt stehen</button>
+    <button id="btn5nein">Nicht beides</button>
+  </div>
+
+  <div class="karte">
+    <div class="kopf"><span class="nummer">Abschluss</span><h2>Bericht</h2></div>
+    <button class="wichtig" id="btnBericht">Bericht erzeugen</button>
+    <textarea id="bericht" readonly placeholder="Auf „Bericht erzeugen" tippen …"></textarea>
+  </div>
+
+<script>
+(function () {
+  'use strict';
+
+  var MARKE    = 'netlifytest_marke';
+  var ZAEHLER  = 'netlifytest_zaehler';
+  var SITZMARKE = 'netlifytest_sitzung';
+
+  var befund = { p1: 'nicht geprüft', p2: 'nicht geprüft', p3: 'nicht geprüft',
+                 p4: 'nicht geprüft', p5: 'nicht geprüft' };
+
+  function el(id) { return document.getElementById(id); }
+  function zeige(id, text, art) {
+    var k = el(id); k.textContent = text; k.className = 'ergebnis' + (art ? ' ' + art : '');
+  }
+  function jetzt() {
+    var d = new Date(); function z(n) { return (n < 10 ? '0' : '') + n; }
+    return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()) + ' ' +
+           z(d.getHours()) + ':' + z(d.getMinutes()) + ':' + z(d.getSeconds());
+  }
+  function lies(s)  { try { return localStorage.getItem(s); } catch (e) { return null; } }
+  function schreib(s, w) { try { localStorage.setItem(s, w); return true; } catch (e) { return e.name + ': ' + e.message; } }
+  function loesche(s) { try { localStorage.removeItem(s); } catch (e) {} }
+
+  var herkunft = '(nicht lesbar)';
+  try { herkunft = location.origin; } catch (e) {}
+  var imRahmen = false;
+  try { imRahmen = (window.self !== window.top); } catch (e) { imRahmen = true; }
+
+  var anzeigeModus = (function () {
+    var treffer = [];
+    ['standalone', 'fullscreen', 'minimal-ui', 'browser'].forEach(function (m) {
+      try { if (matchMedia('(display-mode: ' + m + ')').matches) treffer.push(m); } catch (e) {}
+    });
+    var navFlag = 'nicht vorhanden';
+    try { if (typeof navigator.standalone !== 'undefined') navFlag = String(navigator.standalone); } catch (e) {}
+    var alsApp = treffer.indexOf('standalone') !== -1 || treffer.indexOf('fullscreen') !== -1 || navFlag === 'true';
+    return { medien: treffer.join(', ') || 'unbekannt', navigatorFlag: navFlag,
+             text: alsApp ? 'Home-Bildschirm-App' : 'normaler Browser-Tab' };
+  })();
+
+  var speicherOk = true, speicherFehler = '';
+  try { localStorage.setItem('netlifytest_probe', '1'); localStorage.removeItem('netlifytest_probe'); }
+  catch (e) { speicherOk = false; speicherFehler = e.name + ': ' + e.message; }
+
+  (function () {
+    var zeilen = [
+      ['Adresse dieser Seite', herkunft],
+      ['Gestartet als', anzeigeModus.text + '  (display-mode: ' + anzeigeModus.medien +
+                        ', navigator.standalone: ' + anzeigeModus.navigatorFlag + ')'],
+      ['Läuft in einem Rahmen', imRahmen ? 'JA — unerwartet!' : 'nein (richtig so)'],
+      ['Lokaler Speicher nutzbar', speicherOk ? 'ja' : 'NEIN — ' + speicherFehler],
+      ['showOpenFilePicker vorhanden', (typeof window.showOpenFilePicker === 'function') ? 'ja' : 'nein'],
+      ['Bildschirmbreite', innerWidth + ' px'],
+      ['Zeitzone laut Browser', (function () { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) { return 'unbekannt'; } })()],
+      ['Browserkennung', navigator.userAgent]
+    ];
+    el('umgebung').innerHTML = zeilen.map(function (z) {
+      return '<div><strong>' + z[0] + ':</strong> <span class="technisch">' +
+             String(z[1]).replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</span></div>';
+    }).join('');
+  })();
+
+  // --- Prüfung 1 ---------------------------------------------------------
+  (function pruefe1() {
+    if (!speicherOk) {
+      befund.p1 = 'FEHLGESCHLAGEN — Speicher nicht nutzbar (' + speicherFehler + ')';
+      zeige('erg1', 'Der lokale Speicher ist hier nicht nutzbar.\n' + speicherFehler, 'schlecht');
+      return;
+    }
+    var n = parseInt(lies(ZAEHLER), 10); n = (isNaN(n) ? 0 : n) + 1; schreib(ZAEHLER, String(n));
+    var roh = lies(MARKE);
+    if (!roh) {
+      befund.p1 = 'keine Marke gefunden (Aufruf Nr. ' + n + ')';
+      zeige('erg1', 'Keine Marke gefunden.\n\nBeim ersten Aufruf richtig so — bitte ' +
+                    '„Marke setzen" antippen.\nErscheint das NACH einem Neustart, ist auch ' +
+                    'Netlify keine Lösung.\n\nSeitenaufrufe: ' + n, 'offen');
+      return;
+    }
+    var d; try { d = JSON.parse(roh); } catch (e) {
+      befund.p1 = 'Marke unlesbar'; zeige('erg1', 'Marke unlesbar: ' + roh, 'schlecht'); return;
+    }
+    befund.p1 = 'Marke überdauert (gesetzt ' + d.zeit + ', Aufruf Nr. ' + n + ')';
+    zeige('erg1', 'Marke gefunden.\n\ngesetzt am:       ' + d.zeit +
+                  '\ngesetzt auf:      ' + d.herkunft +
+                  '\naktuelle Adresse: ' + herkunft +
+                  '\nSeitenaufrufe:    ' + n +
+                  '\n\nWenn Sie zwischendurch die App vollständig weggewischt haben, ist ' +
+                  'das das gesuchte Ergebnis.', 'gut');
+  })();
+
+  el('btnSetzen').addEventListener('click', function () {
+    var r = schreib(MARKE, JSON.stringify({ zeit: jetzt(), herkunft: herkunft }));
+    try { sessionStorage.setItem(SITZMARKE, jetzt()); } catch (e) {}
+    if (r === true) {
+      befund.p1 = 'Marke soeben gesetzt, noch nicht nachgeprüft';
+      zeige('erg1', 'Marke gesetzt am ' + jetzt() + '.\n\nJetzt die App vollständig ' +
+                    'wegwischen, neu starten und wiederkommen.', 'gut');
+    } else {
+      befund.p1 = 'FEHLGESCHLAGEN beim Setzen — ' + r;
+      zeige('erg1', 'Konnte nicht gesetzt werden: ' + r, 'schlecht');
+    }
+  });
+
+  el('btnLoeschen').addEventListener('click', function () {
+    loesche(MARKE); loesche(ZAEHLER);
+    try { sessionStorage.removeItem(SITZMARKE); } catch (e) {}
+    befund.p1 = 'zurückgesetzt';
+    zeige('erg1', 'Marke und Zähler gelöscht.', 'offen');
+  });
+
+  // --- Prüfung 2 ---------------------------------------------------------
+  (function pruefe2() {
+    var dauerhaft = !!lies(MARKE);
+    var sitzung = false;
+    try { sitzung = !!sessionStorage.getItem(SITZMARKE); } catch (e) {}
+    var t = 'dauerhafte Marke (localStorage): ' + (dauerhaft ? 'vorhanden' : 'fehlt') + '\n' +
+            'Sitzungsmarke (sessionStorage):  ' + (sitzung ? 'vorhanden' : 'fehlt') + '\n\n';
+    if (dauerhaft && !sitzung) {
+      befund.p2 = 'GUT — dauerhafte Marke überlebt, Sitzungsmarke nicht (gesundes Verhalten)';
+      zeige('erg2', t + 'Genau das gesunde Verhalten: Die Sitzungsmarke ist weg, die ' +
+                    'dauerhafte hat überdauert. Der Speicher ist wirklich dauerhaft.', 'gut');
+    } else if (!dauerhaft && !sitzung) {
+      befund.p2 = 'beide fehlen — noch nichts gesetzt, oder beide gemeinsam verloren';
+      zeige('erg2', t + 'Beide fehlen. Vor dem ersten Setzen normal — nach einem Neustart ' +
+                    'wäre es das Aus für diesen Weg.', 'offen');
+    } else if (dauerhaft && sitzung) {
+      befund.p2 = 'beide vorhanden — kein Neustart erfolgt, noch keine Aussage';
+      zeige('erg2', t + 'Beide da: seit dem Setzen wurde nicht vollständig neu gestartet.', 'offen');
+    } else {
+      befund.p2 = 'ungewöhnlich — Sitzungsmarke ohne dauerhafte Marke';
+      zeige('erg2', t + 'Ungewöhnlich. Bitte genau so melden.', 'schlecht');
+    }
+  })();
+
+  // --- Prüfung 3 ---------------------------------------------------------
+  el('btnPicker').addEventListener('click', function () {
+    if (typeof window.showOpenFilePicker !== 'function') {
+      befund.p3 = 'nicht vorhanden (auf dem iPad erwartet)';
+      zeige('erg3', 'Dieser Browser kennt den komfortablen Dateizugriff nicht.\n' +
+                    'Auf dem iPad erwartet — dort bleibt es bei der Dateiauswahl.', 'offen');
+      return;
+    }
+    try {
+      window.showOpenFilePicker({ multiple: false }).then(function () {
+        befund.p3 = 'FUNKTIONIERT — komfortabler Dateizugriff verfügbar';
+        zeige('erg3', 'Der Dateidialog hat funktioniert. Auf diesem Gerät kann die App die ' +
+                      'Zuordnungsdatei künftig selbst wiederfinden.', 'gut');
+      }).catch(function (e) {
+        if (e && e.name === 'AbortError') {
+          befund.p3 = 'Dialog erschien, abgebrochen — Weg grundsätzlich verfügbar';
+          zeige('erg3', 'Dialog erschien, wurde abgebrochen. Der Weg funktioniert also. ' +
+                        'Gern noch einmal mit Dateiauswahl bestätigen.', 'offen');
+        } else {
+          befund.p3 = 'BLOCKIERT — ' + (e && e.name) + ': ' + (e && e.message);
+          zeige('erg3', 'Blockiert.\n\n' + (e && e.name) + ': ' + (e && e.message), 'offen');
+        }
+      });
+    } catch (e) {
+      befund.p3 = 'BLOCKIERT (sofort) — ' + e.name + ': ' + e.message;
+      zeige('erg3', 'Sofort abgewiesen.\n\n' + e.name + ': ' + e.message, 'offen');
+    }
+  });
+
+  // --- Prüfung 4 ---------------------------------------------------------
+  el('btnDownload').addEventListener('click', function () {
+    try {
+      var blob = new Blob(['﻿schluessel;spalte_a\r\nTEST-01;wert\r\n'], { type: 'text/csv;charset=utf-8' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url; a.download = 'netlifytest.csv';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+      zeige('erg4', 'Download ausgelöst. Bitte prüfen und unten angeben.', 'offen');
+    } catch (e) { zeige('erg4', 'Fehler: ' + e.name + ': ' + e.message, 'schlecht'); }
+  });
+
+  el('btnFenster').addEventListener('click', function () {
+    try {
+      var blob = new Blob(['<!DOCTYPE html><html lang="de"><head><meta charset="utf-8">' +
+        '<title>Druckansicht</title></head><body style="font-family:Georgia,serif;padding:40px">' +
+        '<h1>Druckansicht</h1><p>Sichtbar? Dann funktioniert es.</p></body></html>'], { type: 'text/html' });
+      var url = URL.createObjectURL(blob);
+      var f = window.open(url, '_blank');
+      zeige('erg4', f ? 'Fenster ausgelöst. Bitte prüfen und unten angeben.'
+                      : 'Fenster wurde blockiert. Bitte unten angeben.', f ? 'offen' : 'schlecht');
+      setTimeout(function () { URL.revokeObjectURL(url); }, 20000);
+    } catch (e) { zeige('erg4', 'Fehler: ' + e.name + ': ' + e.message, 'schlecht'); }
+  });
+
+  el('btn4ja').addEventListener('click', function () {
+    befund.p4 = 'Download und Druckfenster funktionieren'; zeige('erg4', 'Notiert: beides klappt.', 'gut');
+  });
+  el('btn4teil').addEventListener('click', function () {
+    befund.p4 = 'nur Download, kein Druckfenster'; zeige('erg4', 'Notiert: nur der Download.', 'offen');
+  });
+  el('btn4nein').addEventListener('click', function () {
+    befund.p4 = 'weder Download noch Druckfenster'; zeige('erg4', 'Notiert: nichts davon.', 'schlecht');
+  });
+
+  // --- Prüfung 5 ---------------------------------------------------------
+  (function () {
+    var h = '';
+    for (var i = 1; i <= 25; i++) {
+      h += '<tr><td class="haftlinks">' + i + '</td>';
+      for (var s = 0; s < 8; s++) h += '<td>Zeile ' + i + ' · Feld ' + String.fromCharCode(65 + s) + '</td>';
+      h += '</tr>';
+    }
+    el('koerper').innerHTML = h;
+  })();
+
+  el('btn5ja').addEventListener('click', function () {
+    befund.p5 = 'FUNKTIONIERT — beides bleibt stehen'; zeige('erg5', 'Notiert: beides bleibt stehen.', 'gut');
+  });
+  el('btn5nein').addEventListener('click', function () {
+    befund.p5 = 'FEHLGESCHLAGEN — nicht beides bleibt stehen'; zeige('erg5', 'Notiert.', 'schlecht');
+  });
+
+  // --- Bericht -----------------------------------------------------------
+  el('btnBericht').addEventListener('click', function () {
+    el('bericht').value = [
+      'NETLIFY-TEST — BERICHT',
+      'erzeugt: ' + jetzt(),
+      '',
+      'UMGEBUNG',
+      '  Adresse:            ' + herkunft,
+      '  Gestartet als:      ' + anzeigeModus.text + ' (display-mode: ' + anzeigeModus.medien +
+        ', navigator.standalone: ' + anzeigeModus.navigatorFlag + ')',
+      '  Im Rahmen:          ' + (imRahmen ? 'JA - unerwartet' : 'nein'),
+      '  Speicher nutzbar:   ' + (speicherOk ? 'ja' : 'NEIN - ' + speicherFehler),
+      '  Breite:             ' + innerWidth + ' px',
+      '  Browser:            ' + navigator.userAgent,
+      '',
+      'ERGEBNISSE',
+      '  1 lokaler Speicher: ' + befund.p1,
+      '  2 Speicherart:      ' + befund.p2,
+      '  3 Dateidialog:      ' + befund.p3,
+      '  4 Download/Fenster: ' + befund.p4,
+      '  5 haftende Spalten: ' + befund.p5,
+      '',
+      'GERAET: ',
+      'SCHRITT (was ist seit dem Setzen der Marke passiert?): '
+    ].join('\n');
+  });
+})();
+</script>
+</body>
+</html>

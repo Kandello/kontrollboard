@@ -1,0 +1,1034 @@
+/* ---------------------------------------------------------------------------
+   Gestaltungswerte an einer Stelle (Abschnitt 16).
+   Farben, Abstaende und Schriftgroessen werden nirgends sonst festgelegt.
+--------------------------------------------------------------------------- */
+:root {
+  --grund:        #a4bfdc;
+  --grund-tief:   #6f96c0;
+  --flaeche:      #ffffff;
+  --flaeche-leis: #eff4f9;
+  --text:         #2c2a26;
+  --text-leise:   #6f6a61;
+  --text-sehrleis:#98928a;
+  --linie:        #dbe3ec;
+  --linie-stark:  #c3cedb;
+  --akzent:       #0088b0;
+  --akzent-leis:  #e4f2f8;
+  --gut:          #1e7a4c;
+  --gut-leis:     #eef7f1;
+  --warn:         #8a6d1f;
+  --warn-leis:    #fbf7ea;
+  --schlecht:     #b3261e;
+  --schlecht-leis:#fdf3f2;
+  /* Hausfarbe von Seesaw — nur fuer dessen Zeichen und Schriftzug. */
+  --seesaw:       #6f2da8;
+
+  --serif: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+  --sans:  -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+
+  --s1: 4px;  --s2: 8px;  --s3: 12px; --s4: 16px;
+  --s5: 24px; --s6: 32px; --s7: 48px;
+
+  --t-klein:  13px;
+  --t-normal: 16px;
+  --t-gross:  19px;
+  --t-titel:  26px;
+  --t-riesig: 34px;
+
+  --radius:      10px;
+  --radius-gross:14px;
+  --tippziel:    44px;
+}
+
+* { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  /* Zurueckhaltender Verlauf: oben etwas heller, unten leicht kuehler.
+     fixed, damit er beim Scrollen ruhig stehen bleibt. */
+  background: linear-gradient(170deg, #c2d4e8 0%, var(--grund) 45%, var(--grund-tief) 100%);
+  background-attachment: fixed;
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: var(--t-normal);
+  line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+h1, h2, h3 { font-family: var(--serif); font-weight: 600; margin: 0; }
+h1 { font-size: var(--t-titel); }
+h2 { font-size: var(--t-gross); }
+h3 { font-size: var(--t-normal); }
+
+/* --- Grundgeruest --------------------------------------------------------- */
+.huelle { max-width: 1100px; margin: 0 auto; padding: 0 var(--s4) var(--s7); }
+
+.kopfleiste {
+  position: sticky; top: 0; z-index: 20;
+  background: rgba(194, 212, 232, .92);
+  backdrop-filter: saturate(140%) blur(8px);
+  -webkit-backdrop-filter: saturate(140%) blur(8px);
+  border-bottom: 1px solid var(--linie);
+}
+.kopfleiste-inhalt {
+  max-width: 1100px; margin: 0 auto;
+  padding: var(--s2) var(--s4);
+  display: flex; align-items: center; gap: var(--s3);
+  min-height: 56px;
+}
+
+.pfad {
+  display: flex; align-items: center; gap: var(--s2);
+  flex: 1; min-width: 0;
+  font-size: var(--t-klein); color: var(--text-leise);
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}
+.pfad a { color: var(--akzent); text-decoration: none; }
+.pfad a:hover { text-decoration: underline; }
+.pfad .trenner { color: var(--text-sehrleis); }
+
+/* --- Schaltflaechen ------------------------------------------------------- */
+button, .knopf {
+  font-family: var(--sans); font-size: var(--t-normal);
+  min-height: var(--tippziel);
+  padding: var(--s2) var(--s4);
+  background: var(--flaeche); color: var(--akzent);
+  border: 1px solid var(--linie-stark); border-radius: var(--radius);
+  cursor: pointer; text-decoration: none;
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--s2);
+}
+button:hover, .knopf:hover { border-color: var(--akzent); }
+button:disabled { opacity: .5; cursor: default; }
+button.wichtig { background: var(--akzent); color: #fff; border-color: var(--akzent); }
+button.leise { color: var(--text-leise); }
+button.gefahr { color: var(--schlecht); border-color: var(--linie-stark); }
+button.klein { min-height: 34px; padding: var(--s1) var(--s3); font-size: var(--t-klein); }
+
+/* --- Karten und Flaechen -------------------------------------------------- */
+.karte {
+  background: var(--flaeche);
+  border: 1px solid var(--linie);
+  border-radius: var(--radius-gross);
+  padding: var(--s4);
+  margin-bottom: var(--s4);
+}
+
+.leiste {
+  display: flex; align-items: center; gap: var(--s3);
+  flex-wrap: wrap; margin-bottom: var(--s4);
+}
+.schub { margin-left: auto; }
+
+/* --- Klassenknoepfe (Ebene 1) ---------------------------------------------
+   Bewusst kompakt: eine Klassenkachel muss nur den Namen, die Kinderzahl und
+   einen Fortschrittsbalken tragen — dafuer braucht es keine 27px-Schrift und
+   keinen 200px-Mindestplatz. Je schmaler das Widget, desto kleiner die
+   Kachel (container query weiter unten), statt in ein Zeilenumbruch- oder
+   Ueberlaufproblem zu laufen. */
+.klassenraster {
+  display: grid; gap: var(--s3);
+  grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
+}
+.klassenknopf {
+  display: block; text-align: center; text-decoration: none;
+  background: var(--flaeche); color: var(--text);
+  border: 1px solid var(--linie); border-radius: var(--radius);
+  border-top: 3px solid var(--klassenfarbe, var(--linie-stark));
+  padding: var(--s2) var(--s2) var(--s2);
+  min-height: 0;
+}
+.klassenknopf:hover { border-color: var(--akzent); border-top-color: var(--klassenfarbe, var(--akzent)); }
+.klassenknopf .name {
+  font-family: var(--serif); font-size: 19px; display: block; line-height: 1.15;
+  color: var(--klassenfarbe-text, var(--text));
+}
+.klassenknopf .zusatz { font-size: 12px; color: var(--text-leise); display: block; }
+.klassenknopf .balken { margin-top: var(--s2); height: 4px; }
+.klassenknopf .balken > i { background: var(--klassenfarbe, var(--akzent)); }
+
+/* Klassenfarbe auch im Tagesplan und in der Kopfzeile der Klassenseite. */
+.klassenfarbe-punkt {
+  display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+  background: var(--klassenfarbe, var(--linie-stark)); margin-right: 6px;
+  vertical-align: middle; flex: none;
+}
+
+.balken { height: 6px; background: var(--flaeche-leis); border-radius: 3px; margin-top: var(--s3); overflow: hidden; }
+.balken > i { display: block; height: 100%; background: var(--akzent); border-radius: 3px; }
+
+/* --- Werkzeugeinstiege (Ebene 2) ------------------------------------------ */
+.werkzeuge { display: grid; gap: var(--s3); grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.werkzeug {
+  display: block; text-decoration: none; color: var(--text);
+  background: var(--flaeche); border: 1px solid var(--linie);
+  border-radius: var(--radius-gross); padding: var(--s4);
+  min-height: 92px;
+}
+.werkzeug:hover { border-color: var(--akzent); }
+.werkzeug .titel { font-family: var(--serif); font-size: var(--t-gross); display: block; }
+.werkzeug .beschreibung { font-size: var(--t-klein); color: var(--text-leise); margin-top: var(--s1); }
+
+/* --- Hinweise ------------------------------------------------------------- */
+.hinweis {
+  border: 1px solid var(--linie); border-radius: var(--radius);
+  padding: var(--s3) var(--s4); margin-bottom: var(--s4);
+  display: flex; gap: var(--s3); align-items: flex-start;
+  font-size: 14px;
+}
+.hinweis.warn     { border-color: var(--warn);     background: var(--warn-leis); }
+.hinweis.gut      { border-color: var(--gut);      background: var(--gut-leis); }
+.hinweis.schlecht { border-color: var(--schlecht); background: var(--schlecht-leis); }
+.hinweis .text { flex: 1; }
+.hinweis .zeichen { font-size: var(--t-gross); line-height: 1.2; }
+.hinweis h3 { margin-bottom: var(--s1); }
+
+/* --- Formularfelder ------------------------------------------------------- */
+label { display: block; font-size: var(--t-klein); color: var(--text-leise); margin-bottom: var(--s1); }
+input[type="text"], input[type="url"], input[type="password"], select, textarea {
+  width: 100%; font-family: var(--sans); font-size: var(--t-normal);
+  min-height: var(--tippziel); padding: var(--s2) var(--s3);
+  background: var(--flaeche); color: var(--text);
+  border: 1px solid var(--linie-stark); border-radius: var(--radius);
+}
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--akzent); outline-offset: -1px; }
+.feld { margin-bottom: var(--s4); }
+.feldhilfe { font-size: var(--t-klein); color: var(--text-leise); margin-top: var(--s1); }
+
+/* --- Tabellen ------------------------------------------------------------- */
+.tabellenrahmen {
+  border: 1px solid var(--linie); border-radius: var(--radius);
+  overflow: auto; background: var(--flaeche);
+  max-height: 70vh; -webkit-overflow-scrolling: touch;
+}
+table.liste { border-collapse: separate; border-spacing: 0; width: 100%; }
+table.liste th, table.liste td {
+  padding: var(--s2) var(--s3); text-align: left;
+  border-bottom: 1px solid var(--linie); background: var(--flaeche);
+  font-size: 15px;
+}
+table.liste thead th {
+  position: sticky; top: 0; z-index: 2;
+  background: var(--flaeche-leis); font-family: var(--serif); font-weight: 600;
+  font-size: var(--t-klein); color: var(--text-leise);
+}
+table.liste tr.inaktiv td { color: var(--text-sehrleis); }
+table.liste td.nummer { width: 46px; color: var(--text-leise); font-variant-numeric: tabular-nums; }
+table.liste td.kuerzel { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: var(--t-klein); color: var(--text-leise); }
+
+/* --- Namensdarstellung ---------------------------------------------------- */
+.nurkuerzel { color: var(--text-sehrleis); font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 14px; }
+
+/* --- Zustaende ------------------------------------------------------------ */
+.laedt { display: flex; align-items: center; gap: var(--s3); color: var(--text-leise); padding: var(--s6) 0; }
+.punkt {
+  width: 10px; height: 10px; border-radius: 50%; background: var(--akzent);
+  animation: pulsieren 1.1s ease-in-out infinite;
+}
+@keyframes pulsieren { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
+
+.leer { color: var(--text-leise); text-align: center; padding: var(--s6) var(--s4); }
+
+.abschnitt-titel {
+  font-family: var(--serif); font-size: var(--t-klein); text-transform: uppercase;
+  letter-spacing: .08em; color: var(--text-leise);
+  margin: var(--s6) 0 var(--s3);
+}
+
+.schalter { display: inline-flex; align-items: center; gap: var(--s2); font-size: var(--t-klein); color: var(--text-leise); cursor: pointer; }
+.schalter input { width: 20px; height: 20px; accent-color: var(--akzent); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+}
+
+@media (max-width: 600px) {
+  .kopfleiste-inhalt { flex-wrap: wrap; }
+  .huelle { padding-left: var(--s3); padding-right: var(--s3); }
+}
+
+/* --- Startseite: Uhr ------------------------------------------------------ */
+.uhr {
+  display: flex; flex-direction: column; align-items: center;
+  gap: var(--s2); padding: var(--s4) var(--s4) var(--s3); text-align: center;
+}
+.uhr-zeit {
+  font-family: var(--serif); font-size: 46px; line-height: 1.05;
+  font-variant-numeric: tabular-nums; letter-spacing: .01em;
+}
+.uhr-zeit .sekunden { font-size: .55em; color: var(--text-leise); margin-left: 2px; }
+.uhr-tag { color: var(--text-leise); font-size: 15px; }
+
+.tagesplan-wochentag { font-family: var(--sans); font-size: 30px; font-weight: 400; }
+
+/* --- Startseite: Tagesplan ------------------------------------------------ */
+ul.tagesplan { list-style: none; margin: 0; padding: 0; }
+ul.tagesplan li { border-top: 1px solid var(--linie); }
+ul.tagesplan li:first-child { border-top: 0; }
+
+.tagesplan .eintrag {
+  display: flex; align-items: center; gap: var(--s3);
+  padding: var(--s2) var(--s2); min-height: var(--tippziel);
+  color: var(--text); text-decoration: none;
+}
+.tagesplan a.eintrag.anklickbar:hover { background: var(--akzent-leis); border-radius: 8px; }
+.tagesplan .zeit {
+  font-variant-numeric: tabular-nums; color: var(--text-leise);
+  font-size: 14px; white-space: nowrap; min-width: 96px;
+}
+.tagesplan .was {
+  display: flex; align-items: baseline; gap: var(--s2);
+  flex: 1; min-width: 0; flex-wrap: wrap;
+}
+.tagesplan .bezeichnung {
+  font-family: var(--serif); font-size: 17px; line-height: 1.2;
+  color: var(--klassenfarbe-text, inherit);
+}
+.tagesplan .art { font-size: var(--t-klein); color: var(--text-leise); }
+.tagesplan a.eintrag .bezeichnung { color: var(--klassenfarbe-text, var(--akzent)); }
+
+.tagesplan li.ist-laufend { background: var(--akzent-leis); border-radius: 10px; }
+.tagesplan li.ist-laufend .bezeichnung { font-weight: 600; }
+
+.marke {
+  font-size: 12px; padding: 2px 9px; border-radius: 999px;
+  border: 1px solid var(--linie-stark); color: var(--text-leise); white-space: nowrap;
+}
+.marke.laufend  { border-color: var(--akzent); color: var(--akzent); }
+.marke.naechste { border-style: dashed; }
+.marke.ruhend   { border-color: var(--linie-stark); }
+
+/* --- Startseite: Wochenaufgaben -------------------------------------------
+   Ebenfalls bewusst kompakt statt bloss zwei grosse Kacheln: PEAK und Weekly
+   Note brauchen nur Titel, Status und eine Frist — kein 96px-Mindestkopf. */
+/* Schmal genug, dass alle vier Aufgaben in der Regelbreite des Widgets noch
+   nebeneinander stehen — sonst rutschte die vierte in eine zweite Reihe und
+   damit aus dem sichtbaren Bereich. */
+.kachelreihe {
+  display: grid; gap: var(--s3); margin-bottom: var(--s4);
+  grid-template-columns: repeat(auto-fit, minmax(136px, 1fr));
+}
+
+.kachel {
+  position: relative;
+  background: var(--flaeche); border: 1px solid var(--linie);
+  border-radius: var(--radius);
+}
+.kachel.offen    { border-color: var(--schlecht); }
+.kachel.erledigt { border-color: var(--gut); }
+.kachel.ruhend   { background: var(--flaeche-leis); }
+
+.kachel-kopf {
+  display: grid; width: 100%; text-align: left;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: 'titel zeichen' 'stand zeichen' 'hilfe zeichen';
+  gap: 2px var(--s3); align-items: center;
+  padding: var(--s3); background: none; border: 0; border-radius: var(--radius);
+  color: inherit; min-height: var(--tippziel);
+}
+.kachel-kopf:hover { border: 0; background: var(--grund); }
+.kachel-titel  { grid-area: titel; font-family: var(--serif); font-size: var(--t-normal); }
+.kachel-stand  { grid-area: stand; font-size: 13px; }
+.kachel-kopf .feldhilfe { grid-area: hilfe; margin: 0; }
+
+.kachel-bereich { padding: 0 var(--s4) var(--s4); }
+.kachel-bereich[hidden] { display: none; }
+
+/* Ein Schriftzug, der selbst zur Vorlage fuehrt (Lernwoerter, Seesaw). Er
+   steht ueber dem Klappknopf statt darin: ein Verweis in einem Knopf waere
+   weder gueltig noch bedienbar. */
+.kachel-marke {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: var(--s3) var(--s3) 0;
+  font-family: var(--serif); font-size: var(--t-normal);
+  color: var(--akzent); text-decoration: none;
+}
+.kachel-marke:hover { text-decoration: underline; }
+.kachel-marke + .kachel-kopf { padding-top: var(--s1); min-height: 0; }
+
+/* Rotes Ausrufezeichen, wenn die Zeit knapp wird — dieselbe Sprache wie bei
+   einer ueberfaelligen Deadline. */
+.kachel-ausruf {
+  flex: none; color: var(--schlecht); font-weight: 700; font-size: 17px; line-height: 1;
+}
+
+/* --- Seesaw ---------------------------------------------------------------
+   Die einzige Wochenaufgabe, die je Klasse einzeln ansteht: das Zeichen oben
+   fuehrt zu Seesaw, darunter steht ein Kaestchen je Klasse. Sind alle
+   versorgt, faerbt sich die ganze Kachel gruen. */
+.seesaw-kopf {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--s2); padding-right: var(--s3);
+}
+.seesaw-marke { color: var(--seesaw); padding-bottom: 0; }
+.seesaw-zeichen { flex: none; width: 21px; height: 23px; }
+.seesaw-wort {
+  font-family: var(--sans); font-size: 18px; font-weight: 700; letter-spacing: -.015em;
+}
+
+.seesaw-klassen {
+  display: flex; flex-wrap: wrap; gap: var(--s1) var(--s2);
+  padding: var(--s2) var(--s3) var(--s3);
+}
+.seesaw-klasse {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: var(--t-klein); white-space: nowrap;
+}
+.seesaw-klasse input { flex: none; width: 15px; height: 15px; margin: 0; }
+.seesaw-klasse.ist-erledigt { color: var(--text-leise); }
+
+.kachel.voll { background: var(--gut-leis); }
+
+.ferienleiste { align-items: center; }
+
+/* --- Startseite: Merklisten (To-Do, Deadlines, Termine) --------------------
+   Alle drei teilen sich dieses Aussehen, siehe ansichten/start.js. Kompakt
+   gehalten wie die uebrigen Widget-Inhalte — kein 96px-Kopf, keine grosse
+   Schrift. */
+/* Liste und Knopf in derselben Zeile, oben ausgerichtet: die Eintraege
+   beginnen dadurch sofort oben, quasi links neben dem Knopf, statt unter
+   einer eigenen, sonst leeren Kopfzeile zu haengen. */
+.merkliste-reihe { display: flex; align-items: flex-start; gap: var(--s2); }
+/* Ein rundes, glaenzendes Knoepfchen statt eines flachen Textbuttons — die
+   Verlaeufe und Schatten geben ihm eine spuerbare Woelbung nach aussen, das
+   Antippen druecken es sichtbar wieder hinein. */
+.merkliste-plus {
+  flex: none;
+  width: 30px; height: 30px; padding: 0; line-height: 1;
+  font-size: 19px; font-weight: 300; border-radius: 50%;
+  border: 1px solid #17512f;
+  background: radial-gradient(circle at 34% 26%, #5ecf8f 0%, #219456 42%, #146238 100%);
+  color: #f2fff6;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, .35);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, .5),
+    inset 0 -2px 3px rgba(0, 0, 0, .28),
+    0 2px 3px rgba(15, 55, 32, .35),
+    0 4px 9px rgba(15, 55, 32, .28);
+  transition: transform .1s ease, box-shadow .1s ease;
+}
+.merkliste-plus:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, .55),
+    inset 0 -2px 3px rgba(0, 0, 0, .28),
+    0 3px 5px rgba(15, 55, 32, .4),
+    0 7px 14px rgba(15, 55, 32, .32);
+}
+.merkliste-plus:active {
+  transform: translateY(1px);
+  box-shadow:
+    inset 0 2px 3px rgba(0, 0, 0, .35),
+    inset 0 1px 1px rgba(0, 0, 0, .2),
+    0 1px 2px rgba(15, 55, 32, .3);
+}
+
+.merkliste-formular { margin-bottom: var(--s3); }
+.merkliste-felder { display: flex; flex-direction: column; gap: var(--s2); }
+.merkliste-felder input {
+  min-height: 34px; padding: var(--s1) var(--s2); font-size: var(--t-klein);
+}
+.merkliste-fehler { color: var(--schlecht); }
+
+ul.merkliste-liste { list-style: none; margin: 0; padding: 0; flex: 1; min-width: 0; }
+ul.merkliste-liste li {
+  display: flex; align-items: flex-start; gap: var(--s2);
+  padding: 7px 0; border-top: 1px solid var(--linie);
+}
+ul.merkliste-liste li:first-child { border-top: 0; }
+.merkliste-zeile {
+  display: flex; align-items: flex-start; gap: var(--s2);
+  cursor: pointer; min-width: 0; flex: 1;
+}
+.merkliste-zeile input[type="checkbox"] {
+  width: 18px; height: 18px; flex: none; margin-top: 1px;
+  accent-color: var(--gut);
+}
+.merkliste-inhalt { display: flex; flex-direction: column; min-width: 0; }
+.merkliste-text { overflow-wrap: anywhere; }
+.merkliste-datum { margin-top: 1px; }
+li.ist-erledigt .merkliste-text,
+li.ist-erledigt .merkliste-datum { color: var(--text-leise); }
+
+/* Rotes Ausrufezeichen: nur Deadlines, nur am Tag selbst oder danach,
+   solange niemand abgehakt hat (siehe istUeberfaellig in merkliste.js). */
+.merkliste-ausruf {
+  flex: none; color: var(--schlecht); font-weight: 700; font-size: 15px;
+  line-height: 1.4;
+}
+
+@container widget (max-width: 260px) {
+  .merkliste-liste li { gap: var(--s1); padding: 5px 0; }
+  .merkliste-text, .merkliste-felder input { font-size: 13px; }
+}
+
+/* Merklisten: eigene, gedeckte Kopffarbe je Art — macht auf einen Blick
+   unterscheidbar, ohne knallig zu wirken. Setzt nur die drei --griff-*
+   Variablen, die .widget-griff & Co. weiter oben mit Fallback lesen. */
+.widget[data-id="deadline"] {
+  --griff-hg: #6e2f2f; --griff-rand: #5a2626; --griff-text: #f5dcdc; --griff-text-leise: #e0b8b8;
+}
+.widget[data-id="todo"] {
+  --griff-hg: #6b5316; --griff-rand: #59440f; --griff-text: #fbecc7; --griff-text-leise: #e6cd93;
+}
+.widget[data-id="events"] {
+  --griff-hg: #274a72; --griff-rand: #1f3b5c; --griff-text: #dbe8f7; --griff-text-leise: #b7cfe8;
+}
+
+@media (max-width: 520px) {
+  .tagesplan .eintrag { flex-wrap: wrap; gap: var(--s2); }
+  .tagesplan .zeit { min-width: 0; }
+}
+/* Groesse von Uhr und Tagesplan-Ueberschrift richtet sich seit dem
+   Widget-Raster nach der eigenen Breite des Widgets (container query weiter
+   unten), nicht mehr nach der Fensterbreite — ein Widget kann schmal sein,
+   auch wenn viel Bildschirm zur Verfuegung steht, und umgekehrt. */
+
+/* --- Klassenfarben --------------------------------------------------------
+   Kommen aus der Spalte `farbe` im Blatt Klassen. Fehlt sie, greift eine
+   Reihenfolge-Palette, die den Farben des bisherigen Stundenplans folgt:
+   erste Klasse hellblau, zweite orange, dritte grün. Nichts davon steht
+   fest im Code — die Tabelle hat immer das letzte Wort.
+-------------------------------------------------------------------------- */
+.k-farbe-1 { --klassenfarbe: #4aa8d8; --klassenfarbe-text: #1d6b93; }
+.k-farbe-2 { --klassenfarbe: #e08a2e; --klassenfarbe-text: #9a5606; }
+.k-farbe-3 { --klassenfarbe: #4f9d5d; --klassenfarbe-text: #2c6a37; }
+.k-farbe-4 { --klassenfarbe: #8a6fbf; --klassenfarbe-text: #5b4489; }
+.k-farbe-5 { --klassenfarbe: #c8607f; --klassenfarbe-text: #90344f; }
+
+/* --- Wochenkacheln: ohne Zeichen, Farbe trägt nicht allein -----------------
+   Statt eines großen X markiert ein kräftiger Streifen am linken Rand die
+   offene Aufgabe; das Wort „offen"/„erledigt" bleibt der eigentliche
+   Bedeutungsträger.
+-------------------------------------------------------------------------- */
+.kachel { border-left: 4px solid var(--linie-stark); }
+.kachel.offen    { border-color: var(--linie); border-left-color: var(--schlecht); background: #fdf6f5; }
+.kachel.erledigt { border-color: var(--linie); border-left-color: var(--gut); }
+.kachel.ruhend   { border-color: var(--linie); border-left-color: var(--linie-stark); }
+
+.kachel-kopf {
+  grid-template-columns: 1fr;
+  grid-template-areas: 'titel' 'stand' 'hilfe';
+  min-height: 0; padding: var(--s2) var(--s3);
+}
+.kachel.offen .kachel-stand { color: var(--schlecht); font-weight: 600; }
+.kachel.erledigt .kachel-stand { color: var(--gut); }
+
+/* --- E-Mail-Verweis der Klassenlehrkraft ---------------------------------- */
+a.lehrkraft { color: inherit; text-decoration: none; border-bottom: 1px dotted var(--linie-stark); }
+a.lehrkraft:hover { color: var(--akzent); border-bottom-color: var(--akzent); }
+
+/* --- Kontrollboards --------------------------------------------------------
+   Eigener Scroll-Container mit fester Hoehe, damit sticky ueberhaupt greift
+   (Abschnitt 9, technischer Hinweis). Erste drei Spalten (Nr., Nachname,
+   Vorname) haften beim horizontalen Scrollen links, die Kopfzeile oben.
+-------------------------------------------------------------------------- */
+.board-rahmen { max-height: 72vh; }
+
+table.board-tabelle th.sticky-nr,
+table.board-tabelle td.sticky-nr    { position: sticky; left: 0;    z-index: 1; width: 46px; }
+table.board-tabelle th.sticky-nach,
+table.board-tabelle td.sticky-nach  { position: sticky; left: 46px; z-index: 1; width: 140px; }
+table.board-tabelle th.sticky-vor,
+table.board-tabelle td.sticky-vor   { position: sticky; left: 186px; z-index: 1; width: 120px; }
+
+table.board-tabelle thead th.sticky-nr,
+table.board-tabelle thead th.sticky-nach,
+table.board-tabelle thead th.sticky-vor { z-index: 3; }
+
+table.board-tabelle td.sticky-nr,
+table.board-tabelle td.sticky-nach,
+table.board-tabelle td.sticky-vor { background: var(--flaeche); }
+table.board-tabelle .nurkuerzel { font-style: italic; }
+
+.board-kopf {
+  min-width: 92px; vertical-align: top; padding-top: var(--s2);
+}
+.board-kopf-name {
+  font-family: var(--serif); font-weight: 600; font-size: 14px;
+  color: var(--text); white-space: normal; margin-bottom: 4px;
+}
+.board-kopf-werkzeuge { display: flex; gap: 2px; flex-wrap: wrap; }
+.board-kopf-werkzeuge button { min-height: 30px; min-width: 30px; padding: 2px 6px; font-size: 13px; }
+
+.board-plus { width: 52px; vertical-align: middle; text-align: center; }
+.board-plus button { min-height: 36px; min-width: 36px; padding: 0; font-size: 18px; }
+
+td.board-zelle { padding: 6px; text-align: center; }
+
+.zellzustand {
+  width: 40px; height: 40px; min-width: 40px; min-height: 40px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1.5px solid var(--linie-stark); border-radius: 8px;
+  background: var(--flaeche); font-size: 18px; line-height: 1; padding: 0;
+  color: var(--text-sehrleis);
+}
+.zellzustand:hover { border-color: var(--akzent); }
+.zellzustand.zustand-haken {
+  background: var(--akzent); border-color: var(--akzent); color: #fff;
+}
+.zellzustand.zustand-teilweise {
+  background: linear-gradient(135deg, var(--warn-leis) 50%, var(--flaeche) 50%);
+  border-color: var(--warn); color: var(--warn);
+}
+.zellzustand.zustand-x {
+  background: var(--schlecht-leis); border-color: var(--schlecht); color: var(--schlecht);
+}
+.zellzustand.nurlesen { cursor: default; }
+
+.status-gut      { color: var(--gut); }
+.status-warn      { color: var(--warn); }
+.status-schlecht { color: var(--schlecht); }
+
+@media (max-width: 600px) {
+  table.board-tabelle td.sticky-nach { width: 110px; }
+  table.board-tabelle td.sticky-vor  { width: 90px; }
+  table.board-tabelle th.sticky-nach,
+  table.board-tabelle td.sticky-nach { left: 46px; }
+  table.board-tabelle th.sticky-vor,
+  table.board-tabelle td.sticky-vor  { left: 156px; }
+}
+
+/* --- Notentracker --------------------------------------------------------- */
+
+/* Eingabekacheln fuer Tests und Monate: grosse Bezeichnung, klein und grau
+   das Thema darunter — wie bei den Klassenknoepfen. */
+button.werkzeug.kachel-eingabe {
+  font: inherit; cursor: pointer; width: 100%;
+}
+button.werkzeug.kachel-eingabe:hover { border-color: var(--akzent); }
+/* Thema und Erfassungsstand stehen untereinander, nicht in einer Zeile. */
+button.werkzeug.kachel-eingabe .beschreibung { display: block; }
+
+.notenfeld {
+  width: 5.5em; text-align: right;
+  padding: var(--s1) var(--s2);
+}
+.notenfeld.fehlerhaft {
+  border-color: var(--schlecht);
+  background: var(--schlecht-leis);
+}
+table.liste td.zahl, table.liste th.zahl { text-align: right; }
+
+/* Notenfarben: nie Farbe allein — die Ziffer steht immer daneben. */
+.marke.note-1, .marke.note-2 { background: var(--gut-leis);      color: var(--gut);      border-color: var(--gut); }
+.marke.note-3, .marke.note-4 { background: var(--warn-leis);     color: var(--warn);     border-color: var(--warn); }
+.marke.note-5, .marke.note-6 { background: var(--schlecht-leis); color: var(--schlecht); border-color: var(--schlecht); }
+
+/* Notenverteilung: schlichtes Saeulenbild, Werte stehen als Zahl darueber. */
+.verteilung {
+  display: grid; grid-template-columns: repeat(6, 1fr);
+  gap: var(--s3); align-items: end; height: 160px;
+}
+.verteilung-saeule {
+  display: flex; flex-direction: column; justify-content: flex-end;
+  height: 100%; gap: var(--s1); text-align: center;
+}
+.verteilung-zahl { font-size: var(--t-klein); color: var(--text-leise); min-height: 1.2em; }
+.verteilung-balken {
+  border-radius: var(--radius) var(--radius) 0 0; min-height: 2px;
+  border: 1px solid var(--linie);
+}
+.verteilung-balken.note-1, .verteilung-balken.note-2 { background: var(--gut);      border-color: var(--gut); }
+.verteilung-balken.note-3, .verteilung-balken.note-4 { background: var(--warn);     border-color: var(--warn); }
+.verteilung-balken.note-5, .verteilung-balken.note-6 { background: var(--schlecht); border-color: var(--schlecht); }
+.verteilung-note {
+  font-family: var(--serif); font-size: var(--t-gross);
+  border-top: 1px solid var(--linie); padding-top: var(--s1);
+}
+
+/* --- Beteiligung: Farben aus der Vorlage (Primary Participation Tracker) ---
+   Dunkles Blau mit weisser Schrift fuer den Tabellenkopf, sechs pastellene
+   Bandfarben fuer die Leistungsstufen — beides direkt aus den Zellfarben
+   der Original-Numbers-Datei uebernommen (Instructions & Criteria, Zeilen
+   16-21: Green/Blue/Light blue/Amber/Orange-red/Red bei 92/80/67/50/23/1 %,
+   exakt die Grenzen des bestehenden Notenschluessels). */
+:root {
+  --beteiligung-kopf:  #17365d;
+  --beteiligung-band-1: #e2f0d9; /* Note 1, 92-100 % */
+  --beteiligung-band-2: #d9eaf7; /* Note 2, 80-91 % */
+  --beteiligung-band-3: #eaf2f8; /* Note 3, 67-79 % */
+  --beteiligung-band-4: #fff2cc; /* Note 4, 50-66 % */
+  --beteiligung-band-5: #fce4d6; /* Note 5, 23-49 % */
+  --beteiligung-band-6: #f4cccc; /* Note 6, 1-22 % */
+}
+
+table.liste.beteiligung-tabelle thead th {
+  background: var(--beteiligung-kopf); color: #fff;
+  font-family: inherit; font-weight: 700;
+}
+table.liste td.beteiligung-band-1 { background: var(--beteiligung-band-1); }
+table.liste td.beteiligung-band-2 { background: var(--beteiligung-band-2); }
+table.liste td.beteiligung-band-3 { background: var(--beteiligung-band-3); }
+table.liste td.beteiligung-band-4 { background: var(--beteiligung-band-4); }
+table.liste td.beteiligung-band-5 { background: var(--beteiligung-band-5); }
+table.liste td.beteiligung-band-6 { background: var(--beteiligung-band-6); }
+
+/* --- Unterrichtseinheiten: Jahresplan --------------------------------------
+   Zwei Spuren auf einer Wochenleiste. Die Farben folgen den Arbeitsheften:
+   Rechtschreibung gruen (gruenes Heft), Grammatik rosa (pinkes Heft). Eine
+   Einheit, die beide Spuren belegt, traegt beide Farben im Verlauf. */
+:root {
+  --spur-rs:       #4f8b36;
+  --spur-rs-leis:  rgba(79, 139, 54, .07);
+  --spur-rs-linie: rgba(79, 139, 54, .30);
+  --spur-gr:       #c1567f;
+  --spur-gr-leis:  rgba(193, 86, 127, .07);
+  --spur-gr-linie: rgba(193, 86, 127, .30);
+}
+
+.jahresrahmen { overflow-x: auto; padding: 2px 6px 6px 2px; }
+
+.jahresraster {
+  display: grid;
+  grid-template-columns: 64px minmax(200px, 1fr) minmax(200px, 1fr);
+  gap: 6px;
+  align-items: stretch;
+  min-width: 520px;
+}
+.jahresraster-kopf {
+  grid-row: 1;
+  font-family: var(--serif); font-size: var(--t-klein); text-transform: uppercase;
+  letter-spacing: .06em; font-weight: 700;
+  padding: 0 0 4px;
+}
+.jahresraster-kopf.woche { grid-column: 1; color: var(--text-leise); font-weight: 400; }
+.jahresraster-kopf.spur-rs { color: var(--spur-rs); }
+.jahresraster-kopf.spur-gr { color: var(--spur-gr); }
+
+.jahreswoche {
+  grid-column: 1;
+  display: flex; align-items: center; justify-content: flex-end;
+  padding-right: var(--s2);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--t-klein); color: var(--text-leise);
+  min-height: 46px;
+}
+.jahreswoche.ist-jetzt { font-weight: 700; color: var(--akzent); }
+.jahreswoche.ist-jetzt::after { content: '▸'; margin-left: 4px; }
+
+.jahreszelle {
+  border: 1px dashed var(--linie);
+  border-radius: var(--radius);
+  min-height: 46px;
+}
+.jahreszelle[data-spur="RS"] { background: var(--spur-rs-leis); border-color: var(--spur-rs-linie); }
+.jahreszelle[data-spur="GR"] { background: var(--spur-gr-leis); border-color: var(--spur-gr-linie); }
+.jahreszelle.ist-ziel { border-style: solid; border-color: var(--akzent); }
+
+/* --- Eine Einheit als Box ---------------------------------------------------
+   Bewusst koerperlich: heller Lichtsaum oben, zwei gestaffelte Schatten fuer
+   Naehe und Tiefe, dazu ein schmaler Farbstreifen an der Kante, der die Spur
+   nennt. Beim Ueberfahren hebt die Box an, beim Ziehen schwebt sie deutlich. */
+.einheit-box {
+  position: relative;
+  display: flex; flex-direction: column;
+  border: 1px solid var(--linie);
+  border-radius: 12px;
+  background: linear-gradient(180deg, #ffffff 0%, #eef3f8 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    inset 0 -1px 0 rgba(28, 48, 74, .06),
+    0 1px 1px rgba(28, 48, 74, .10),
+    0 3px 5px rgba(28, 48, 74, .10),
+    0 8px 16px rgba(28, 48, 74, .09);
+  padding: var(--s2) var(--s2) var(--s2) 26px;
+  min-width: 0;
+  cursor: grab;
+  transition: box-shadow .16s ease, transform .16s ease;
+}
+
+/* Der Farbstreifen an der Kante — als eigene Flaeche, damit eine Einheit auf
+   beiden Spuren beide Farben im Verlauf tragen kann. */
+.einheit-box::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 7px;
+  border-radius: 11px 0 0 11px;
+  background: var(--spurfarbe, var(--linie-stark));
+  box-shadow: inset -1px 0 0 rgba(0, 0, 0, .10);
+}
+.einheit-box.spur-rs   { --spurfarbe: var(--spur-rs); }
+.einheit-box.spur-gr   { --spurfarbe: var(--spur-gr); }
+.einheit-box.spur-frei { --spurfarbe: var(--linie-stark); }
+.einheit-box.spur-beide::before {
+  background: linear-gradient(180deg, var(--spur-rs) 0%, var(--spur-rs) 42%,
+                                      var(--spur-gr) 58%, var(--spur-gr) 100%);
+}
+
+.einheit-box:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    inset 0 -1px 0 rgba(28, 48, 74, .06),
+    0 2px 2px rgba(28, 48, 74, .10),
+    0 6px 10px rgba(28, 48, 74, .13),
+    0 16px 30px rgba(28, 48, 74, .14);
+}
+.einheit-box:active { cursor: grabbing; }
+
+.einheit-box.offen {
+  z-index: 3;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    0 3px 4px rgba(28, 48, 74, .12),
+    0 10px 18px rgba(28, 48, 74, .14),
+    0 22px 40px rgba(28, 48, 74, .14);
+}
+
+/* Das Stueck, das am Zeiger haengt — gilt fuer alles Ziehbare, nicht nur
+   fuer Unterrichtseinheiten (siehe js/ziehen.js). */
+.wird-geflogen {
+  transform: rotate(-1.5deg) scale(1.03);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    0 6px 10px rgba(28, 48, 74, .20),
+    0 26px 50px rgba(28, 48, 74, .32);
+  opacity: .97;
+}
+.wird-geflogen .einheit-knoepfe,
+.wird-geflogen .widget-knoepfe { display: none; }
+
+/* Der Umriss, der waehrend des Ziehens an der kuenftigen Stelle steht. */
+.einheit-box.ist-platzhalter {
+  background: var(--akzent-leis);
+  border-style: dashed;
+  box-shadow: none; transform: none;
+}
+.einheit-box.ist-platzhalter::before { opacity: .35; }
+.einheit-box.ist-platzhalter > * { visibility: hidden; }
+
+/* Waehrend des Ziehens nichts markieren und keinen Schwebe-Effekt zeigen. */
+body.zieht-gerade { user-select: none; -webkit-user-select: none; cursor: grabbing; }
+body.zieht-gerade .einheit-box:hover { transform: none; }
+
+/* Der Griff ist nur noch ein Hinweis: gezogen wird an der ganzen Box. */
+.einheit-griff {
+  position: absolute; left: 9px; top: 50%; transform: translateY(-50%);
+  width: 12px; height: 34px; pointer-events: none; opacity: .55;
+  background:
+    radial-gradient(circle, var(--text-sehrleis) 1.4px, transparent 1.4px) 50% 50% / 6px 7px;
+}
+.einheit-box:hover .einheit-griff { opacity: .9; }
+
+.einheit-kopf {
+  display: block; width: 100%; text-align: left;
+  background: none; border: 0; padding: 0; color: inherit;
+  min-width: 0; cursor: inherit;
+}
+.einheit-kopf:hover { border: 0; background: none; }
+.einheit-titel {
+  display: block; font-family: var(--serif); font-size: 16px; line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.einheit-zusatz { display: block; font-size: 13px; color: var(--text-leise); margin-top: 2px; }
+
+.einheit-knoepfe {
+  position: absolute; top: 4px; right: 4px;
+  display: flex; gap: 2px; opacity: 0; transition: opacity .12s;
+}
+.einheit-box:hover .einheit-knoepfe,
+.einheit-box:focus-within .einheit-knoepfe,
+.einheit-box.offen .einheit-knoepfe { opacity: 1; }
+.einheit-knoepfe button { padding: 1px 7px; line-height: 1.3; cursor: pointer; }
+
+.einheit-bereich {
+  margin-top: var(--s3); border-top: 1px solid var(--linie); padding-top: var(--s3);
+  cursor: default;
+}
+
+.jahresvorrat {
+  display: flex; flex-wrap: wrap; gap: var(--s3);
+  padding: var(--s3);
+  border: 1px dashed var(--linie-stark); border-radius: var(--radius-gross);
+  background: rgba(255, 255, 255, .45);
+  min-height: 78px;
+}
+.jahresvorrat.ist-ziel { border-style: solid; border-color: var(--akzent); }
+.jahresvorrat .einheit-box { flex: 0 1 260px; }
+
+/* --- Teilthemen ------------------------------------------------------------- */
+ol.teilthemenliste { margin: 0; padding-left: 20px; }
+ol.teilthemenliste li {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s2);
+  padding: 3px 0;
+}
+ol.teilthemenliste li button { opacity: 0; }
+ol.teilthemenliste li:hover button,
+ol.teilthemenliste li:focus-within button { opacity: 1; }
+
+ul.teilthemen-abhaken { list-style: none; margin: 0; padding: 0; }
+ul.teilthemen-abhaken li {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s3);
+  padding: 7px 0; border-top: 1px solid var(--linie);
+}
+ul.teilthemen-abhaken li:first-child { border-top: 0; }
+ul.teilthemen-abhaken label {
+  display: flex; align-items: center; gap: var(--s3);
+  cursor: pointer; min-width: 0;
+}
+ul.teilthemen-abhaken input { width: 20px; height: 20px; flex: none; }
+ul.teilthemen-abhaken li.ist-erledigt label span { color: var(--text-leise); }
+
+.balken.gross { height: 10px; border-radius: 5px; }
+
+.laufende-einheit { border-top: 1px solid var(--linie); padding-top: var(--s3); margin-top: var(--s3); }
+.laufende-einheit:first-of-type { border-top: 0; padding-top: 0; }
+.laufende-titel { font-family: var(--serif); font-size: 19px; line-height: 1.2; }
+
+@media (max-width: 520px) {
+  .jahresraster { grid-template-columns: 44px minmax(140px, 1fr) minmax(140px, 1fr); min-width: 420px; }
+  .jahresvorrat .einheit-box { flex: 1 1 100%; }
+}
+
+/* --- Startseite als Widget-Raster ------------------------------------------
+   Ein echtes zweidimensionales Raster wie der Startbildschirm eines
+   Handy-Launchers: zwoelf schmale Spalten, eine feste Zeilenhoehe. Jedes
+   Widget belegt ein Rechteck aus Spalten und Zeilen (per Inline-Stil aus
+   layout.js gesetzt) und laesst sich frei verschieben und in beide
+   Richtungen skalieren. Der Koerper folgt denselben Werten wie die
+   Unterrichtseinheiten, damit sich Ziehbares ueberall gleich anfuehlt. */
+/* Die Zeilenzahl setzt start.js als feste `grid-template-rows` aus
+   MAX_ZEILEN — die Seite hat dadurch immer dieselbe Hoehe, und die Ablage
+   darunter bleibt beim Ziehen an Ort und Stelle. `grid-auto-rows` bleibt als
+   Rueckfall fuer den Fall, dass doch einmal eine Zeile mehr entsteht. */
+.widgetraster {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-auto-rows: 24px;
+  gap: var(--s4);
+  margin-bottom: var(--s4);
+}
+
+.widget {
+  position: relative;
+  display: flex; flex-direction: column;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: linear-gradient(180deg, #ffffff 0%, #f2f6fa 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    inset 0 -1px 0 rgba(28, 48, 74, .06),
+    0 1px 1px rgba(28, 48, 74, .10),
+    0 3px 5px rgba(28, 48, 74, .10),
+    0 10px 20px rgba(28, 48, 74, .09);
+  transition: box-shadow .16s ease, transform .16s ease;
+}
+.widget:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    inset 0 -1px 0 rgba(28, 48, 74, .06),
+    0 2px 2px rgba(28, 48, 74, .10),
+    0 8px 14px rgba(28, 48, 74, .13),
+    0 20px 36px rgba(28, 48, 74, .14);
+}
+body.zieht-gerade .widget:hover { transform: none; }
+
+/* Die Griffleiste: hier und nur hier wird verschoben. Farbe ist normalerweise
+   neutral; die drei Merklisten-Widgets faerben sie ueber --griff-* ein
+   (siehe „Merklisten: eigene Kopffarbe" weiter unten) — deshalb hier ueberall
+   mit Fallback auf die bisherigen, neutralen Werte. */
+.widget-griff {
+  display: flex; align-items: center; gap: var(--s2); flex: none;
+  padding: 6px var(--s3) 6px var(--s2);
+  border-bottom: 1px solid var(--griff-rand, var(--linie));
+  background: var(--griff-hg, linear-gradient(180deg, rgba(255,255,255,.7), rgba(233,240,247,.7)));
+  cursor: grab; touch-action: none; user-select: none;
+}
+.widget-griff:active { cursor: grabbing; }
+
+.widget-punkte {
+  width: 14px; height: 16px; flex: none; opacity: .5;
+  background: radial-gradient(circle, var(--griff-text-leise, var(--text-sehrleis)) 1.3px, transparent 1.3px) 0 0 / 5px 5px;
+}
+.widget:hover .widget-punkte { opacity: .9; }
+
+.widget-name {
+  font-family: var(--serif); font-size: var(--t-klein);
+  text-transform: uppercase; letter-spacing: .06em; color: var(--griff-text, var(--text-leise));
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.widget-knoepfe { margin-left: auto; display: flex; gap: 2px; opacity: 0; transition: opacity .12s; }
+.widget:hover .widget-knoepfe,
+.widget:focus-within .widget-knoepfe { opacity: 1; }
+.widget-knoepfe button {
+  min-height: 26px; padding: 0 8px; line-height: 1.2;
+  color: var(--griff-text, var(--akzent)); border-color: var(--griff-rand, var(--linie-stark));
+}
+
+/* Der Zurueckhol-Knopf zeigt sich nur in der Ablage, der Ausblenden-Knopf
+   nur im Raster. */
+.widget .zurueckholen { display: none; }
+.widget.ist-ausgeblendet .zurueckholen { display: inline-flex; }
+.widget.ist-ausgeblendet .widget-knoepfe button:not(.zurueckholen) { display: none; }
+.widget.ist-ausgeblendet .widget-knoepfe { opacity: 1; }
+.widget.ist-ausgeblendet .widget-inhalt,
+.widget.ist-ausgeblendet .widget-resize { display: none; }
+.widget.ist-ausgeblendet { flex: 0 1 220px; background: rgba(255, 255, 255, .6); }
+
+/* Der Inhalt ist eine eigene Abfragebasis (container query): Widgets passen
+   sich an ihre EIGENE Groesse an, nicht an die Fensterbreite. Dasselbe
+   Widget sieht darum bei 3 Spalten anders aus als bei 8. */
+.widget-inhalt {
+  container-type: inline-size;
+  container-name: widget;
+  flex: 1;
+  min-height: 0;
+  padding: var(--s4);
+  overflow: auto;
+}
+.widget-inhalt > .leiste:last-child { margin-bottom: 0; }
+
+/* Anfassgriff unten rechts zum Skalieren — diagonale Linien wie bei einem
+   Fenster-Eck, damit die Geste sofort erkennbar ist. */
+.widget-resize {
+  position: absolute; right: 0; bottom: 0;
+  width: 22px; height: 22px;
+  cursor: nwse-resize; touch-action: none;
+  background:
+    linear-gradient(135deg, transparent 0 40%, var(--linie-stark) 40% 46%, transparent 46% 56%,
+                     var(--linie-stark) 56% 62%, transparent 62%);
+  opacity: 0; transition: opacity .12s;
+}
+.widget:hover .widget-resize,
+.widget:focus-within .widget-resize { opacity: 1; }
+
+.widget-ablage {
+  display: flex; flex-wrap: wrap; gap: var(--s3);
+  padding: var(--s3);
+  border: 1px dashed var(--linie-stark); border-radius: var(--radius-gross);
+  background: rgba(255, 255, 255, .45);
+  min-height: 72px;
+  margin-bottom: var(--s4);
+}
+
+/* --- Inhalt reagiert auf die eigene Breite, nicht auf die Fensterbreite ---
+   Grid-`auto-fit` reflowt Kachelreihe und Klassenraster schon von sich aus
+   mit der Breite ihres Elternelements — die Regeln hier verfeinern zusaetzlich
+   Schrift und Abstand, damit ein schmales Widget nicht nur schmalere Spalten
+   bekommt, sondern auch wirklich kompakter aussieht. */
+@container widget (max-width: 260px) {
+  .uhr-zeit { font-size: 30px; }
+  .tagesplan-wochentag { font-size: 22px; }
+  .widget-inhalt { padding: var(--s3); }
+  .klassenknopf .name { font-size: 16px; }
+  .kachel-titel { font-size: var(--t-klein); }
+}
+@container widget (max-width: 200px) {
+  .uhr-zeit { font-size: 24px; }
+  .uhr-tag { font-size: 13px; }
+  .klassenknopf { padding: var(--s1) var(--s2); }
+  .klassenknopf .name { font-size: 14px; }
+  .klassenknopf .zusatz { font-size: 11px; }
+  .kachel-kopf { padding: var(--s1) var(--s2); gap: 0 var(--s2); }
+  .kachel-stand, .kachel-kopf .feldhilfe { font-size: 11px; }
+}
+
+/* Die Spaltenzahl bleibt bei zwoelf, auch auf schmalen Bildschirmen: die
+   Rasterkoordinaten aus layout.js sind fest darauf bezogen. Auf einem Telefon
+   werden die Spalten dadurch schmal, aber jedes Widget spannt ohnehin
+   mehrere davon (Mindestbreite 3), und der Inhalt reagiert selbst ueber die
+   container queries oben auf seine tatsaechliche Breite. */

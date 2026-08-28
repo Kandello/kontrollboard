@@ -1,0 +1,10 @@
+{
+  "name": "Netlify-Test",
+  "short_name": "Netlify-Test",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#faf9f5",
+  "theme_color": "#faf9f5",
+  "lang": "de"
+}

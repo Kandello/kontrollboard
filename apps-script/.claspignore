@@ -1,0 +1,6 @@
+# Was NICHT nach Google gehoert. clasp laedt sonst alles unterhalb von
+# rootDir hoch — auch die Testdateien, die dort nur Verwirrung stiften und
+# im Editor als zusaetzliche Skriptdateien auftauchen wuerden.
+**/**
+!*.gs
+!appsscript.json
