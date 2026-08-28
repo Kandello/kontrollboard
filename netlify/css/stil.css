@@ -360,23 +360,27 @@ ul.tagesplan li:first-child { border-top: 0; }
    versorgt, faerbt sich die ganze Kachel gruen. */
 .seesaw-kopf {
   display: flex; align-items: center; justify-content: space-between;
-  gap: var(--s2); padding-right: var(--s3);
+  gap: var(--s2); padding-right: var(--s2);
 }
-.seesaw-marke { color: var(--seesaw); padding-bottom: 0; }
+.seesaw-marke { color: var(--seesaw); padding: var(--s3) var(--s2) 0; }
 .seesaw-zeichen { flex: none; width: 21px; height: 23px; }
 .seesaw-wort {
   font-family: var(--sans); font-size: 18px; font-weight: 700; letter-spacing: -.015em;
 }
 
+/* Eng gesetzt, damit alle drei Klassen in einer Zeile stehen: bei der
+   Regelbreite der Kachel reicht es sonst nicht, und eine einzeln
+   umgebrochene dritte Klasse sieht aus wie ein Versehen. Schmalere
+   Seitenraender, kleinere Abstaende, etwas kleinere Kaestchen. */
 .seesaw-klassen {
-  display: flex; flex-wrap: wrap; gap: var(--s1) var(--s2);
-  padding: var(--s2) var(--s3) var(--s3);
+  display: flex; flex-wrap: wrap; gap: var(--s1) 6px;
+  padding: var(--s2) var(--s2) var(--s3);
 }
 .seesaw-klasse {
-  display: inline-flex; align-items: center; gap: 5px;
-  font-size: var(--t-klein); white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 12px; white-space: nowrap;
 }
-.seesaw-klasse input { flex: none; width: 15px; height: 15px; margin: 0; }
+.seesaw-klasse input { flex: none; width: 14px; height: 14px; margin: 0; }
 .seesaw-klasse.ist-erledigt { color: var(--text-leise); }
 
 .kachel.voll { background: var(--gut-leis); }
@@ -395,9 +399,10 @@ ul.tagesplan li:first-child { border-top: 0; }
    Verlaeufe und Schatten geben ihm eine spuerbare Woelbung nach aussen, das
    Antippen druecken es sichtbar wieder hinein. */
 .merkliste-plus {
+  position: relative;
   flex: none;
   width: 30px; height: 30px; padding: 0; line-height: 1;
-  font-size: 19px; font-weight: 300; border-radius: 50%;
+  border-radius: 50%;
   border: 1px solid #17512f;
   background: radial-gradient(circle at 34% 26%, #5ecf8f 0%, #219456 42%, #146238 100%);
   color: #f2fff6;
@@ -409,6 +414,18 @@ ul.tagesplan li:first-child { border-top: 0; }
     0 4px 9px rgba(15, 55, 32, .28);
   transition: transform .1s ease, box-shadow .1s ease;
 }
+/* Die beiden Balken des Pluszeichens: kraeftig, mit runden Enden, exakt
+   mittig. Als gezeichnete Flaechen statt als Schriftzeichen — ein „+" aus
+   der Schrift bleibt duenn und sieht in jeder Schriftart anders aus. */
+.merkliste-plus::before,
+.merkliste-plus::after {
+  content: '';
+  position: absolute; top: 50%; left: 50%;
+  background: currentColor; border-radius: 2px;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, .28);
+}
+.merkliste-plus::before { width: 15px; height: 4px; transform: translate(-50%, -50%); }
+.merkliste-plus::after  { width: 4px; height: 15px; transform: translate(-50%, -50%); }
 .merkliste-plus:hover {
   transform: translateY(-1px);
   box-shadow:
@@ -470,8 +487,12 @@ li.ist-erledigt .merkliste-datum { color: var(--text-leise); }
 .widget[data-id="deadline"] {
   --griff-hg: #6e2f2f; --griff-rand: #5a2626; --griff-text: #f5dcdc; --griff-text-leise: #e0b8b8;
 }
+/* Satteres, helleres Gelb statt des braeunlichen Tons: Saettigung von 66 auf
+   84 Prozent hoch, dazu etwas heller. Weiter hinauf geht es nicht, ohne die
+   Lesbarkeit der Kopfzeile aufzugeben — mit dieser Paarung stehen noch 4,8:1
+   Kontrast, das Minimum fuer kleine Schrift ist 4,5:1. */
 .widget[data-id="todo"] {
-  --griff-hg: #6b5316; --griff-rand: #59440f; --griff-text: #fbecc7; --griff-text-leise: #e6cd93;
+  --griff-hg: #8a6a0c; --griff-rand: #725808; --griff-text: #fff8e3; --griff-text-leise: #f2e2ad;
 }
 .widget[data-id="events"] {
   --griff-hg: #274a72; --griff-rand: #1f3b5c; --griff-text: #dbe8f7; --griff-text-leise: #b7cfe8;

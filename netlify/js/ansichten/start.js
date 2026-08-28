@@ -34,8 +34,14 @@ import {
   eintraegeFuerTyp, istUeberfaellig, fuegeLokalHinzu, entferneLokal, setzeErledigtLokal
 } from '../merkliste.js';
 
-/** Ab dieser Stunde zeigt der Tagesplan schon den Folgetag. */
+/** Ab dieser Stunde zeigt der Tagesplan schon den naechsten Schultag. */
 const TAGESPLAN_VORSCHAU_AB_STUNDE = 17;
+
+/**
+ * Am Freitag lohnt der Blick nach vorn erst spaeter: was folgt, ist das
+ * Wochenende, und der Montag interessiert um 17 Uhr noch niemanden.
+ */
+const TAGESPLAN_VORSCHAU_FREITAG_AB_STUNDE = 19;
 
 /** Arten, die auf die Klassenseite fuehren. */
 const KLICKBAR = ['DEUTSCH', 'LESEN'];
@@ -74,10 +80,29 @@ const SEESAW_MAHNUNG_AB = 4;
 let uhrGeber = null;
 
 /** Welcher Tag im Tagesplan stehen muss — ab 17 Uhr schon der folgende. */
+/**
+ * Der naechste Tag, an dem ueberhaupt Unterricht stattfindet — Samstag und
+ * Sonntag werden uebersprungen. Ein Tagesplan, der nur „kein Unterricht"
+ * sagt, hilft niemandem; interessant ist, was als Naechstes ansteht.
+ */
+function naechsterSchultag(tag) {
+  let naechster = morgen(tag);
+  while (istWochenende(naechster)) naechster = morgen(naechster);
+  return naechster;
+}
+
 function planTag(jetzt = new Date()) {
   const tag = heute(jetzt);
-  const vorschau = uhrzeit(jetzt).stunde >= TAGESPLAN_VORSCHAU_AB_STUNDE;
-  return { tag: vorschau ? morgen(tag) : tag, istHeute: !vorschau };
+
+  // Am Wochenende selbst gibt es nichts anzuzeigen — dann steht ohnehin
+  // schon der Montag an, unabhaengig von der Uhrzeit.
+  if (istWochenende(tag)) return { tag: naechsterSchultag(tag), istHeute: false };
+
+  const schwelle = wochentag(tag) === 5
+    ? TAGESPLAN_VORSCHAU_FREITAG_AB_STUNDE
+    : TAGESPLAN_VORSCHAU_AB_STUNDE;
+  const vorschau = uhrzeit(jetzt).stunde >= schwelle;
+  return { tag: vorschau ? naechsterSchultag(tag) : tag, istHeute: !vorschau };
 }
 
 /**
@@ -970,8 +995,11 @@ function merklisteWidget(daten, typ, tag) {
     ])
   ]);
 
+  // Kein Textzeichen: ein „+" aus der Schrift bleibt duenn und richtet sich
+  // nach der Schriftart. Die beiden Balken werden im Stilblatt gezeichnet und
+  // sind dadurch so kraeftig und rund, wie sie sein sollen.
   const plusKnopf = e('button', {
-    klasse: 'klein merkliste-plus', text: '+', title: 'Eintrag hinzufügen',
+    klasse: 'klein merkliste-plus', title: 'Eintrag hinzufügen',
     'aria-label': 'Eintrag hinzufügen',
     auf: { click: () => {
       formular.hidden = !formular.hidden;

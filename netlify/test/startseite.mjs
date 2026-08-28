@@ -275,14 +275,27 @@ console.log('\n=== Freitag ===');
 }
 
 // ---------------------------------------------------------------------------
-// Freitag 17:00 — die Vorschau springt uebers Wochenende auf den Samstag.
+// Der Tagesplan zeigt nie ein Wochenende. Ein Plan, der bloss „kein
+// Unterricht" sagt, hilft niemandem — interessant ist der naechste Schultag.
+// Am Freitag lohnt der Blick nach vorn ausserdem erst spaeter als sonst.
 // ---------------------------------------------------------------------------
-console.log('\n=== Freitag 17:00, Vorschau aufs Wochenende ===');
+console.log('\n=== Freitag 17:00 — noch der Freitag selbst ===');
 {
   const { p, ctx } = await oeffne('2026-08-21T15:00:00Z');
-  pruefe('Überschrift zeigt Samstag',
-    (await p.locator('.tagesplan-kopf').innerText()).trim(), 'Tagesplan am Samstag');
-  pruefe('ruhiger Hinweis statt Stundenliste', await p.locator('ul.tagesplan').count(), 0);
+  pruefe('Überschrift zeigt weiterhin Freitag',
+    (await p.locator('.tagesplan-kopf').innerText()).trim(), 'Tagesplan am Freitag');
+  pruefe('… mit den vier Freitagsstunden', await p.locator('ul.tagesplan li').count(), 4);
+  await ctx.close();
+}
+
+console.log('\n=== Freitag 19:00 — Vorschau springt uebers Wochenende auf Montag ===');
+{
+  const { p, ctx } = await oeffne('2026-08-21T17:00:00Z');
+  pruefe('Überschrift zeigt Montag, nicht Samstag',
+    (await p.locator('.tagesplan-kopf').innerText()).trim(), 'Tagesplan am Montag');
+  pruefe('… mit den sechs Montagsstunden', await p.locator('ul.tagesplan li').count(), 6);
+  pruefe('nichts ist als „läuft" markiert — es ist ja nicht heute',
+    await p.locator('li.ist-laufend').count(), 0);
   await ctx.close();
 }
 
@@ -298,15 +311,30 @@ console.log('\n=== Mittwoch, ruhige Kacheln ===');
 }
 
 // ---------------------------------------------------------------------------
-// Samstag — ruhiger Hinweis statt leerer Liste.
+// Wochenende — am Wochenende selbst steht schon der Montag da.
 // ---------------------------------------------------------------------------
 console.log('\n=== Wochenende ===');
 {
   const { p, ctx } = await oeffne('2026-08-22T09:00:00Z');
-  pruefe('keine Stundenliste', await p.locator('ul.tagesplan').count(), 0);
-  pruefe('ruhiger Hinweis statt Leere',
-    (await p.locator('.karte').nth(1).innerText()).includes('kein Unterricht'), true);
+  pruefe('am Samstag steht schon der Montag da',
+    (await p.locator('.tagesplan-kopf').innerText()).trim(), 'Tagesplan am Montag');
+  pruefe('… mit einer echten Stundenliste statt „kein Unterricht"',
+    await p.locator('ul.tagesplan li').count(), 6);
   pruefe('Klassenknöpfe bleiben erreichbar', await p.locator('.klassenknopf').count(), 3);
+  await ctx.close();
+}
+{
+  // Sonntag: derselbe Montag, nicht etwa der Sonntag selbst.
+  const { p, ctx } = await oeffne('2026-08-23T09:00:00Z');
+  pruefe('auch am Sonntag steht der Montag da',
+    (await p.locator('.tagesplan-kopf').innerText()).trim(), 'Tagesplan am Montag');
+  await ctx.close();
+}
+{
+  // Und unter der Woche bleibt es beim gewohnten Sprung um 17 Uhr auf morgen.
+  const { p, ctx } = await oeffne('2026-08-19T15:00:00Z');
+  pruefe('Mittwoch 17:00 springt weiterhin auf Donnerstag',
+    (await p.locator('.tagesplan-kopf').innerText()).trim(), 'Tagesplan am Donnerstag');
   await ctx.close();
 }
 
@@ -377,9 +405,27 @@ console.log('\n=== Merklisten: To-Do, Deadlines, Termine ===');
   // Jede der drei bekommt ihre eigene, gedeckte Kopffarbe.
   const griffFarbe = (id) => p.locator(`.widget[data-id="${id}"] .widget-griff`)
     .evaluate((el) => getComputedStyle(el).backgroundColor);
-  pruefe('To-Do: dunkles Gelb', await griffFarbe('todo'), 'rgb(107, 83, 22)');
+  pruefe('To-Do: sattes Gelb', await griffFarbe('todo'), 'rgb(138, 106, 12)');
   pruefe('Deadlines: dunkles Rot', await griffFarbe('deadline'), 'rgb(110, 47, 47)');
   pruefe('Termine: dunkles Blau', await griffFarbe('events'), 'rgb(39, 74, 114)');
+
+  // Die Kopfzeile muss auf jeder der drei Farben lesbar bleiben — beim Gelb
+  // ist das die enge Stelle, weil es das hellste der drei ist.
+  const kontrast = async (id) => p.locator(`.widget[data-id="${id}"] .widget-griff`).evaluate((el) => {
+    const zahl = (s) => s.match(/\d+/g).map(Number);
+    const hell = ([r, g, b]) => [r, g, b].map((k) => {
+      const v = k / 255;
+      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    }).reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);
+    const hintergrund = hell(zahl(getComputedStyle(el).backgroundColor));
+    const schrift = hell(zahl(getComputedStyle(el.querySelector('.widget-name')).color));
+    const [oben, unten] = hintergrund > schrift ? [hintergrund, schrift] : [schrift, hintergrund];
+    return Math.round(((oben + 0.05) / (unten + 0.05)) * 100) / 100;
+  });
+  for (const id of ['todo', 'deadline', 'events']) {
+    const wert = await kontrast(id);
+    pruefe(`${id}: Kopfzeile bleibt lesbar (${wert}:1, nötig sind 4.5)`, wert >= 4.5, true);
+  }
   pruefe('… und die drei Farben sind tatsaechlich verschieden',
     new Set([await griffFarbe('todo'), await griffFarbe('deadline'), await griffFarbe('events')]).size, 3);
 
