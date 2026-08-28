@@ -22,7 +22,25 @@
 
 var TOKEN_SCHLUESSEL = 'zugangsschluessel';
 
-/** Liest den Zugangsschluessel, erzeugt ihn beim ersten Aufruf. */
+/**
+ * Liest den Zugangsschluessel, ohne einen anzulegen.
+ *
+ * Getrennt von holeToken_, und das ist der springende Punkt: eine
+ * Zugangspruefung darf niemals etwas erzeugen. Legte sie bei einem leeren
+ * Leseergebnis einen neuen Schluessel an, waere der alte damit ungueltig —
+ * ein einziger Aussetzer der Skripteigenschaften (am ehesten kurz nach einer
+ * frischen Bereitstellung) sperrte die Lehrkraft aus ihrem eigenen Werkzeug
+ * aus, ohne dass irgendwo ersichtlich waere, warum.
+ */
+function liesToken_() {
+  return PropertiesService.getScriptProperties().getProperty(TOKEN_SCHLUESSEL);
+}
+
+/**
+ * Liest den Zugangsschluessel und erzeugt ihn beim allerersten Aufruf.
+ * Nur fuer die Einrichtung gedacht (Menue „Zugangsschlüssel anzeigen") —
+ * nicht fuer die Pruefung eingehender Anfragen.
+ */
 function holeToken_() {
   var eigenschaften = PropertiesService.getScriptProperties();
   var token = eigenschaften.getProperty(TOKEN_SCHLUESSEL);
@@ -34,7 +52,11 @@ function holeToken_() {
 }
 
 function pruefeToken_(uebergeben) {
-  var erwartet = holeToken_();
+  var erwartet = liesToken_();
+  if (!erwartet) {
+    throw new Error('Es ist noch kein Zugangsschlüssel eingerichtet. In der Tabelle über ' +
+                    '„Kommandozentrale → Zugangsschlüssel anzeigen" einen erzeugen.');
+  }
   if (!uebergeben || String(uebergeben) !== erwartet) {
     throw new Error('Zugang verweigert. Bitte den Zugangsschlüssel in den Einstellungen prüfen.');
   }

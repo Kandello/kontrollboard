@@ -177,6 +177,32 @@ pruefe('liefert Schueler', mit.daten.schueler.length, 69);
 const unbekannt = JSON.parse(doGet({ parameter: { aktion: 'quatsch', token } }).text);
 pruefe('unbekannte Aktion abgewiesen', unbekannt.ok, false);
 
+// Eine Zugangspruefung darf NIEMALS einen Schluessel erzeugen. Taete sie es,
+// wuerde ein einziger Aussetzer beim Lesen der Skripteigenschaften den
+// gueltigen Schluessel durch einen neuen ersetzen — und die Lehrkraft waere
+// dauerhaft aus ihrem eigenen Werkzeug ausgesperrt, ohne erkennbaren Grund.
+{
+  const eigenschaften = PropertiesService.getScriptProperties();
+  const echt = eigenschaften.getProperty('zugangsschluessel');
+
+  // Aussetzer nachstellen: der Schluessel ist beim Lesen kurz nicht da.
+  eigenschaften.setProperty('zugangsschluessel', '');
+  const waehrendAussetzer = JSON.parse(doGet({ parameter: { aktion: 'laden', token: echt } }).text);
+  pruefe('waehrend eines Aussetzers wird abgewiesen', waehrendAussetzer.ok, false);
+  pruefe('… mit einem Hinweis auf die Einrichtung, nicht auf einen falschen Schluessel',
+    /kein Zugangsschlüssel eingerichtet/.test(waehrendAussetzer.fehler), true);
+  pruefe('… und es wurde dabei KEIN neuer Schluessel angelegt',
+    Boolean(eigenschaften.getProperty('zugangsschluessel')), false);
+
+  // Ist der Aussetzer vorbei, gilt der urspruengliche Schluessel unveraendert
+  // weiter — genau das schlug vorher fehl.
+  eigenschaften.setProperty('zugangsschluessel', echt);
+  const danach = JSON.parse(doGet({ parameter: { aktion: 'laden', token: echt } }).text);
+  pruefe('nach dem Aussetzer gilt der alte Schluessel weiter', danach.ok, true);
+  pruefe('… er wurde also nicht stillschweigend ausgetauscht',
+    eigenschaften.getProperty('zugangsschluessel'), echt);
+}
+
 console.log('\n=== doPost ===');
 const post = JSON.parse(doPost({ postData: { contents: JSON.stringify({ token, aktion: 'meta', werte: { ferienmodus: 'FALSE' } }) } }).text);
 pruefe('POST meta ok', post.ok, true);

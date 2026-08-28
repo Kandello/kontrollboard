@@ -458,6 +458,78 @@ console.log('\n=== Die Ablage bleibt beim Mitrollen erreichbar (nicht nur ueberr
   await ctx2.close();
 }
 
+// ---------------------------------------------------------------------------
+// Ein einzelner Aussetzer der Tabelle darf die gerade gebaute Anordnung nicht
+// zurueckwerfen. Genau das trat in freier Wildbahn auf: kurz nach einer neuen
+// Bereitstellung meldete die Tabelle sporadisch „Zugang verweigert", das
+// Widget sprang zurueck, und beim naechsten Versuch ging alles wieder.
+// ---------------------------------------------------------------------------
+console.log('\n=== Ein kurzer Aussetzer beim Speichern wirft nichts zurueck ===');
+{
+  const ctx3 = await browser.newContext({
+    viewport: { width: 1400, height: 4200 }, locale: 'de-DE', timezoneId: 'Europe/Berlin'
+  });
+  const p3 = await ctx3.newPage();
+  const fehler3 = [];
+  p3.on('pageerror', (e) => fehler3.push('PAGEERROR: ' + e.message));
+
+  // Meldungsfenster mitzaehlen, statt sie nur wegzuklicken: ihr Ausbleiben
+  // ist hier die eigentliche Aussage.
+  const meldungen = [];
+  p3.on('dialog', (d) => { meldungen.push(d.message()); d.accept().catch(() => {}); });
+
+  // Der ERSTE Speicherversuch der Anordnung scheitert, jeder weitere geht
+  // durch — so verhaelt sich ein kurzer Aussetzer.
+  let schonGescheitert = false;
+  await p3.route('**/exec', async (route) => {
+    const anfrage = route.request();
+    const rumpf = anfrage.method() === 'POST' ? (anfrage.postData() || '') : '';
+    if (!schonGescheitert && rumpf.includes('layout_start')) {
+      schonGescheitert = true;
+      await route.fulfill({
+        status: 200, contentType: 'application/json',
+        body: JSON.stringify({ ok: false, fehler: 'Zugang verweigert. Bitte den Zugangsschlüssel in den Einstellungen prüfen.' })
+      });
+      return;
+    }
+    await route.continue();
+  });
+
+  await p3.clock.setFixedTime(new Date('2026-09-16T08:00:00Z'));
+  await p3.goto(ADRESSE + '/');
+  await p3.evaluate((t) => localStorage.setItem('kz.verbindung',
+    JSON.stringify({ url: 'http://localhost:8901/exec', token: t })), TOKEN);
+  await p3.reload();
+  await p3.waitForSelector('.widgetraster', { timeout: 8000 });
+
+  // Irgendeines der sichtbaren Widgets — welche das sind, haengt davon ab,
+  // was die vorigen Abschnitte mit ihnen angestellt haben.
+  const alle = await alleRechtecke(p3);
+  const id = Object.keys(alle)[0];
+  const vorher = alle[id];
+  const zielY = Math.min(vorher.y + 4, MAX_ZEILEN - vorher.h);
+  await ziehen(p3, id, 0, zielY);
+  // Der zweite Versuch startet erst nach einer kurzen Pause.
+  await p3.waitForTimeout(2000);
+
+  pruefe('der erste Speicherversuch ist tatsaechlich gescheitert', schonGescheitert, true);
+  pruefe('trotzdem kein Meldungsfenster', meldungen, []);
+  const nachher = (await alleRechtecke(p3))[id];
+  pruefe('das Widget ist an der neuen Stelle geblieben, statt zurueckzuspringen',
+    { x: nachher.x, y: nachher.y }, { x: 0, y: zielY });
+
+  // Und die Anordnung ist wirklich in der Tabelle gelandet, nicht bloss im Bild.
+  await p3.reload();
+  await p3.waitForSelector('.widgetraster', { timeout: 8000 });
+  const nachNeuladen = (await alleRechtecke(p3))[id];
+  pruefe('… und uebersteht das Neuladen, war also wirklich gespeichert',
+    { x: nachNeuladen.x, y: nachNeuladen.y }, { x: 0, y: zielY });
+
+  console.log('JS-Fehler (Aussetzer-Bildschirm):', fehler3.length ? fehler3 : 'keine');
+  fehler.push(...fehler3);
+  await ctx3.close();
+}
+
 console.log('\nJS-Fehler:', fehler.length ? fehler : 'keine');
 console.log(schlecht === 0 && !fehler.length
   ? `\nALLE ${n} TESTS BESTANDEN`
