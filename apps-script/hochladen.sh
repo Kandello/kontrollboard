@@ -78,6 +78,15 @@ if [ -z "$kennung" ] && [ -f .bereitstellung ]; then
   kennung=$(tr -d ' \t\r\n' < .bereitstellung)
 fi
 
+# Es darf auch die ganze Web-App-Adresse hinterlegt sein: die Kennung steckt
+# ohnehin darin, hinter dem letzten /s/. Das erspart das fehleranfaellige
+# Heraussuchen der ID im Editor — die Adresse hat man ohnehin schon.
+#
+# Auf das letzte /s/ abgestellt, nicht auf /macros/s/: Konten einer Schule
+# oder Firma (Google Workspace) tragen den Domainnamen mitten in der Adresse,
+# also .../a/macros/schule.de/s/AKfycb…/exec.
+kennung=$(printf '%s' "$kennung" | sed -e 's#.*/s/##' -e 's#/.*##')
+
 if [ -z "$kennung" ]; then
   echo ""
   echo "[3/3] UEBERSPRUNGEN — hochgeladen, aber noch nicht scharfgeschaltet."
