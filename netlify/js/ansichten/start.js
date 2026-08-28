@@ -219,13 +219,26 @@ export function zeichneStart(ziel, { daten, verbergen, neuZeichnen }) {
 
     const zeile = schreibeLayout(layout);
     daten.meta[metaSchluessel('start')] = zeile;
+    const schreiben = () => sende('meta', { werte: { [metaSchluessel('start')]: zeile } });
+
     try {
-      await sende('meta', { werte: { [metaSchluessel('start')]: zeile } });
-    } catch (fehler) {
-      layout = vorher;
-      daten.meta[metaSchluessel('start')] = schreibeLayout(vorher);
-      platziere(layout, true);
-      window.alert('Die Anordnung konnte nicht gespeichert werden: ' + fehler.message);
+      await schreiben();
+    } catch (ersterFehler) {
+      // Ein einzelner misslungener Versuch ist noch kein Grund, dem Menschen
+      // seine gerade gebaute Anordnung wieder wegzunehmen. Die Tabelle setzt
+      // gelegentlich kurz aus — am ehesten direkt nach einer neuen
+      // Bereitstellung —, und ein zurueckspringendes Widget samt
+      // Fehlermeldung waere dann eine Falschmeldung, die schlimmer wirkt als
+      // der Aussetzer selbst. Also: einmal Luft holen, einmal nachfassen.
+      try {
+        await new Promise((fertig) => setTimeout(fertig, 800));
+        await schreiben();
+      } catch (zweiterFehler) {
+        layout = vorher;
+        daten.meta[metaSchluessel('start')] = schreibeLayout(vorher);
+        platziere(layout, true);
+        window.alert('Die Anordnung konnte nicht gespeichert werden: ' + zweiterFehler.message);
+      }
     }
   }
 
