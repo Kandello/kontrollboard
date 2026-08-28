@@ -26,6 +26,8 @@ sicherung*.csv
 # ---------------------------------------------------------------------------
 .clasp.json
 .clasprc.json
+# Kennung der Bereitstellung — gehoert zur persoenlichen Tabelle, nicht zum Code.
+.bereitstellung
 node_modules/
 .DS_Store
 Thumbs.db
