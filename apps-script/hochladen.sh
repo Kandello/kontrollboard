@@ -45,8 +45,11 @@ if [ ! -f .clasp.json ]; then
 fi
 
 # --- 1. Neuesten Stand holen ------------------------------------------------
+pruefsumme() { cksum hochladen.sh 2>/dev/null | awk '{print $1}'; }
+
 if [ -d ../.git ]; then
   echo "[1/3] Neuesten Stand von GitHub holen …"
+  vorher=$(pruefsumme)
   if ! git pull --ff-only; then
     echo ""
     echo "  Der neueste Stand liess sich nicht holen."
@@ -60,6 +63,24 @@ if [ -d ../.git ]; then
     echo "  frag lieber nach — der Befehl wirft lokale Aenderungen weg."
     echo ""
     exit 1
+  fi
+
+  # Hat der Abgleich dieses Skript selbst erneuert, laeuft trotzdem noch die
+  # alte Fassung weiter: die Shell hat die Datei beim Start vollstaendig
+  # eingelesen (siehe die geschweiften Klammern oben). Eine Verbesserung AM
+  # SKRIPT wirkt also erst beim naechsten Start — und bis dahin arbeitet man
+  # ahnungslos mit dem alten Stand. Darum hier anhalten und darauf hinweisen.
+  if [ -n "$vorher" ] && [ "$vorher" != "$(pruefsumme)" ]; then
+    echo ""
+    echo "  Das Hochladeskript selbst wurde gerade erneuert."
+    echo ""
+    echo "  Bitte einfach noch einmal starten — dann laeuft die neue Fassung:"
+    echo ""
+    echo "      ./hochladen.sh"
+    echo ""
+    echo "  (Es ist noch nichts hochgeladen worden. Nichts kaputt.)"
+    echo ""
+    exit 0
   fi
 else
   echo "[1/3] Kein Git-Verzeichnis gefunden — ueberspringe das Holen."
@@ -91,18 +112,38 @@ if [ -z "$kennung" ]; then
   echo ""
   echo "[3/3] UEBERSPRUNGEN — hochgeladen, aber noch nicht scharfgeschaltet."
   echo ""
-  echo "  Es ist keine Bereitstellung hinterlegt. Einmalig anlegen:"
-  echo "  die Bereitstellungs-ID (beginnt mit AKfycb) aus dem Editor unter"
-  echo "  \"Bereitstellen -> Bereitstellungen verwalten\" kopieren, dann:"
+  echo "  Es ist keine Bereitstellung hinterlegt. Einmalig anlegen: im Editor"
+  echo "  unter \"Bereitstellen -> Bereitstellungen verwalten\" die Web-App-"
+  echo "  Adresse kopieren, dann:"
   echo ""
-  echo "      echo AKfycb… > .bereitstellung"
+  echo "      echo \"https://script.google.com/macros/s/AKfycb…/exec\" > .bereitstellung"
   echo ""
   exit 0
 fi
 
 echo ""
 echo "[3/3] Neue Version veroeffentlichen …"
-clasp deploy -i "$kennung" -d "Stand $(date '+%Y-%m-%d %H:%M')"
+if ! clasp deploy -i "$kennung" -d "Stand $(date '+%Y-%m-%d %H:%M')"; then
+  echo ""
+  echo "  Das Veroeffentlichen ist fehlgeschlagen. Hochgeladen ist alles —"
+  echo "  nur scharfgeschaltet ist der neue Stand noch nicht."
+  echo ""
+  echo "  Verwendete Kennung: $kennung"
+  echo ""
+  echo "  Steht bei \"Invalid deployment ID\", passt der Inhalt von"
+  echo "  .bereitstellung nicht. Er muss die Web-App-Adresse ODER die reine"
+  echo "  Kennung enthalten — nachsehen mit:"
+  echo ""
+  echo "      cat .bereitstellung"
+  echo ""
+  echo "  Welche es gibt, zeigt:  clasp deployments"
+  echo ""
+  echo "  Bis das geklaert ist, kannst du im Editor unter \"Bereitstellen ->"
+  echo "  Bereitstellungen verwalten -> Stift -> Version: Neue Version\""
+  echo "  von Hand scharfschalten."
+  echo ""
+  exit 1
+fi
 
 echo ""
 echo "  Fertig. Die /exec-Adresse liefert jetzt den neuen Stand."
