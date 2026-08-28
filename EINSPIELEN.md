@@ -80,14 +80,19 @@ echo '{"scriptId":"DEINE_SCRIPT_ID","rootDir":"."}' > .clasp.json
 
 **7. Die Bereitstellung hinterlegen**
 
-Die Bereitstellungs-ID (beginnt mit `AKfycb`) steht im Apps-Script-Editor
-unter **Bereitstellen → Bereitstellungen verwalten**; gesucht ist der
-Eintrag, dessen Web-App-URL mit der Adresse in den Einstellungen der
-Oberfläche übereinstimmt — nicht der mit `@HEAD`.
+Im Apps-Script-Editor unter **Bereitstellen → Bereitstellungen verwalten**
+die **Web-App-URL** kopieren — gesucht ist der Eintrag, dessen Adresse mit
+der in den Einstellungen der Oberfläche übereinstimmt, nicht der mit `@HEAD`
+oder auf `/dev`.
 
 ```
-echo AKfycb… > .bereitstellung
+echo "https://script.google.com/macros/s/AKfycb…/exec" > .bereitstellung
 ```
+
+Die reine Kennung (`AKfycb…`) tut es auch: das Skript zieht sie ohnehin
+selbst aus der Adresse heraus — den Teil hinter dem letzten `/s/`. Auf das
+*letzte* `/s/` abgestellt, weil Schul- und Firmenkonten (Google Workspace)
+den Domainnamen mitten in der Adresse tragen.
 
 `.clasp.json` und `.bereitstellung` bleiben absichtlich lokal (siehe
 `.gitignore`): sie zeigen auf *deine* Tabelle und haben im geteilten Code
