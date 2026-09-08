@@ -23,7 +23,7 @@
  * ausschliesslich Kuerzel, Bezeichnungen und Zustaende — niemals Namen.
  */
 
-import { e, leere, karte, hinweis } from '../ui.js';
+import { e, leere, karte, hinweis, kennung } from '../ui.js';
 import { namensteile, sortiereNachListe } from '../zuordnung.js';
 import { sende, leereDaten, ladeDaten } from '../server.js';
 import { setzeVerlassenPruefung, gehe } from '../router.js';
@@ -233,7 +233,7 @@ export function zeichneChecklisten(ziel, kontext) {
       const name = window.prompt('Name der neuen Spalte:');
       if (!name || !name.trim()) return;
       const bezeichnung = name.trim();
-      const id = crypto.randomUUID();
+      const id = kennung();
       const reihenfolge = spalten.length + 1;
       fuegeSpalteLokalHinzu(daten, { id, board_id: board.id, bezeichnung, reihenfolge });
       neuZeichnen();
@@ -381,7 +381,7 @@ function zeichneNeuePanel(panel, daten, neuZeichnen, zustand) {
         if (!titel) { leere(meldung); meldung.appendChild(hinweis({ art: 'warn', zeichen: '!', text: 'Bitte einen Titel eingeben.' })); return; }
         const untertitel = untertitelFeld.value.trim();
         const labels = labelsFeld.value.trim();
-        const id = crypto.randomUUID();
+        const id = kennung();
         const board = { id, titel, untertitel, labels, status: 'aktiv', erstellt_am: heutigesDatum(), archiviert_am: '' };
         fuegeBoardLokalHinzu(daten, board);
         zustand.boardId = id;

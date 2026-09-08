@@ -194,6 +194,25 @@ input[type="text"], input[type="url"], input[type="password"], select, textarea 
   border: 1px solid var(--linie-stark); border-radius: var(--radius);
 }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--akzent); outline-offset: -1px; }
+
+/* Safari auf iPhone und iPad zeichnet Felder und Knoepfe sonst nach eigenem
+   Geschmack: abgerundete Ecken, ein Innenschatten und bei Datumsfeldern eine
+   eigene Ausrichtung. Das ueberlagert die hier gesetzten Kanten, sodass
+   dieselbe Seite auf dem iPad anders aussaehe als auf dem Rechner. */
+input, select, textarea, button, .knopf {
+  -webkit-appearance: none;
+  appearance: none;
+}
+/* Kaestchen behalten ihre Systemdarstellung — ohne sie waeren sie unsichtbar. */
+input[type="checkbox"], input[type="radio"] {
+  -webkit-appearance: auto;
+  appearance: auto;
+}
+/* Datums- und Zeitfelder richtet iOS sonst mittig und ohne volle Breite aus. */
+input[type="date"], input[type="time"] {
+  text-align: left;
+  min-width: 0;
+}
 .feld { margin-bottom: var(--s4); }
 .feldhilfe { font-size: var(--t-klein); color: var(--text-leise); margin-top: var(--s1); }
 
@@ -824,13 +843,28 @@ body.zieht-gerade { user-select: none; -webkit-user-select: none; cursor: grabbi
 body.zieht-gerade .einheit-box:hover { transform: none; }
 
 /* Der Griff ist nur noch ein Hinweis: gezogen wird an der ganzen Box. */
+/* Der Griffstreifen ist mit dem FINGER der einzige Weg, eine Einheit zu
+   ziehen — und das ist Absicht. Mit der Maus bleibt die ganze Box ziehbar
+   (an einem schmalen Streifen zu treffen ist mit dem Zeiger unnoetig fummelig);
+   auf dem iPad ginge das aber nicht: laege `touch-action: none` auf der ganzen
+   Box, liesse sich der Jahresplan nicht mehr mit dem Finger rollen, weil die
+   Boxen die Flaeche fuellen. Also traegt nur dieser Streifen die Sperre.
+   Ohne sie faengt iOS die Bewegung als Rollgeste ab, der Zug wird abgebrochen
+   (pointercancel) und das Verschieben ist am Finger schlicht nicht moeglich.
+
+   Die Punkte sitzen unveraendert; anfassbar ist der ganze linke Rand. */
 .einheit-griff {
-  position: absolute; left: 9px; top: 50%; transform: translateY(-50%);
-  width: 12px; height: 34px; pointer-events: none; opacity: .55;
+  position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+  width: 26px; height: 44px;
+  touch-action: none;
+}
+.einheit-griff::before {
+  content: ''; position: absolute; left: 9px; top: 50%; transform: translateY(-50%);
+  width: 12px; height: 34px; opacity: .55;
   background:
     radial-gradient(circle, var(--text-sehrleis) 1.4px, transparent 1.4px) 50% 50% / 6px 7px;
 }
-.einheit-box:hover .einheit-griff { opacity: .9; }
+.einheit-box:hover .einheit-griff::before { opacity: .9; }
 
 .einheit-kopf {
   display: block; width: 100%; text-align: left;
@@ -1053,3 +1087,28 @@ body.zieht-gerade .widget:hover { transform: none; }
    werden die Spalten dadurch schmal, aber jedes Widget spannt ohnehin
    mehrere davon (Mindestbreite 3), und der Inhalt reagiert selbst ueber die
    container queries oben auf seine tatsaechliche Breite. */
+
+/* --- Eigenheiten von Safari auf iPhone und iPad ---------------------------
+   `-webkit-touch-callout` gibt es nur in Safaris mobiler Fassung — die
+   Abfrage trifft also genau iPhone und iPad und laesst Rechner und Android
+   unberuehrt. */
+@supports (-webkit-touch-callout: none) {
+  /* Ein Eingabefeld mit weniger als 16px Schrift laesst Safari beim Antippen
+     in die Seite hineinzoomen, und heraus kommt man nur von Hand wieder.
+     Betrifft vor allem die Merklisten, deren Felder bewusst kompakt sind —
+     auf dem Rechner bleiben sie das auch, nur hier werden sie groesser. */
+  input, select, textarea { font-size: 16px; }
+
+  /* Beim Ziehen darf nicht die Lupe oder das Auswahlmenue aufspringen. */
+  .widget-griff, .widget-resize, .einheit-griff {
+    -webkit-touch-callout: none;
+  }
+
+  /* Mit `viewport-fit=cover` reicht die Seite bis unter den Bildschirmrand.
+     Ohne diesen Abstand laege die Ablage unter dem Bedienstrich. */
+  body {
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+}

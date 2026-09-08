@@ -99,6 +99,33 @@ export function zahlDeutsch(wert, stellen = 1) {
 }
 
 /**
+ * Eine neue, eindeutige Kennung im UUID-Format.
+ *
+ * `crypto.randomUUID` kennt Safari erst ab iOS/iPadOS 15.4. Auf einem
+ * aelteren iPad braeche das Anlegen eines Eintrags sonst mit einem Fehler ab,
+ * den niemand deuten koennte — und zwar an der empfindlichsten Stelle: beim
+ * Erfassen, wenn schon getippt wurde.
+ *
+ * Der Ersatz baut dieselbe Form aus Zufallswerten des Betriebssystems
+ * (`getRandomValues`, seit jeher vorhanden). Nur wenn es auch die nicht gibt,
+ * bleibt Math.random — fuer die Unterscheidung weniger Eintraege genuegt das
+ * allemal, kryptografisch belastbar muss hier nichts sein.
+ */
+export function kennung() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+
+  const bytes = new Uint8Array(16);
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) crypto.getRandomValues(bytes);
+  else for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+
+  bytes[6] = (bytes[6] & 0x0f) | 0x40; // Fassung 4
+  bytes[8] = (bytes[8] & 0x3f) | 0x80; // Variante
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-` +
+         `${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+/**
  * Bietet eine Datei zum Sichern an. Blob mit download-Attribut — in der
  * Vorabpruefung auf allen drei Geraeten bestaetigt.
  */
