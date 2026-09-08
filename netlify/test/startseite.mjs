@@ -660,6 +660,60 @@ console.log('\n=== Lernwörter: der Schriftzug führt zur Vorlage ===');
   await ctx.close();
 }
 
+// ---------------------------------------------------------------------------
+// Aeltere iPads (vor iPadOS 15.4) kennen crypto.randomUUID nicht. Ohne Ersatz
+// braeche das Anlegen eines Eintrags dort mit einem Fehler ab — und zwar erst,
+// nachdem schon getippt wurde.
+// ---------------------------------------------------------------------------
+console.log('\n=== Eintraege anlegen auch ohne crypto.randomUUID (aeltere iPads) ===');
+{
+  const ctx = await browser.newContext({
+    viewport: { width: 1000, height: 1000 }, locale: 'de-DE', timezoneId: 'Europe/Berlin'
+  });
+  const p = await ctx.newPage();
+  const eigene = [];
+  p.on('pageerror', (e) => eigene.push('PAGEERROR: ' + e.message));
+
+  // Vor jedem Skript der Seite ausblenden, was ein altes iPad nicht haette.
+  // Die Funktion haengt am Prototyp, nicht am crypto-Objekt selbst — ein
+  // `delete window.crypto.randomUUID` liefe wirkungslos ins Leere.
+  await p.addInitScript(() => { delete window.Crypto.prototype.randomUUID; });
+
+  await p.clock.setFixedTime(new Date('2026-09-16T08:00:00Z'));
+  await p.goto(ADRESSE + '/');
+  await p.evaluate((t) => localStorage.setItem('kz.verbindung',
+    JSON.stringify({ url: 'http://localhost:8901/exec', token: t })), TOKEN);
+  await p.reload();
+  await p.waitForSelector('.widgetraster', { timeout: 8000 });
+
+  pruefe('crypto.randomUUID ist tatsächlich weg',
+    await p.evaluate(() => typeof window.crypto.randomUUID), 'undefined');
+
+  const todo = p.locator('.widget[data-id="todo"]');
+  if (await todo.locator('.merkliste-plus').count() === 0) {
+    await p.locator('.widget-ablage .widget[data-id="todo"] button[title="Wieder einblenden"]').click();
+    await p.waitForTimeout(900);
+  }
+  const vorher = await p.locator('.widget[data-id="todo"] .merkliste-liste li').count();
+  await p.locator('.widget[data-id="todo"] .merkliste-plus').click();
+  await p.locator('.widget[data-id="todo"] .merkliste-felder input[type="text"]').fill('Ohne randomUUID');
+  await p.locator('.widget[data-id="todo"] button:has-text("Hinzufügen")').click();
+  await p.waitForTimeout(900);
+
+  pruefe('der Eintrag wird trotzdem angelegt',
+    await p.locator('.widget[data-id="todo"] .merkliste-liste li').count(), vorher + 1);
+  pruefe('… ohne dass ein Skriptfehler auftritt', eigene, []);
+
+  // Und er ist wirklich in der Tabelle gelandet, mit einer brauchbaren Kennung.
+  const tabelle = await (await fetch(`${ADRESSE}/exec?aktion=laden&token=${TOKEN}`)).json();
+  const gespeichert = tabelle.daten.merkliste.find((m) => m.text === 'Ohne randomUUID');
+  pruefe('… und steht mit eigener Kennung in der Tabelle',
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(gespeichert.id), true);
+
+  fehler.push(...eigene);
+  await ctx.close();
+}
+
 console.log('\nJS-Fehler:', fehler.length ? fehler : 'keine');
 console.log(schlecht === 0 && !fehler.length
   ? `\nALLE ${n} TESTS BESTANDEN`

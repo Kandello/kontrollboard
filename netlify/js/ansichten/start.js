@@ -15,7 +15,7 @@
  * ist es umgekehrt geloest, weil deren Boxen kaum Bedienelemente tragen.
  */
 
-import { e, leere, setzeMeldung, hinweis } from '../ui.js';
+import { e, leere, setzeMeldung, hinweis, kennung } from '../ui.js';
 import {
   GRID_SPALTEN, MAX_ZEILEN, metaSchluessel, leseLayout, schreibeLayout, sichtbare, ausgeblendete,
   versetze as versetzeWidget, groesseAendern, blendeAus, blendeEin
@@ -79,7 +79,6 @@ const SEESAW_MAHNUNG_AB = 4;
 
 let uhrGeber = null;
 
-/** Welcher Tag im Tagesplan stehen muss — ab 17 Uhr schon der folgende. */
 /**
  * Der naechste Tag, an dem ueberhaupt Unterricht stattfindet — Samstag und
  * Sonntag werden uebersprungen. Ein Tagesplan, der nur „kein Unterricht"
@@ -1031,7 +1030,7 @@ function merklisteWidget(daten, typ, tag) {
     if (!text) { zeigeFehler('Bitte einen Text eingeben.'); return; }
     if (konfig.datumErforderlich && !datum) { zeigeFehler('Bitte ein Datum eingeben.'); return; }
 
-    const id = crypto.randomUUID();
+    const id = kennung();
     fuegeLokalHinzu(daten, {
       id, typ, text, datum, uhrzeit, erledigt: false, erstellt_am: new Date().toISOString()
     });

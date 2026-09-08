@@ -459,6 +459,51 @@ console.log('\n=== Einstieg über die Kopfleiste ===');
     (await p.locator('.pfad').innerText()).includes('Unterrichtseinheiten'), true);
 }
 
+// ---------------------------------------------------------------------------
+// Am Finger ziehbar (iPad). Safari faengt eine Wischbewegung als Rollgeste ab,
+// sobald die beruehrte Flaeche `touch-action` nicht auf `none` stellt — der Zug
+// wird dann per pointercancel abgebrochen und das Verschieben ist schlicht
+// nicht moeglich. Hier haengt daran eine Abwaegung, die leicht verlorengeht:
+// die Sperre darf NUR auf dem Griffstreifen liegen. Laege sie auf der ganzen
+// Box, liesse sich der Jahresplan mit dem Finger nicht mehr rollen, weil die
+// Boxen die Flaeche fuellen.
+// ---------------------------------------------------------------------------
+console.log('\n=== Mit dem Finger ziehbar, ohne das Rollen zu verlieren ===');
+{
+  const griffStil = await p.locator('.einheit-box .einheit-griff').first()
+    .evaluate((el) => {
+      const s = getComputedStyle(el);
+      return { touchAction: s.touchAction, pointerEvents: s.pointerEvents,
+               breite: el.getBoundingClientRect().width,
+               hoehe: el.getBoundingClientRect().height };
+    });
+  pruefe('der Griffstreifen sperrt die Rollgeste', griffStil.touchAction, 'none');
+  pruefe('… und ist ueberhaupt anfassbar', griffStil.pointerEvents !== 'none', true);
+  pruefe('… und breit genug fuer einen Finger', griffStil.breite >= 24, true);
+  pruefe('… und hoch genug', griffStil.hoehe >= 40, true);
+
+  const boxStil = await p.locator('.einheit-box').first()
+    .evaluate((el) => getComputedStyle(el).touchAction);
+  pruefe('die Box selbst rollt weiterhin mit — sonst kaeme man nicht durch den Plan',
+    boxStil, 'auto');
+
+  // Der Griff liegt im reservierten linken Rand, nicht ueber dem Text. Er
+  // beginnt am Innenrand der Box — also um die Rahmenstaerke eingerueckt,
+  // nicht bei exakt null.
+  const lage = await p.locator('.einheit-box').first().evaluate((box) => {
+    const g = box.querySelector('.einheit-griff').getBoundingClientRect();
+    const b = box.getBoundingClientRect();
+    return {
+      versatz: Math.round(g.left - b.left),
+      griffBreite: Math.round(g.width),
+      rand: parseFloat(getComputedStyle(box).paddingLeft)
+    };
+  });
+  pruefe('… beginnt am linken Innenrand der Box', lage.versatz <= 2, true);
+  pruefe('… und reicht nicht ueber den freigehaltenen Rand hinaus in den Text',
+    lage.versatz + lage.griffBreite <= lage.rand + 2, true);
+}
+
 console.log('\nJS-Fehler:', fehler.length ? fehler : 'keine');
 console.log(schlecht === 0 && !fehler.length
   ? `\nALLE ${n} TESTS BESTANDEN`
