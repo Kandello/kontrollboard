@@ -195,21 +195,71 @@ function loescheNachSchluessel_(name, schluesselSpalten, schluesselListe) {
 }
 
 /**
+ * Die beiden Haelften des Ladevorgangs.
+ *
+ * Jedes Blatt kostet einen eigenen Zugriff auf die Tabelle, und dieser
+ * Zugriff ist der mit Abstand teuerste Teil des Ladens — spuerbar vor
+ * allem auf dem iPad. Die Startseite braucht aber nur einen Teil der
+ * Blaetter. Sie wird deshalb aus KERN allein gezeichnet; REST holt die
+ * Oberflaeche im Hintergrund nach, waehrend die Startseite schon steht.
+ *
+ * Die Aufteilung folgt nicht der Zahl der Blaetter, sondern ihrer Groesse:
+ * in REST liegen genau die drei Tabellen, die mit dem Schuljahr wachsen —
+ * Erhebungen, Beteiligungspunkte und BoardWerte. Sie tragen je eine Zeile
+ * pro Kind und Erhebung bzw. pro Kind und Woche und sind damit um
+ * Groessenordnungen groesser als alles in KERN.
+ */
+var TEIL_KERN = 'kern';
+var TEIL_REST = 'rest';
+
+/**
  * Ein Ladeaufruf je Sitzung. Liefert alle Rohdaten, die die Oberflaeche
  * fuer die gesamte Navigation braucht — berechnet wird ausschliesslich
  * im Browser.
  *
+ * Ohne Angabe von `teil` wird alles gelesen; das ist der Stand, auf den
+ * sich Menue und Tests stuetzen. Die Oberflaeche fragt stattdessen erst
+ * 'kern' und danach 'rest'.
+ *
  * Enthaelt ausschliesslich Kuerzel, niemals Namen.
  */
-function ladeAlles() {
+function ladeAlles(teil) {
+  var welcher = String(teil || '').trim().toLowerCase();
+  // Ein unbekannter Wert liest lieber zu viel als zu wenig: eine aeltere
+  // Oberflaeche darf an einer neueren Tabellenlogik nicht scheitern.
+  if (welcher !== TEIL_KERN && welcher !== TEIL_REST) welcher = '';
+
+  var daten = {
+    stand: Utilities.formatDate(new Date(), 'Europe/Berlin', "yyyy-MM-dd'T'HH:mm:ss"),
+    fach: FACH,
+    teil: welcher || 'alles',
+    vollstaendig: welcher === ''
+  };
+
+  if (welcher !== TEIL_REST) uebernimm_(daten, kernDaten_());
+  if (welcher !== TEIL_KERN) uebernimm_(daten, restDaten_());
+  return daten;
+}
+
+function uebernimm_(ziel, quelle) {
+  Object.keys(quelle).forEach(function (s) { ziel[s] = quelle[s]; });
+  return ziel;
+}
+
+/** Alles, was die Startseite zum Zeichnen braucht — lauter kleine Blaetter. */
+function kernDaten_() {
   var meta = {};
   liesBlatt_('Meta').forEach(function (z) {
     if (z.schluessel) meta[String(z.schluessel).trim()] = alsText_(z.wert);
   });
 
+  // Einmal lesen, zweimal verwenden: die Konfigurationspruefung braucht
+  // dieselben drei Blaetter und las sie bisher ein zweites Mal.
+  var rohKategorien = liesBlatt_('Kategorien');
+  var rohGewichte = liesBlatt_('Gruppengewichte');
+  var rohSchluessel = liesBlatt_('Notenschluessel');
+
   return {
-    stand: Utilities.formatDate(new Date(), 'Europe/Berlin', "yyyy-MM-dd'T'HH:mm:ss"),
-    fach: FACH,
     meta: meta,
 
     klassen: liesBlatt_('Klassen')
@@ -249,7 +299,7 @@ function ladeAlles() {
         };
       }),
 
-    kategorien: liesBlatt_('Kategorien')
+    kategorien: rohKategorien
       .filter(function (z) { return istWahr_(z.aktiv); })
       .map(function (z) {
         return {
@@ -261,17 +311,95 @@ function ladeAlles() {
       })
       .sort(function (a, b) { return a.reihenfolge - b.reihenfolge; }),
 
-    gruppengewichte: liesBlatt_('Gruppengewichte').map(function (z) {
+    gruppengewichte: rohGewichte.map(function (z) {
       return { gruppe: alsText_(z.gruppe), gewicht: alsZahl_(z.gewicht) || 0 };
     }),
 
-    notenschluessel: liesBlatt_('Notenschluessel')
+    notenschluessel: rohSchluessel
       .filter(function (z) { return z.note !== '' && z.note !== null; })
       .map(function (z) {
         return { note: alsZahl_(z.note), min_prozent: alsZahl_(z.min_prozent) || 0 };
       })
       .sort(function (a, b) { return b.min_prozent - a.min_prozent; }),
 
+    einheiten: liesBlatt_('Einheiten')
+      .filter(function (z) { return istWahr_(z.aktiv); })
+      .map(function (z) {
+        return {
+          id: alsText_(z.id),
+          titel: alsText_(z.titel),
+          beschreibung: alsText_(z.beschreibung),
+          reihenfolge: alsZahl_(z.reihenfolge) || 0,
+          geplante_stunden: alsZahl_(z.geplante_stunden),
+          lehrplanbezug: alsText_(z.lehrplanbezug),
+          status: alsText_(z.status) || 'geplant',
+          // Spur und Dauer tragen den Jahresplan: die Startwoche wird nicht
+          // gespeichert, sondern aus Reihenfolge und Dauer errechnet. Dadurch
+          // kann keine Ueberschneidung entstehen, wenn eine Einheit verschoben
+          // oder verlaengert wird (siehe netlify/js/einheiten.js).
+          spur: alsText_(z.spur).toUpperCase(),
+          dauer_wochen: alsZahl_(z.dauer_wochen) || 1
+        };
+      })
+      .sort(function (a, b) { return a.reihenfolge - b.reihenfolge; }),
+
+    teilthemen: liesBlatt_('Teilthemen')
+      .map(function (z) {
+        return {
+          id: alsText_(z.id),
+          einheit_id: alsText_(z.einheit_id),
+          titel: alsText_(z.titel),
+          reihenfolge: alsZahl_(z.reihenfolge) || 0
+        };
+      })
+      .sort(function (a, b) { return a.reihenfolge - b.reihenfolge; }),
+
+    einheitFortschritt: liesBlatt_('EinheitFortschritt').map(function (z) {
+      return {
+        teilthema_id: alsText_(z.teilthema_id),
+        klasse: alsText_(z.klasse),
+        erledigt: istWahr_(z.erledigt),
+        datum: alsText_(z.datum),
+        notiz: alsText_(z.notiz)
+      };
+    }),
+
+    wochenstatus: liesBlatt_('Wochenstatus').map(function (z) {
+      return {
+        kw: alsText_(z.kw),
+        aufgabe: alsText_(z.aufgabe).toUpperCase(),
+        // Nur bei Seesaw gefuellt — dort wird je Klasse einzeln abgehakt.
+        klasse: alsText_(z.klasse),
+        erledigt_am: alsText_(z.erledigt_am)
+      };
+    }),
+
+    // Persoenliche Merklisten der Lehrkraft (To-Do, Deadlines, Termine) —
+    // ohne jeden Bezug zu Schuelerdaten, deshalb kein Kuerzel in Sicht.
+    // Sortiert wird ausschliesslich im Browser (merkliste.js).
+    merkliste: liesBlatt_('Merkliste').map(function (z) {
+      return {
+        id: alsText_(z.id),
+        typ: alsText_(z.typ).toUpperCase(),
+        text: alsText_(z.text),
+        datum: alsText_(z.datum),
+        uhrzeit: alsText_(z.uhrzeit),
+        erledigt: istWahr_(z.erledigt),
+        erstellt_am: alsText_(z.erstellt_am)
+      };
+    }),
+
+    warnungen: pruefeKonfiguration(rohSchluessel, rohGewichte, rohKategorien)
+  };
+}
+
+/**
+ * Die mit dem Schuljahr wachsenden Tabellen. Die Startseite kommt ohne sie
+ * aus; die Oberflaeche holt sie im Hintergrund nach, sobald die Startseite
+ * steht (siehe netlify/js/server.js).
+ */
+function restDaten_() {
+  return {
     erhebungen: liesBlatt_('Erhebungen')
       .filter(function (z) { return !istWahr_(z.geloescht); })
       .map(function (z) {
@@ -355,78 +483,10 @@ function ladeAlles() {
         status: alsText_(z.status) || 'aktiv',
         archiviert_am: alsText_(z.archiviert_am)
       };
-    }),
-
-    einheiten: liesBlatt_('Einheiten')
-      .filter(function (z) { return istWahr_(z.aktiv); })
-      .map(function (z) {
-        return {
-          id: alsText_(z.id),
-          titel: alsText_(z.titel),
-          beschreibung: alsText_(z.beschreibung),
-          reihenfolge: alsZahl_(z.reihenfolge) || 0,
-          geplante_stunden: alsZahl_(z.geplante_stunden),
-          lehrplanbezug: alsText_(z.lehrplanbezug),
-          status: alsText_(z.status) || 'geplant',
-          // Spur und Dauer tragen den Jahresplan: die Startwoche wird nicht
-          // gespeichert, sondern aus Reihenfolge und Dauer errechnet. Dadurch
-          // kann keine Ueberschneidung entstehen, wenn eine Einheit verschoben
-          // oder verlaengert wird (siehe netlify/js/einheiten.js).
-          spur: alsText_(z.spur).toUpperCase(),
-          dauer_wochen: alsZahl_(z.dauer_wochen) || 1
-        };
-      })
-      .sort(function (a, b) { return a.reihenfolge - b.reihenfolge; }),
-
-    teilthemen: liesBlatt_('Teilthemen')
-      .map(function (z) {
-        return {
-          id: alsText_(z.id),
-          einheit_id: alsText_(z.einheit_id),
-          titel: alsText_(z.titel),
-          reihenfolge: alsZahl_(z.reihenfolge) || 0
-        };
-      })
-      .sort(function (a, b) { return a.reihenfolge - b.reihenfolge; }),
-
-    einheitFortschritt: liesBlatt_('EinheitFortschritt').map(function (z) {
-      return {
-        teilthema_id: alsText_(z.teilthema_id),
-        klasse: alsText_(z.klasse),
-        erledigt: istWahr_(z.erledigt),
-        datum: alsText_(z.datum),
-        notiz: alsText_(z.notiz)
-      };
-    }),
-
-    wochenstatus: liesBlatt_('Wochenstatus').map(function (z) {
-      return {
-        kw: alsText_(z.kw),
-        aufgabe: alsText_(z.aufgabe).toUpperCase(),
-        // Nur bei Seesaw gefuellt — dort wird je Klasse einzeln abgehakt.
-        klasse: alsText_(z.klasse),
-        erledigt_am: alsText_(z.erledigt_am)
-      };
-    }),
-
-    // Persoenliche Merklisten der Lehrkraft (To-Do, Deadlines, Termine) —
-    // ohne jeden Bezug zu Schuelerdaten, deshalb kein Kuerzel in Sicht.
-    // Sortiert wird ausschliesslich im Browser (merkliste.js).
-    merkliste: liesBlatt_('Merkliste').map(function (z) {
-      return {
-        id: alsText_(z.id),
-        typ: alsText_(z.typ).toUpperCase(),
-        text: alsText_(z.text),
-        datum: alsText_(z.datum),
-        uhrzeit: alsText_(z.uhrzeit),
-        erledigt: istWahr_(z.erledigt),
-        erstellt_am: alsText_(z.erstellt_am)
-      };
-    }),
-
-    warnungen: pruefeKonfiguration()
+    })
   };
 }
+
 
 /** Schreibt einzelne Meta-Werte (Ferienmodus, Links, Zuordnungs-Zeitstempel). */
 function setzeMeta(paare) {

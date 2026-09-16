@@ -4,8 +4,8 @@
 
 import { e, leere, ladeanzeige, hinweis, holeMeldung } from './ui.js';
 import { lies, schreib, istVerfuegbar } from './speicher.js';
-import { registriere, starte, gehe, pfadEintraege } from './router.js';
-import { istEingerichtet, ladeDaten, holeDaten } from './server.js';
+import { registriere, starte, gehe, pfadEintraege, zeichneErneut } from './router.js';
+import { istEingerichtet, ladeDaten, ladeRest, istVollstaendig, holeDaten } from './server.js';
 import * as zuordnung from './zuordnung.js';
 import { zeichneStart, raeumeStartAuf } from './ansichten/start.js';
 import { zeichneKlasse } from './ansichten/klasse.js';
@@ -98,7 +98,12 @@ function banner() {
       art: 'schlecht', zeichen: '×', titel: 'Daten konnten nicht geladen werden',
       text: ladeFehler,
       knoepfe: [
-        e('button', { text: 'Erneut versuchen', auf: { click: () => { ladeFehler = null; lade(); } } }),
+        e('button', { text: 'Erneut versuchen', auf: { click: () => {
+          ladeFehler = null;
+          // Auch die Ansicht neu aufbauen: scheiterte die zweite Runde,
+          // steht hier gerade gar keine.
+          lade().then(zeichneErneut);
+        } } }),
         e('button', { klasse: 'leise', text: 'Einstellungen', auf: { click: () => gehe('/einstellungen') } })
       ]
     }));
@@ -168,8 +173,39 @@ function zeichneAlles() {
   if (aktuelleAnsicht) aktuelleAnsicht();
 }
 
-function ansicht(zeichner) {
+/**
+ * Zaehlt die Aufrufe, damit eine Ansicht, die auf Daten wartet, nicht
+ * nachtraeglich eine laengst verlassene Seite zeichnet.
+ */
+let ansichtZaehler = 0;
+
+/**
+ * `rest: true` fuer Ansichten, die die grossen Tabellen brauchen (Noten,
+ * Checklisten). Sie warten, falls die Hintergrundrunde noch laeuft —
+ * meist ist sie laengst durch, dann kostet das nichts.
+ */
+function ansicht(zeichner, { rest = false } = {}) {
   return async (werte) => {
+    const meine = ++ansichtZaehler;
+
+    if (rest && istEingerichtet() && !ladeFehler && !istVollstaendig()) {
+      aktuelleAnsicht = () => inhalt.appendChild(ladeanzeige('Daten werden geladen …'));
+      zeichneAlles();
+      try {
+        await ladeRest();
+      } catch (fehler) {
+        if (meine !== ansichtZaehler) return;
+        // Die Ladeanzeige stehen zu lassen waere falsch, den Zeichner
+        // aufzurufen unmoeglich — ihm fehlten genau die Daten. Also nur
+        // das Banner mit dem Fehler.
+        ladeFehler = fehler.message;
+        aktuelleAnsicht = null;
+        zeichneAlles();
+        return;
+      }
+      if (meine !== ansichtZaehler) return;
+    }
+
     // holeDaten() wird bei jedem Zeichnen neu gelesen, nicht hier gebunden —
     // sonst zeigte die Ansicht nach einem Neuladen noch den alten Stand.
     aktuelleAnsicht = () => zeichner(inhalt, {
@@ -228,7 +264,7 @@ registriere('/checklisten', ansicht((ziel, k) => {
 registriere('/checklisten/:klasse', ansicht((ziel, k) => {
   if (!k.daten) return;
   zeichneChecklisten(ziel, k);
-}));
+}, { rest: true }));
 
 registriere('/noten', ansicht((ziel, k) => {
   if (!k.daten) return;
@@ -245,7 +281,7 @@ registriere('/noten', ansicht((ziel, k) => {
 registriere('/noten/:klasse', ansicht((ziel, k) => {
   if (!k.daten) return;
   zeichneNoten(ziel, k);
-}));
+}, { rest: true }));
 
 registriere('/einheiten', ansicht((ziel, k) => {
   if (!k.daten) return;

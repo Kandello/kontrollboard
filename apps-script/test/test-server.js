@@ -144,6 +144,50 @@ pruefe('Meta halbjahresgrenze', d.meta.halbjahresgrenze, '01-31');
 pruefe('keine Warnungen', d.warnungen, []);
 pruefe('Uhrzeiten als Text', d.stundenplan[0].von, '09:00');
 pruefe('Kuerzel als Text', /^3L-\d\d$/.test(d.schueler[0].kuerzel), true);
+pruefe('ohne Angabe vollstaendig', d.vollstaendig, true);
+
+console.log('\n=== ladeAlles in zwei Teilen ===');
+{
+  // Der geteilte Ladevorgang darf nichts verlieren und nichts doppeln:
+  // was frueher ein Aufruf lieferte, muessen jetzt genau zwei liefern.
+  const nurEnvelope = ['stand', 'fach', 'teil', 'vollstaendig'];
+  const felder = (o) => Object.keys(o).filter((s) => nurEnvelope.indexOf(s) === -1).sort();
+
+  const kern = ladeAlles('kern');
+  const rest = ladeAlles('rest');
+  const alles = ladeAlles();
+
+  pruefe('kern meldet sich als kern', kern.teil, 'kern');
+  pruefe('kern ist nicht vollstaendig', kern.vollstaendig, false);
+  pruefe('rest ist nicht vollstaendig', rest.vollstaendig, false);
+
+  pruefe('kern und rest ueberschneiden sich nicht',
+    felder(kern).filter((s) => felder(rest).indexOf(s) !== -1), []);
+  pruefe('kern und rest ergeben zusammen den ganzen Satz',
+    felder(kern).concat(felder(rest)).sort(), felder(alles));
+
+  // Die Startseite braucht genau das, was start.js und app.js anfassen.
+  ['meta', 'klassen', 'schueler', 'stundenplan', 'einheiten', 'teilthemen',
+   'einheitFortschritt', 'wochenstatus', 'merkliste', 'warnungen'].forEach((s) =>
+    pruefe(`kern enthaelt ${s}`, felder(kern).indexOf(s) !== -1, true));
+
+  // Und genau die drei mitwachsenden Tabellen bleiben draussen.
+  ['erhebungen', 'beteiligungspunkte', 'boardWerte'].forEach((s) =>
+    pruefe(`kern enthaelt ${s} nicht`, felder(kern).indexOf(s) !== -1, false));
+
+  pruefe('kern liefert dieselben Schueler', kern.schueler.length, alles.schueler.length);
+  pruefe('rest liefert dieselben Erhebungen', rest.erhebungen.length, alles.erhebungen.length);
+
+  // Eine aeltere Oberflaeche schickt kein teil — und darf nicht leer ausgehen.
+  pruefe('unbekannter Teil liest alles', ladeAlles('quatsch').vollstaendig, true);
+  pruefe('leerer Teil liest alles', ladeAlles('').vollstaendig, true);
+
+  // Der Weg durch doGet, so wie ihn der Browser geht.
+  const ueberDoGet = (teil) => JSON.parse(
+    doGet({ parameter: { aktion: 'laden', token: holeToken_(), teil } }).text).daten;
+  pruefe('doGet reicht teil durch', ueberDoGet('kern').teil, 'kern');
+  pruefe('doGet ohne teil liefert alles', ueberDoGet(undefined).vollstaendig, true);
+}
 
 console.log('\n=== Klassenstaerke und Sortierung ===');
 ['3L','3M','3OB'].forEach(k => {

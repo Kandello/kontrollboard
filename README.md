@@ -41,6 +41,7 @@ cd netlify/test
 node mock.js &
 node widgets.mjs        # ebenso: e2e, startseite, checklisten, einheiten,
                         # einheitenansicht, noten, notenansicht
+node nachladen.mjs      # prüft das zweistufige Laden (Kern / Rest)
 node datenschutz.mjs    # prüft, dass kein Klarname das Gerät verlässt
 ```
 
