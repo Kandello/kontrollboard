@@ -7,7 +7,7 @@
  */
 
 import { e, karte, feld, hinweis, ladeanzeige, zeitpunktDeutsch, setzeMeldung } from '../ui.js';
-import { holeVerbindung, setzeVerbindung, frage, sende, ladeDaten, leereDaten } from '../server.js';
+import { holeVerbindung, setzeVerbindung, sende, ladeDaten, leereDaten } from '../server.js';
 import * as zuordnung from '../zuordnung.js';
 
 export function zeichneEinstellungen(ziel, { daten, neuZeichnen }) {
@@ -43,7 +43,12 @@ export function zeichneEinstellungen(ziel, { daten, neuZeichnen }) {
           leereDaten();
           zeigeStand(stand, ladeanzeige('Verbindung wird geprüft …'));
           try {
-            await frage('ping');
+            // Kein vorgeschaltetes ping mehr: Es prueft nichts, was das Laden
+            // nicht ohnehin prueft — dieselbe Adresse, derselbe Schluessel,
+            // dieselbe Bereitstellung. Es kostete aber eine zweite Runde zur
+            // Tabelle, und jede Runde bedeutet bei Apps Script Kaltstart und
+            // Weiterleitung. Gerade auf dem iPad war das gut die Haelfte der
+            // Wartezeit, fuer keinerlei Erkenntnis.
             const frisch = await ladeDaten({ neu: true });
             setzeMeldung(hinweis({
               art: 'gut', zeichen: '✓', titel: 'Verbindung steht',
