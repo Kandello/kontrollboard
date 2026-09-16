@@ -530,6 +530,73 @@ console.log('\n=== Ein kurzer Aussetzer beim Speichern wirft nichts zurueck ==='
   await ctx3.close();
 }
 
+// ---------------------------------------------------------------------------
+// Die Seite ist im Ruhezustand nur so hoch wie ihr Inhalt — sonst haengt unter
+// dem letzten Widget ein leerer Bildschirm, durch den man sich bis zur Ablage
+// rollen muesste. Waehrend eines Zugs spannt sie sich einmal auf die volle
+// Flaeche auf und steht dann still: ein mitwachsendes Raster war genau das,
+// dem man frueher hinterherjagte.
+// ---------------------------------------------------------------------------
+console.log('\n=== Raster: im Ruhezustand kompakt, waehrend des Zugs stillstehend ===');
+{
+  const ctx4 = await browser.newContext({
+    viewport: { width: 1400, height: 4200 }, locale: 'de-DE', timezoneId: 'Europe/Berlin'
+  });
+  const p4 = await ctx4.newPage();
+  const fehler4 = [];
+  p4.on('pageerror', (e) => fehler4.push('PAGEERROR: ' + e.message));
+
+  await p4.clock.setFixedTime(new Date('2026-09-16T08:00:00Z'));
+  await p4.goto(ADRESSE + '/');
+  await p4.evaluate((t) => localStorage.setItem('kz.verbindung',
+    JSON.stringify({ url: 'http://localhost:8901/exec', token: t })), TOKEN);
+  await p4.reload();
+  await p4.waitForSelector('.widgetraster', { timeout: 8000 });
+
+  const zeilenzahl = () => p4.locator('.widgetraster')
+    .evaluate((el) => getComputedStyle(el).gridTemplateRows.split(' ').length);
+  const ablageOben = () => p4.locator('.widget-ablage')
+    .evaluate((el) => Math.round(el.getBoundingClientRect().top + window.scrollY));
+
+  // Die Regel, nicht eine Momentaufnahme: im Ruhezustand hat das Raster genau
+  // so viele Zeilen, wie der Inhalt braucht (mindestens aber eine Grundflaeche).
+  // Wie viele das gerade sind, haengt davon ab, was die vorigen Abschnitte mit
+  // den Widgets angestellt haben — die Regel gilt trotzdem.
+  const inhaltszeilen = async () => {
+    const r = await alleRechtecke(p4);
+    return Math.max(12, ...Object.values(r).map((x) => x.y + x.h));
+  };
+  pruefe('im Ruhezustand genau so viele Zeilen, wie der Inhalt braucht',
+    await zeilenzahl(), await inhaltszeilen());
+
+  // Anfassen: die volle Flaeche steht bereit …
+  const id = Object.keys(await alleRechtecke(p4))[0];
+  const griff = await p4.locator(`.widget[data-id="${id}"] .widget-griff`).boundingBox();
+  await p4.mouse.move(griff.x + 20, griff.y + griff.height / 2);
+  await p4.mouse.down();
+  await p4.mouse.move(griff.x + 60, griff.y + 150, { steps: 10 });
+  await p4.waitForTimeout(300);
+  pruefe('beim Anfassen spannt sich die volle Flaeche auf', await zeilenzahl(), MAX_ZEILEN);
+
+  // … und bleibt bis zum Loslassen unveraendert stehen.
+  const ablageWaehrend = await ablageOben();
+  await p4.mouse.move(griff.x + 140, griff.y + 320, { steps: 10 });
+  await p4.waitForTimeout(300);
+  pruefe('die Ablage steht waehrend des ganzen Zugs still',
+    await ablageOben(), ablageWaehrend);
+  pruefe('… und die Zeilenzahl bleibt dabei ebenfalls stehen',
+    await zeilenzahl(), MAX_ZEILEN);
+
+  await p4.mouse.up();
+  await p4.waitForTimeout(1200);
+  pruefe('nach dem Loslassen klappt sie wieder auf den Inhalt zusammen',
+    await zeilenzahl(), await inhaltszeilen());
+
+  console.log('JS-Fehler (Hoehen-Bildschirm):', fehler4.length ? fehler4 : 'keine');
+  fehler.push(...fehler4);
+  await ctx4.close();
+}
+
 console.log('\nJS-Fehler:', fehler.length ? fehler : 'keine');
 console.log(schlecht === 0 && !fehler.length
   ? `\nALLE ${n} TESTS BESTANDEN`

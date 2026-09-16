@@ -22,7 +22,17 @@ cd netlify/test
 node layout.mjs && node merkliste.mjs && node zeit.mjs
 ```
 
-Die übrigen Suiten brauchen den Mock-Server, der die echte Tabellenlogik
+Die übrigen Suiten steuern einen echten Browser und brauchen dafür
+Playwright. Ist es global installiert, genügt eine Verknüpfung:
+
+```
+mkdir -p netlify/test/node_modules
+ln -sfn "$(npm root -g)/playwright" netlify/test/node_modules/playwright
+ln -sfn "$(npm root -g)/playwright/node_modules/playwright-core" \
+        netlify/test/node_modules/playwright-core
+```
+
+Sie brauchen ausserdem den Mock-Server, der die echte Tabellenlogik
 ausführt — je Suite frisch gestartet, damit sie sich nicht gegenseitig den
 Datenstand verstellen:
 
