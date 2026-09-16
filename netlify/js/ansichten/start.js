@@ -129,6 +129,14 @@ const BAUSTEINE = [
 const RASTER_REIHE_PX = 24;
 
 /**
+ * So viele Zeilen hat das Raster mindestens, auch wenn die Widgets weniger
+ * brauchen. Sonst klebte die Ablage bei einer sehr aufgeraeumten Startseite
+ * unmittelbar unter dem letzten Widget, und es gaebe keine Flaeche mehr, auf
+ * die man ueberhaupt etwas ziehen koennte.
+ */
+const MIN_ZEILEN = 12;
+
+/**
  * Die Geometrie des Rasters, frisch gemessen: waehrend eines Zugs rollt die
  * Seite mit, wodurch sich die Lage des Rasters gegenueber dem Fenster
  * laufend aendert. Eine einmalige Messung beim Start des Zugs waere nach
@@ -191,14 +199,12 @@ export function zeichneStart(ziel, { daten, verbergen, neuZeichnen }) {
   // --- Raster --------------------------------------------------------------
   let layout = leseLayout(daten.meta[metaSchluessel('start')], BAUSTEINE);
 
-  // Das Raster bekommt seine Zeilen fest zugeteilt, statt sie sich nach
-  // Bedarf wachsen zu lassen. Dadurch ist die Seite immer gleich hoch — beim
-  // Ziehen bleibt die Ablage darunter also da, wo sie ist, statt vor dem
-  // Zeiger herzuwandern. Einzige Quelle der Wahrheit ist MAX_ZEILEN.
-  const raster = e('div', {
-    klasse: 'widgetraster',
-    style: `grid-template-rows: repeat(${MAX_ZEILEN}, ${RASTER_REIHE_PX}px)`
-  });
+  // Ob gerade gezogen oder skaliert wird. Nur dann spannt sich das Raster auf
+  // die volle Flaeche auf (siehe platziere) — im Ruhezustand ist es nur so
+  // hoch wie sein Inhalt.
+  let ziehtGerade = false;
+
+  const raster = e('div', { klasse: 'widgetraster' });
   const ablage = e('div', { klasse: 'widget-ablage' });
   const ablageLeer = e('div', { klasse: 'leer', style: 'padding:12px',
     text: 'Alles eingeblendet. Hierher gezogene Widgets verschwinden von der Startseite, ohne dass Daten verlorengehen.' });
@@ -214,6 +220,17 @@ export function zeichneStart(ziel, { daten, verbergen, neuZeichnen }) {
 
   function platziere(neuesLayout, animiert) {
     const vorher = animiert ? messeAlle(huellen) : null;
+
+    // Wie hoch das Raster sein muss. Im Ruhezustand nur so hoch wie noetig —
+    // sonst haengt unter dem letzten Widget ein ganzer leerer Bildschirm, durch
+    // den man sich bis zur Ablage rollen muesste. WAEHREND eines Zugs dagegen
+    // die volle Flaeche: dann ist sie einmal da, bleibt bis zum Loslassen
+    // unveraendert stehen und die Ablage darunter wandert nicht mit. Ein
+    // mitwachsendes Raster war genau das Problem, dem man frueher
+    // hinterherjagte — hier waechst es genau einmal, beim Anfassen.
+    const unten = sichtbare(neuesLayout).reduce((m, w) => Math.max(m, w.y + w.h), 0);
+    const zeilen = ziehtGerade ? MAX_ZEILEN : Math.max(unten, MIN_ZEILEN);
+    raster.style.gridTemplateRows = `repeat(${zeilen}, ${RASTER_REIHE_PX}px)`;
 
     sichtbare(neuesLayout).forEach((w) => {
       const el = huellen.get(w.id);
@@ -284,6 +301,11 @@ export function zeichneStart(ziel, { daten, verbergen, neuZeichnen }) {
     const versatzY = ev.clientY - kasten.top;
     let entwurf = null;
 
+    // Die volle Flaeche aufspannen, solange gezogen wird. Sie steht dann fuer
+    // den ganzen Zug still — die Ablage darunter wandert nicht mit.
+    ziehtGerade = true;
+    platziere(layout, false);
+
     starteZug({
       ev, element: huelle,
       zielSuche: (x, y) => {
@@ -292,8 +314,9 @@ export function zeichneStart(ziel, { daten, verbergen, neuZeichnen }) {
         const gx = Math.round((x - versatzX - geo.links) / geo.spaltenraster);
         const gy = Math.round((y - versatzY - geo.oben) / geo.zeilenraster);
         // Beide duerfen ruhig ueber den Rand hinauszeigen: `versetze` haelt
-        // sie an der Kante an. Weil das Raster feste Zeilen hat, waechst die
-        // Seite dabei nicht mit — das Ziel laeuft dem Zeiger also nicht davon.
+        // sie an der Kante an. Weil das Raster waehrend des Zugs auf voller
+        // Hoehe steht, waechst die Seite dabei nicht mit — das Ziel laeuft
+        // dem Zeiger also nicht davon.
         return { ablegen: false, gx, gy };
       },
       gleich: (a, b) => a.ablegen === b.ablegen && a.gx === b.gx && a.gy === b.gy,
@@ -308,6 +331,7 @@ export function zeichneStart(ziel, { daten, verbergen, neuZeichnen }) {
         if (kandidat) { entwurf = kandidat; platziere(entwurf, true); }
       },
       abschluss: () => {
+        ziehtGerade = false;
         if (entwurf) setze(entwurf);
         else platziere(layout, true);
       }
@@ -324,6 +348,9 @@ export function zeichneStart(ziel, { daten, verbergen, neuZeichnen }) {
     if (!start) return;
     let entwurf = null;
 
+    ziehtGerade = true;
+    platziere(layout, false);
+
     starteGroessenzug({
       ev,
       vorschau: (dx, dy) => {
@@ -335,6 +362,7 @@ export function zeichneStart(ziel, { daten, verbergen, neuZeichnen }) {
         if (kandidat) { entwurf = kandidat; platziere(entwurf, true); }
       },
       abschluss: () => {
+        ziehtGerade = false;
         if (entwurf) setze(entwurf);
         else platziere(layout, true);
       }
