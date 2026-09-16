@@ -46,6 +46,14 @@ function pruefeEinrichtung() {
  * Apps Script liefert bei einem Fehler in der Bereitstellung eine
  * HTML-Seite statt JSON. Das faengt diese Auswertung ab und macht daraus
  * eine verstaendliche Meldung.
+ *
+ * Die Unterscheidung lohnt sich, weil dieselbe unlesbare Antwort drei sehr
+ * verschiedene Ursachen haben kann — und die Loesung jedesmal eine andere
+ * ist. Besonders heimtueckisch ist der Zugriffsfall: im eigenen Browsertab
+ * laesst sich dieselbe Adresse einwandfrei oeffnen, weil man dort bei Google
+ * angemeldet ist. Die Anfrage aus der Seite heraus traegt diese Anmeldung
+ * nicht mit und bekommt eine Fehlerseite — was leicht als „falsche Adresse"
+ * missdeutet wird.
  */
 async function werteAus(antwort) {
   const text = await antwort.text();
@@ -58,9 +66,24 @@ async function werteAus(antwort) {
         'Die Tabelle verlangt eine Anmeldung. Bitte die Web-App auf „Jeder, der über den Link ' +
         'verfügt" bereitstellen und die Adresse der neuen Version eintragen.');
     }
+    if (/unable to open|nicht geöffnet|nicht ge.ffnet|check the address/i.test(text)) {
+      throw new ServerFehler(
+        'Die Tabelle hat die Anfrage abgewiesen. Fast immer steht die Bereitstellung nicht auf ' +
+        '„Jeder": im Apps-Script-Editor unter „Bereitstellen → Bereitstellungen verwalten" beim ' +
+        'Stift-Symbol „Wer hat Zugriff" auf „Jeder" stellen. Dass sich dieselbe Adresse im ' +
+        'Browser öffnen lässt, spricht nicht dagegen — dort sind Sie bei Google angemeldet, ' +
+        'diese Seite ist es nicht.');
+    }
+    // Bleibt unklar, was da kam, hilft die Meldung allein nicht weiter — man
+    // stochert dann in Adresse und Schluessel herum, obwohl beide stimmen.
+    // Darum steht hier, was tatsaechlich ankam: das grenzt die Ursache in
+    // einem Schritt ein, statt in mehreren Anlaeufen.
+    const kurz = text.trim().replace(/\s+/g, ' ').slice(0, 160);
     throw new ServerFehler(
       'Die Antwort der Tabelle war unlesbar. Meist stimmt die Adresse nicht oder die ' +
-      'Bereitstellung ist veraltet.');
+      'Bereitstellung ist veraltet.\n\n' +
+      `Angekommen ist (HTTP ${antwort.status}, ${text.length} Zeichen): ` +
+      (kurz || '— eine leere Antwort —'));
   }
   if (!daten.ok) {
     throw new ServerFehler(daten.fehler || 'Die Tabelle hat einen Fehler gemeldet.');

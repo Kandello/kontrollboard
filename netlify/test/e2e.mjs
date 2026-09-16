@@ -22,6 +22,42 @@ await p.fill('#e-token', 'falschertoken');
 await knopf('Speichern und prüfen').click(); await p.waitForTimeout(600);
 pruefe('falscher Token wird abgewiesen', (await p.locator('.hinweis.schlecht').first().innerText()).includes('Zugang verweigert'));
 
+// Steht die Bereitstellung nicht auf „Jeder", schickt Apps Script eine
+// Fehlerseite statt JSON. Das ist besonders irrefuehrend, weil sich dieselbe
+// Adresse im eigenen Browsertab einwandfrei oeffnen laesst — dort ist man ja
+// bei Google angemeldet. Die Meldung muss deshalb den Zugriff nennen, nicht
+// pauschal „unlesbar" sagen.
+await p.route('**/exec**', (route) => route.fulfill({
+  status: 200, contentType: 'text/html',
+  body: '<html><body>Sorry, unable to open the file at this time.<br>' +
+        'Please check the address and try again.</body></html>'
+}));
+await p.fill('#e-token', 'testtoken123');
+await knopf('Speichern und prüfen').click(); await p.waitForTimeout(800);
+{
+  const text = await p.locator('.hinweis.schlecht').first().innerText();
+  pruefe('Fehlerseite der Bereitstellung: Meldung nennt den Zugriff', text.includes('Wer hat Zugriff'));
+  pruefe('… und nennt den Weg dorthin', text.includes('Bereitstellungen verwalten'));
+  pruefe('… und raeumt den Irrtum aus, die Adresse sei falsch',
+    text.includes('bei Google angemeldet'));
+  pruefe('… statt pauschal „unlesbar" zu sagen', !text.includes('unlesbar'));
+}
+await p.unroute('**/exec**');
+
+// Bleibt die Antwort voellig raetselhaft, muss die Meldung wenigstens sagen,
+// WAS ankam — sonst sucht man in Adresse und Schluessel, obwohl beide stimmen.
+await p.route('**/exec**', (route) => route.fulfill({
+  status: 200, contentType: 'text/html', body: ''
+}));
+await knopf('Speichern und prüfen').click(); await p.waitForTimeout(800);
+{
+  const text = await p.locator('.hinweis.schlecht').first().innerText();
+  pruefe('unlesbare Antwort: die Meldung nennt den HTTP-Code', text.includes('HTTP 200'));
+  pruefe('… und die Laenge der Antwort', text.includes('0 Zeichen'));
+  pruefe('… und benennt die leere Antwort als solche', text.includes('leere Antwort'));
+}
+await p.unroute('**/exec**');
+
 await p.fill('#e-token', 'testtoken123');
 await knopf('Speichern und prüfen').click(); await p.waitForTimeout(800);
 pruefe('richtiger Token: Verbindung steht', (await p.locator('.hinweis.gut').first().innerText()).includes('69 Kürzel'));
