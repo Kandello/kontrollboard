@@ -22,7 +22,7 @@ import {
 } from '../layout.js';
 import { starteZug, starteGroessenzug, messeAlle, gleite } from '../ziehen.js';
 import { klassenlehrkraftEintrag } from '../zuordnung.js';
-import { sende, ladeDaten } from '../server.js';
+import { sende } from '../server.js';
 import {
   SPUREN, jahresplan, einheitInWoche, fortschrittEinheit, fortschrittKlasse, schulwoche
 } from '../einheiten.js';
@@ -72,6 +72,52 @@ function schreibfehlerText(fehler) {
   return fehler.message +
     '\n\nEs wurde bereits ein zweites Mal versucht. Setzt die Tabelle gerade aus, ' +
     'hilft nur etwas Abstand — in ein paar Minuten noch einmal probieren.';
+}
+
+/**
+ * Meldet einen im Hintergrund gescheiterten Schreibvorgang.
+ *
+ * Bewusst kein window.alert: ein Systemdialog gehoert zu einer Handlung,
+ * die der Mensch gerade ausfuehrt, nicht zu etwas, das Sekunden spaeter im
+ * Hintergrund schiefgeht. Auf dem iPad legt er sich zudem ueber alles. Und
+ * in eine Kachel passt der Text erst recht nicht — sie ist wenige
+ * Zentimeter breit. Also in das Band ueber der Seite, wo er lesbar ist und
+ * sich wegklicken laesst.
+ */
+function meldeHintergrundfehler(titel, fehler, neuZeichnen) {
+  setzeMeldung(hinweis({
+    art: 'schlecht', zeichen: '!', titel, text: schreibfehlerText(fehler),
+    // Die Meldung gilt ohnehin nur bis zum naechsten Zeichnen (holeMeldung
+    // nimmt sie heraus). Der Knopf dient dazu, sie vorher loszuwerden —
+    // gerade dieser Text ist lang, und ohne ihn steht man davor und kann
+    // nichts tun. Mehr muss beim Schliessen nicht passieren.
+    beimSchliessen: () => {}
+  }));
+  neuZeichnen();
+}
+
+/**
+ * Setzt oder entfernt einen Wochenstatus im bereits geladenen Datensatz und
+ * meldet zurueck, wie es vorher stand.
+ *
+ * Damit laesst sich sofort umschalten und erst danach speichern — und im
+ * Fehlerfall ebenso sofort zuruecknehmen. `klasse` ist nur bei Seesaw
+ * gefuellt, bei den uebrigen Aufgaben leer; verglichen wird deshalb ueber
+ * den vereinheitlichten Wert, sonst faende eine Zeile ohne die Spalte
+ * (aus aelteren Tabellen) ihren eigenen Eintrag nicht wieder.
+ */
+function setzeWochenstatusLokal(daten, { kw, aufgabe, klasse = '', erledigt, tag }) {
+  const gleich = (w) =>
+    w.kw === kw && w.aufgabe === aufgabe && String(w.klasse || '') === String(klasse || '');
+
+  const vorher = daten.wochenstatus.find(gleich);
+  if (vorher) daten.wochenstatus.splice(daten.wochenstatus.indexOf(vorher), 1);
+  if (erledigt) {
+    daten.wochenstatus.push({
+      kw, aufgabe, klasse: String(klasse || ''), erledigt_am: alsIso(tag)
+    });
+  }
+  return Boolean(vorher);
 }
 
 /** Ab dieser Stunde zeigt der Tagesplan schon den naechsten Schultag. */
@@ -213,15 +259,15 @@ export function zeichneStart(ziel, { daten, verbergen, neuZeichnen }) {
     aufgaben: e('div', { klasse: 'kachelreihe' }, [
       wochenkachel('PEAK', daten, kw, tag, ferien, neuZeichnen),
       wochenkachel('WEEKLY', daten, kw, tag, ferien, neuZeichnen),
-      seesawKachel(daten, kw, tag, ferien),
+      seesawKachel(daten, kw, tag, ferien, neuZeichnen),
       wochenkachel('LERNWOERTER', daten, kw, tag, ferien, neuZeichnen)
     ]),
     einheit: aktuelleEinheit(daten, tag),
     klassen: klassenknoepfe(daten, verbergen),
-    ferien: ferienschalter(ferien, neuZeichnen),
-    todo: merklisteWidget(daten, 'TODO', tag),
-    deadline: merklisteWidget(daten, 'DEADLINE', tag),
-    events: merklisteWidget(daten, 'EVENT', tag)
+    ferien: ferienschalter(daten, ferien, neuZeichnen),
+    todo: merklisteWidget(daten, 'TODO', tag, neuZeichnen),
+    deadline: merklisteWidget(daten, 'DEADLINE', tag, neuZeichnen),
+    events: merklisteWidget(daten, 'EVENT', tag, neuZeichnen)
   };
 
   // Die Seite bleibt oft stundenlang offen. Ohne diesen Takt bliebe die
@@ -307,6 +353,11 @@ export function zeichneStart(ziel, { daten, verbergen, neuZeichnen }) {
       layout = vorher;
       daten.meta[metaSchluessel('start')] = schreibeLayout(vorher);
       platziere(layout, true);
+      // Hier ausnahmsweise doch ein Systemdialog. Anders als beim Abhaken
+      // steht der Mensch gerade unmittelbar an dieser Handlung — er hat
+      // eben losgelassen —, und das Widget springt sichtbar zurueck. Dieses
+      // Zurueckspringen ohne Erklaerung stehen zu lassen waere schlimmer
+      // als der Dialog.
       window.alert('Die Anordnung konnte nicht gespeichert werden.\n\n' + schreibfehlerText(fehler));
     }
   }
@@ -728,27 +779,25 @@ function wochenkachel(aufgabe, daten, kw, tag, ferien, neuZeichnen) {
     text: erledigt ? 'Doch noch offen' : 'Als erledigt markieren'
   });
 
-  knopf.addEventListener('click', async () => {
-    knopf.disabled = true;
-    try {
-      await sendeMitNachfassen('wochenstatus', { kw, aufgabe, erledigt: !erledigt });
-      // Kein leereDaten() davor: ladeDaten({neu:true}) umgeht den Zwischen-
-      // speicher ohnehin. Es zu leeren schuf nur ein Zeitfenster, in dem gar
-      // keine Daten da waren — scheiterte das Laden (und genau das passiert
-      // bei einem Aussetzer), blieb die App ohne Daten zurueck und die
-      // naechste Neuzeichnung ergab eine leere Startseite.
-      await ladeDaten({ neu: true });
-      setzeMeldung(hinweis({
-        art: 'gut', zeichen: '✓',
-        text: erledigt
-          ? `${einstellung.titel} wieder als offen markiert.`
-          : `${einstellung.titel} für diese Woche als erledigt vermerkt.`
-      }));
-      neuZeichnen();
-    } catch (fehler) {
-      knopf.disabled = false;
-      bereich.appendChild(hinweis({ art: 'schlecht', zeichen: '!', text: schreibfehlerText(fehler) }));
-    }
+  // Sofort umschalten, im Hintergrund speichern — wie es Seesaw schon
+  // immer tat. Vorher wurde erst gesendet, dann der GANZE Datensatz neu
+  // geladen und erst danach gezeichnet: zwei Runden zur Tabelle, waehrend
+  // derer sich sichtbar nichts tat. Auf dem iPad waren das zweistellige
+  // Sekunden, in denen die Kachel weiter „offen" zeigte.
+  //
+  // Das Nachladen faellt ganz weg. Es holte nur, was hier ohnehin bekannt
+  // ist: dass genau dieser eine Haken umgesprungen ist.
+  knopf.addEventListener('click', () => {
+    const neuErledigt = !erledigt;
+    setzeWochenstatusLokal(daten, { kw, aufgabe, erledigt: neuErledigt, tag });
+    neuZeichnen();
+
+    sendeMitNachfassen('wochenstatus', { kw, aufgabe, erledigt: neuErledigt })
+      .catch((fehler) => {
+        setzeWochenstatusLokal(daten, { kw, aufgabe, erledigt: !neuErledigt, tag });
+        meldeHintergrundfehler(
+          `${einstellung.titel} konnte nicht gespeichert werden`, fehler, neuZeichnen);
+      });
   });
 
   bereich.appendChild(e('div', { klasse: 'leiste', style: 'margin:0' }, [
@@ -804,7 +853,7 @@ function wochenkachel(aufgabe, daten, kw, tag, ferien, neuZeichnen) {
  * sofort reagieren. Scheitert das Speichern, springt es zurueck und sagt,
  * woran es lag.
  */
-function seesawKachel(daten, kw, tag, ferien) {
+function seesawKachel(daten, kw, tag, ferien, neuZeichnen) {
   const kachel = e('div', { klasse: 'kachel seesaw', daten: { aufgabe: 'SEESAW' } });
 
   function eintragFuer(klasse) {
@@ -812,22 +861,14 @@ function seesawKachel(daten, kw, tag, ferien) {
       (w) => w.kw === kw && w.aufgabe === 'SEESAW' && w.klasse === klasse);
   }
 
-  function merkeLokal(klasse, erledigt) {
-    const vorher = eintragFuer(klasse);
-    if (vorher) daten.wochenstatus.splice(daten.wochenstatus.indexOf(vorher), 1);
-    if (erledigt) {
-      daten.wochenstatus.push({ kw, aufgabe: 'SEESAW', klasse, erledigt_am: alsIso(tag) });
-    }
-    return Boolean(vorher);
-  }
-
   function umschalten(klasse, erledigt) {
-    merkeLokal(klasse, erledigt);
+    setzeWochenstatusLokal(daten, { kw, aufgabe: 'SEESAW', klasse, erledigt, tag });
     zeichne();
     sendeMitNachfassen('wochenstatus', { kw, aufgabe: 'SEESAW', klasse, erledigt }).catch((fehler) => {
-      merkeLokal(klasse, !erledigt);
+      setzeWochenstatusLokal(daten, { kw, aufgabe: 'SEESAW', klasse, erledigt: !erledigt, tag });
       zeichne();
-      window.alert('Änderung konnte nicht gespeichert werden.\n\n' + schreibfehlerText(fehler));
+      meldeHintergrundfehler(
+        `Seesaw (${klasse}) konnte nicht gespeichert werden`, fehler, neuZeichnen);
     });
   }
 
@@ -903,29 +944,25 @@ function zerlegeIso(iso) {
 
 // --- Ferienmodus -----------------------------------------------------------
 
-function ferienschalter(ferien, neuZeichnen) {
+function ferienschalter(daten, ferien, neuZeichnen) {
   const knopf = e('button', {
     klasse: ferien ? 'wichtig' : '',
     text: ferien ? 'Ferienmodus beenden' : 'Ferienmodus einschalten'
   });
 
-  knopf.addEventListener('click', async () => {
-    knopf.disabled = true;
-    try {
-      await sendeMitNachfassen('meta', { werte: { ferienmodus: ferien ? 'FALSE' : 'TRUE' } });
-      // Kein leereDaten() — siehe wochenkachel().
-      await ladeDaten({ neu: true });
-      setzeMeldung(hinweis({
-        art: 'gut', zeichen: '✓',
-        text: ferien
-          ? 'Ferienmodus beendet. Tagesplan und Wochenaufgaben sind wieder aktiv.'
-          : 'Ferienmodus eingeschaltet. Er bleibt bis zum manuellen Zurückstellen aktiv.'
-      }));
-      neuZeichnen();
-    } catch (fehler) {
-      knopf.disabled = false;
-      window.alert(schreibfehlerText(fehler));
-    }
+  // Wie bei den Wochenaufgaben: sofort umschalten, im Hintergrund speichern.
+  // Das Nachladen des ganzen Datensatzes entfaellt — geaendert hat sich ein
+  // einziger Meta-Wert, und der steht hier.
+  knopf.addEventListener('click', () => {
+    const neuerWert = ferien ? 'FALSE' : 'TRUE';
+    daten.meta.ferienmodus = neuerWert;
+    neuZeichnen();
+
+    sendeMitNachfassen('meta', { werte: { ferienmodus: neuerWert } })
+      .catch((fehler) => {
+        daten.meta.ferienmodus = ferien ? 'TRUE' : 'FALSE';
+        meldeHintergrundfehler('Ferienmodus konnte nicht gespeichert werden', fehler, neuZeichnen);
+      });
   });
 
   return e('div', { klasse: 'leiste ferienleiste', style: 'margin:0' }, [
@@ -1019,7 +1056,7 @@ function formatiereFaelligkeit(eintrag) {
  * Seitenweites neuZeichnen() ist dafuer nicht noetig, die Aenderung betrifft
  * ja nur dieses eine Widget.
  */
-function merklisteWidget(daten, typ, tag) {
+function merklisteWidget(daten, typ, tag, neuZeichnen) {
   const konfig = MERKLISTE_KONFIG[typ];
   const heuteIso = alsIso(tag);
 
@@ -1106,7 +1143,7 @@ function merklisteWidget(daten, typ, tag) {
     sende('merklisteHinzufuegen', { id, typ, text, datum, uhrzeit }).catch((fehler) => {
       entferneLokal(daten, id);
       zeichneListe();
-      window.alert('Eintrag konnte nicht gespeichert werden: ' + fehler.message);
+      meldeHintergrundfehler('Eintrag konnte nicht gespeichert werden', fehler, neuZeichnen);
     });
   }
 
@@ -1116,7 +1153,7 @@ function merklisteWidget(daten, typ, tag) {
     sendeMitNachfassen('merklisteErledigt', { id: eintrag.id, erledigt: checked }).catch((fehler) => {
       setzeErledigtLokal(daten, eintrag.id, vorher);
       zeichneListe();
-      window.alert('Änderung konnte nicht gespeichert werden.\n\n' + schreibfehlerText(fehler));
+      meldeHintergrundfehler('Änderung konnte nicht gespeichert werden', fehler, neuZeichnen);
     });
   }
 

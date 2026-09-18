@@ -36,6 +36,48 @@ export function setzeVerbindung(url, token) {
 
 class ServerFehler extends Error {}
 
+/**
+ * Nach dieser Zeit gilt ein Aufruf als gescheitert.
+ *
+ * Ohne Grenze wartet fetch beliebig lange. Setzt Apps Script aus, haengt
+ * die Anfrage dann minutenlang, ohne dass irgendetwas passiert — und weil
+ * erst danach der zweite Anlauf beginnt, verdoppelt sich die Wartezeit
+ * auch noch. Apps Script selbst bricht nach 30 Sekunden ab; wer bis dahin
+ * nicht geantwortet hat, antwortet nicht mehr sinnvoll.
+ */
+const ZEITGRENZE_MS = 25000;
+
+/**
+ * Ob in dieser Sitzung schon einmal ein Aufruf durchgekommen ist.
+ *
+ * Das entscheidet ueber die Deutung einer Fehlerseite: Dieselbe Seite
+ * („unable to open the file") schickt Apps Script sowohl bei fehlendem
+ * Zugriff als auch bei einem voruebergehenden Aussetzer. Hat in dieser
+ * Sitzung schon etwas geklappt, sind Adresse, Schluessel und Freigabe
+ * nachweislich in Ordnung — dann auf die Freigabe zu verweisen, schickt
+ * Menschen in die Irre.
+ */
+let hatSchonGeklappt = false;
+
+async function hole(adresse, optionen) {
+  const abbruch = new AbortController();
+  const uhr = setTimeout(() => abbruch.abort(), ZEITGRENZE_MS);
+  try {
+    return await fetch(adresse, { ...optionen, signal: abbruch.signal });
+  } finally {
+    clearTimeout(uhr);
+  }
+}
+
+function netzFehler(e) {
+  if (e && e.name === 'AbortError') {
+    return new ServerFehler(
+      `Die Tabelle hat innerhalb von ${Math.round(ZEITGRENZE_MS / 1000)} Sekunden nicht ` +
+      'geantwortet. Das ist fast immer vorübergehend.');
+  }
+  return new ServerFehler('Die Tabelle ist nicht erreichbar. Besteht eine Internetverbindung?');
+}
+
 function pruefeEinrichtung() {
   if (!istEingerichtet()) {
     throw new ServerFehler('Die Verbindung zur Tabelle ist noch nicht eingerichtet.');
@@ -67,6 +109,18 @@ async function werteAus(antwort) {
         'verfügt" bereitstellen und die Adresse der neuen Version eintragen.');
     }
     if (/unable to open|nicht geöffnet|nicht ge.ffnet|check the address/i.test(text)) {
+      // Dieselbe Seite, zwei sehr verschiedene Ursachen. Unterscheiden
+      // laesst sich das an der eigenen Vorgeschichte: Hat in dieser Sitzung
+      // schon ein Aufruf geklappt, dann stimmen Adresse, Schluessel und
+      // Freigabe — es kann nur ein Aussetzer sein. Frueher stand hier
+      // ungeprueft die Freigabe-Erklaerung, was bei korrekt eingestellter
+      // Freigabe in die voellig falsche Richtung schickte.
+      if (hatSchonGeklappt) {
+        throw new ServerFehler(
+          'Die Tabelle konnte gerade nicht geöffnet werden. An den Einstellungen liegt es ' +
+          'nicht — in dieser Sitzung hat der Zugriff schon funktioniert. Google setzt ' +
+          'zeitweise aus; in ein paar Minuten noch einmal versuchen.');
+      }
       throw new ServerFehler(
         'Die Tabelle hat die Anfrage abgewiesen. Fast immer steht die Bereitstellung nicht auf ' +
         '„Jeder": im Apps-Script-Editor unter „Bereitstellen → Bereitstellungen verwalten" beim ' +
@@ -88,6 +142,8 @@ async function werteAus(antwort) {
   if (!daten.ok) {
     throw new ServerFehler(daten.fehler || 'Die Tabelle hat einen Fehler gemeldet.');
   }
+  // Ab hier steht fest: Adresse, Schluessel und Freigabe stimmen.
+  hatSchonGeklappt = true;
   return daten;
 }
 
@@ -101,9 +157,9 @@ export async function frage(aktion, parameter = {}) {
 
   let antwort;
   try {
-    antwort = await fetch(adresse.toString(), { method: 'GET', redirect: 'follow' });
+    antwort = await hole(adresse.toString(), { method: 'GET', redirect: 'follow' });
   } catch (e) {
-    throw new ServerFehler('Die Tabelle ist nicht erreichbar. Besteht eine Internetverbindung?');
+    throw netzFehler(e);
   }
   return werteAus(antwort);
 }
@@ -113,14 +169,14 @@ export async function sende(aktion, nutzlast = {}) {
   pruefeEinrichtung();
   let antwort;
   try {
-    antwort = await fetch(verbindung.url, {
+    antwort = await hole(verbindung.url, {
       method: 'POST',
       redirect: 'follow',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ ...nutzlast, aktion, token: verbindung.token })
     });
   } catch (e) {
-    throw new ServerFehler('Die Tabelle ist nicht erreichbar. Besteht eine Internetverbindung?');
+    throw netzFehler(e);
   }
   return werteAus(antwort);
 }

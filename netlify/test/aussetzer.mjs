@@ -54,8 +54,17 @@ async function oeffne() {
   // Wie viele der naechsten Schreibversuche scheitern sollen. Eine Zahl
   // statt eines Zeitfensters: sonst haengt das Ergebnis daran, wie schnell
   // der Rechner den Klick verarbeitet.
-  const steuerung = { schreibenScheitertNochMal: 0, ladenScheitert: false };
-  const schreibVersuche = [];
+  const steuerung = {
+    schreibenScheitertNochMal: 0,
+    ladenScheitert: false,
+    // Haelt Schreibvorgaenge auf, ohne sie scheitern zu lassen — damit
+    // sich pruefen laesst, dass die Oberflaeche nicht darauf wartet.
+    schreibenBremse: 0,
+    // Liefert statt JSON eine HTML-Fehlerseite von Google.
+    antwortAlsHtml: null
+  };
+  /** Jeder Aufruf an /exec, in der Reihenfolge: Aktionsname. */
+  const aufrufe = [];
 
   await p.route('**/exec*', async (route) => {
     const anfrage = route.request();
@@ -64,7 +73,16 @@ async function oeffne() {
     if (istSchreiben) {
       let aktion = '?';
       try { aktion = JSON.parse(anfrage.postData() || '{}').aktion || '?'; } catch (e) { /* egal */ }
-      schreibVersuche.push(aktion);
+      aufrufe.push(aktion);
+      if (steuerung.schreibenBremse) {
+        await new Promise((r) => setTimeout(r, steuerung.schreibenBremse));
+      }
+      if (steuerung.antwortAlsHtml) {
+        await route.fulfill({
+          status: 200, contentType: 'text/html', body: steuerung.antwortAlsHtml
+        });
+        return;
+      }
       if (steuerung.schreibenScheitertNochMal > 0) {
         steuerung.schreibenScheitertNochMal--;
         await route.fulfill({
@@ -73,7 +91,10 @@ async function oeffne() {
         });
         return;
       }
-    } else if (steuerung.ladenScheitert && /aktion=laden/.test(anfrage.url())) {
+    } else if (/aktion=laden/.test(anfrage.url())) {
+      aufrufe.push('laden');
+    }
+    if (!istSchreiben && steuerung.ladenScheitert && /aktion=laden/.test(anfrage.url())) {
       await route.fulfill({
         status: 200, contentType: 'application/json',
         body: JSON.stringify({ ok: false, fehler: 'Der Dokumentspeicher ist vorübergehend nicht verfügbar.' })
@@ -92,7 +113,7 @@ async function oeffne() {
     JSON.stringify({ url: 'http://localhost:8901/exec', token: t })), TOKEN);
   await p.reload();
   await p.waitForSelector('.klassenraster', { timeout: 10000 });
-  return { p, ctx, steuerung, schreibVersuche, dialoge };
+  return { p, ctx, steuerung, aufrufe, dialoge };
 }
 
 /**
@@ -115,7 +136,7 @@ async function toggelPeak(p) {
 
 console.log('\n=== Ein misslungener Versuch wird wiederholt ===');
 {
-  const { p, ctx, steuerung, schreibVersuche } = await oeffne();
+  const { p, ctx, steuerung, aufrufe } = await oeffne();
 
   // Genau der erste Schreibversuch scheitert, der zweite geht durch.
   steuerung.schreibenScheitertNochMal = 1;
@@ -124,7 +145,7 @@ console.log('\n=== Ein misslungener Versuch wird wiederholt ===');
   await p.waitForTimeout(3500);
 
   pruefe('es wurde ein zweites Mal geschrieben',
-    schreibVersuche.filter((a) => a === 'wochenstatus').length, 2);
+    aufrufe.filter((a) => a === 'wochenstatus').length, 2);
 
   const inTabelle = await (await fetch(`${ADRESSE}/exec?aktion=laden&token=${TOKEN}`)).json();
   pruefe('die Umschaltung steht trotz des Aussetzers in der Tabelle',
@@ -172,7 +193,7 @@ console.log('\n=== Schreiben klappt, Nachladen scheitert ===');
 
 console.log('\n=== Anhaltender Aussetzer: Meldung und Rueckname ===');
 {
-  const { p, ctx, steuerung, schreibVersuche, dialoge } = await oeffne();
+  const { p, ctx, steuerung, aufrufe, dialoge } = await oeffne();
   // Beide Versuche scheitern.
   steuerung.schreibenScheitertNochMal = 2;
 
@@ -188,15 +209,104 @@ console.log('\n=== Anhaltender Aussetzer: Meldung und Rueckname ===');
   await p.waitForTimeout(3500);
 
   pruefe('zwei Versuche unternommen',
-    schreibVersuche.filter((a) => a === 'wochenstatus').length, 2);
+    aufrufe.filter((a) => a === 'wochenstatus').length, 2);
   pruefe('der Haken ist wieder weg', await erste.isChecked(), false);
-  pruefe('es wurde gemeldet', dialoge.length > 0, true);
-  pruefe('die Meldung nennt den Grund',
-    dialoge[0].includes('Dokumentspeicher'), true);
+  // Gemeldet wird im Band ueber der Seite, nicht mehr im Systemdialog:
+  // ein Dialog gehoert zu einer Handlung, die gerade laeuft, nicht zu
+  // etwas, das Sekunden spaeter im Hintergrund schiefgeht.
+  await p.waitForSelector('.hinweis.schlecht', { timeout: 5000 });
+  const meldung = await p.locator('.hinweis.schlecht').innerText();
+  pruefe('kein Systemdialog mehr', dialoge.length, 0);
+  pruefe('die Meldung nennt den Grund', meldung.includes('Dokumentspeicher'), true);
   pruefe('… und sagt, dass schon zweimal versucht wurde',
-    dialoge[0].includes('zweites Mal'), true);
+    meldung.includes('zweites Mal'), true);
+  pruefe('… und nennt die betroffene Klasse', /Seesaw \(/.test(meldung), true);
 
   pruefe('das Kaestchen ist wieder offen', await erste.isChecked(), false);
+
+  await ctx.close();
+}
+
+// --- Sofort umschalten, im Hintergrund speichern ----------------------------
+
+console.log('\n=== Der Haken springt sofort, ohne auf die Tabelle zu warten ===');
+{
+  const { p, ctx, steuerung, aufrufe } = await oeffne();
+
+  // Das Speichern wird kuenstlich aufgehalten. Die Kachel darf darauf nicht
+  // warten — genau das war die Beschwerde: Klick, und minutenlang nichts.
+  steuerung.schreibenBremse = 4000;
+
+  const kachel = p.locator('.kachel[data-aufgabe="PEAK"]');
+  // Am Klassennamen ablesen, nicht am Text: „erledigt" steht auch in der
+  // Knopfbeschriftung „Als erledigt markieren". Wer den Text nimmt, misst
+  // das Aufklappen der Kachel statt das Umschalten — und merkt nicht, wenn
+  // gar nicht mehr sofort umgeschaltet wird.
+  const istErledigt = async () =>
+    (await kachel.getAttribute('class')).split(/\s+/).includes('erledigt');
+
+  const warErledigt = await istErledigt();
+  await kachel.locator('.kachel-kopf').click();
+  const knopf = kachel.locator('.kachel-bereich button').first();
+  await knopf.waitFor({ state: 'visible', timeout: 4000 });
+
+  const ladenVorher = aufrufe.filter((a) => a === 'laden').length;
+  const los = Date.now();
+  await knopf.click();
+  // Auf den Umschlag warten, nicht auf eine feste Zeit.
+  await p.waitForFunction((vorher) => {
+    const k = document.querySelector('.kachel[data-aufgabe="PEAK"]');
+    return k && k.classList.contains('erledigt') !== vorher;
+  }, warErledigt, { timeout: 3000 });
+  const bisUmschlag = Date.now() - los;
+
+  pruefe('die Kachel schaltet um, bevor gespeichert ist', bisUmschlag < 4000, true);
+  pruefe('und zwar ohne merkliche Wartezeit', bisUmschlag < 1500, true);
+
+  // Erst jetzt laeuft das Speichern zu Ende.
+  await p.waitForTimeout(5000);
+  pruefe('genau einmal geschrieben',
+    aufrufe.filter((a) => a === 'wochenstatus').length, 1);
+  pruefe('und kein Nachladen des ganzen Datensatzes angestossen',
+    aufrufe.filter((a) => a === 'laden').length - ladenVorher, 0);
+
+  const inTabelle = await (await fetch(`${ADRESSE}/exec?aktion=laden&token=${TOKEN}`)).json();
+  pruefe('im Hintergrund wirklich gespeichert',
+    inTabelle.daten.wochenstatus.some((w) => w.aufgabe === 'PEAK'), !warErledigt);
+
+  await ctx.close();
+}
+
+// --- Die Fehlerseite wird nicht mehr der Freigabe angelastet ----------------
+
+console.log('\n=== „Datei nicht zu oeffnen" nach gegluecktem Zugriff ===');
+{
+  const { p, ctx, steuerung } = await oeffne();
+
+  // Das Laden hat beim Oeffnen geklappt. Also koennen Adresse, Schluessel
+  // und Freigabe nicht die Ursache sein — die Meldung darf nicht dorthin
+  // zeigen. Genau das tat sie und schickte in die falsche Richtung.
+  steuerung.antwortAlsHtml = 'Sorry, unable to open the file at this time.';
+
+  const kachel = p.locator('.kachel[data-aufgabe="WEEKLY"]');
+  await kachel.locator('.kachel-kopf').click();
+  const knopf = kachel.locator('.kachel-bereich button').first();
+  await knopf.waitFor({ state: 'visible', timeout: 4000 });
+  await knopf.click();
+
+  await p.waitForSelector('.hinweis.schlecht', { timeout: 15000 });
+  const meldung = await p.locator('.hinweis.schlecht').innerText();
+
+  pruefe('die Meldung schiebt es nicht auf die Freigabe',
+    /Bereitstellung|Wer hat Zugriff/.test(meldung), false);
+  pruefe('sie sagt, dass es an den Einstellungen nicht liegt',
+    meldung.includes('An den Einstellungen liegt es nicht'), true);
+  pruefe('und steht im Band, nicht in der Kachel',
+    await p.locator('.kachel .hinweis.schlecht').count(), 0);
+  pruefe('sie laesst sich wegklicken',
+    await p.locator('.hinweis.schlecht .hinweis-zu').count(), 1);
+  pruefe('der Haken ist zurueckgenommen',
+    (await p.locator('.kachel[data-aufgabe="WEEKLY"]').innerText()).includes('offen'), true);
 
   await ctx.close();
 }
