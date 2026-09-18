@@ -715,7 +715,7 @@ function wochenkachel(aufgabe, daten, kw, tag, ferien, neuZeichnen) {
       neuZeichnen();
     } catch (fehler) {
       knopf.disabled = false;
-      bereich.appendChild(hinweis({ art: 'schlecht', zeichen: '×', text: fehler.message }));
+      bereich.appendChild(hinweis({ art: 'schlecht', zeichen: '!', text: fehler.message }));
     }
   });
 

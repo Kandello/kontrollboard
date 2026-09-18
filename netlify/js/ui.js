@@ -51,8 +51,20 @@ export function ladeanzeige(text = 'Daten werden geladen …') {
   return e('div', { klasse: 'laedt' }, [e('span', { klasse: 'punkt' }), e('span', { text })]);
 }
 
-export function hinweis({ art = '', zeichen = '', titel = '', text = '', knoepfe = [] }) {
-  return e('div', { klasse: 'hinweis ' + art, role: 'status' }, [
+/**
+ * Ein Hinweisfeld.
+ *
+ * `zeichen` ist reine Verzierung und liegt links neben dem Text — es sagt
+ * mit einem Blick, worum es geht (✓ gut, ! Achtung). Es ist ausdruecklich
+ * KEIN Bedienelement; frueher stand dort bei Fehlern ein „×", das wie ein
+ * Schliessen-Knopf aussah, aber auf keinen Tipp reagierte.
+ *
+ * Wer schliessen koennen soll, uebergibt `beimSchliessen`. Dann erscheint
+ * oben rechts ein echter Knopf — dort, wo ein Schliessen-Kreuz hingehoert,
+ * und gross genug fuer einen Finger.
+ */
+export function hinweis({ art = '', zeichen = '', titel = '', text = '', knoepfe = [], beimSchliessen = null }) {
+  const feld = e('div', { klasse: 'hinweis ' + art, role: 'status' }, [
     zeichen ? e('span', { klasse: 'zeichen', 'aria-hidden': 'true', text: zeichen }) : null,
     e('div', { klasse: 'text' }, [
       titel ? e('h3', { text: titel }) : null,
@@ -60,6 +72,21 @@ export function hinweis({ art = '', zeichen = '', titel = '', text = '', knoepfe
       knoepfe.length ? e('div', { klasse: 'leiste', style: 'margin-top:12px;margin-bottom:0' }, knoepfe) : null
     ])
   ]);
+
+  if (beimSchliessen) {
+    feld.appendChild(e('button', {
+      klasse: 'hinweis-zu', text: '×', type: 'button',
+      'aria-label': 'Hinweis schließen', title: 'Schließen',
+      auf: { click: () => {
+        // Erst aus der Anzeige nehmen, dann melden: wer darauf neu zeichnet,
+        // soll nicht kurz das schon geschlossene Feld wiedersehen.
+        if (feld.parentNode) feld.parentNode.removeChild(feld);
+        beimSchliessen();
+      } }
+    }));
+  }
+
+  return feld;
 }
 
 export function karte(titel, kinder) {

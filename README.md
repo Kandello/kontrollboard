@@ -42,6 +42,7 @@ node mock.js &
 node widgets.mjs        # ebenso: e2e, startseite, checklisten, einheiten,
                         # einheitenansicht, noten, notenansicht
 node nachladen.mjs      # prüft das zweistufige Laden (Kern / Rest)
+node hinweise.mjs       # prüft, dass Hinweise sich schließen lassen
 node datenschutz.mjs    # prüft, dass kein Klarname das Gerät verlässt
 ```
 

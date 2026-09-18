@@ -95,8 +95,9 @@ function banner() {
 
   if (ladeFehler) {
     teile.push(hinweis({
-      art: 'schlecht', zeichen: '×', titel: 'Daten konnten nicht geladen werden',
+      art: 'schlecht', zeichen: '!', titel: 'Daten konnten nicht geladen werden',
       text: ladeFehler,
+      beimSchliessen: () => { ladeFehler = null; },
       knoepfe: [
         e('button', { text: 'Erneut versuchen', auf: { click: () => {
           ladeFehler = null;
@@ -114,21 +115,21 @@ function banner() {
 
   // Warnungen aus der Konfigurationspruefung des Servers.
   if (daten.warnungen && daten.warnungen.length && !geschlossen.has('konfig')) {
-    teile.push(schliessbar('konfig', hinweis({
+    teile.push(schliessbar('konfig', {
       art: 'warn', zeichen: '!', titel: 'Hinweise zur Konfiguration',
       text: daten.warnungen.join('\n')
-    })));
+    }));
   }
 
   // Erstlauf: noch keine Zuordnung auf diesem Geraet.
   if (!zuordnung.istGeladen() && !geschlossen.has('erstlauf')) {
-    teile.push(schliessbar('erstlauf', hinweis({
+    teile.push(schliessbar('erstlauf', {
       art: 'warn', zeichen: '→', titel: 'Zuordnungsdatei laden',
       text: 'Auf diesem Gerät ist noch keine Zuordnung geladen. Die App ist voll bedienbar — ' +
             'es erscheinen überall Kürzel statt Namen.',
       knoepfe: [e('button', { klasse: 'wichtig', text: 'Zuordnungsliste öffnen',
                               auf: { click: () => gehe('/zuordnung') } })]
-    })));
+    }));
   } else if (zuordnung.istGeladen()) {
     // Abgleich der Kuerzelmengen — laeuft ausschliesslich ueber Kuerzel.
     const a = zuordnung.gleicheAb(daten.schueler.filter((s) => s.aktiv), daten.meta.zuordnung_version);
@@ -137,27 +138,31 @@ function banner() {
       if (a.fehlend.length) zeilen.push(`${a.fehlend.length} Kürzel ohne Zuordnung: ${a.fehlend.slice(0, 8).join(', ')}${a.fehlend.length > 8 ? ' …' : ''}`);
       if (a.ueberzaehlig.length) zeilen.push(`${a.ueberzaehlig.length} überzähliger Eintrag: ${a.ueberzaehlig.slice(0, 8).join(', ')}${a.ueberzaehlig.length > 8 ? ' …' : ''}`);
       if (a.veraltet) zeilen.push('Ein anderes Gerät hat die Zuordnung später gespeichert als dieses.');
-      teile.push(schliessbar('abgleich', hinweis({
+      teile.push(schliessbar('abgleich', {
         art: 'warn', zeichen: '!', titel: 'Zuordnung weicht ab', text: zeilen.join('\n'),
         knoepfe: [e('button', { text: 'Zuordnungsliste öffnen', auf: { click: () => gehe('/zuordnung') } })]
-      })));
+      }));
     }
   }
 
   return teile;
 }
 
-function schliessbar(kennung, element) {
-  const zu = e('button', {
-    klasse: 'klein leise', text: 'Schließen', 'aria-label': 'Hinweis schließen',
-    auf: { click: () => {
+/**
+ * Ein Banner, das sich wegklicken laesst und dann weggeklickt bleibt.
+ *
+ * Das Schliessen zeichnet die Seite nicht neu: hinweis() nimmt das Feld
+ * selbst heraus. Ein Neuzeichnen waere hier auch schaedlich — es setzte
+ * mitten im Blaettern die Startseite zurueck.
+ */
+function schliessbar(kennung, optionen) {
+  return hinweis({
+    ...optionen,
+    beimSchliessen: () => {
       geschlossen.add(kennung);
       schreib('bannerGeschlossen', [...geschlossen]);
-      zeichneAlles();
-    } }
+    }
   });
-  element.querySelector('.text').appendChild(e('div', { klasse: 'leiste', style: 'margin:12px 0 0' }, [zu]));
-  return element;
 }
 
 // --- Zeichnen --------------------------------------------------------------
