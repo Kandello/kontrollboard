@@ -43,6 +43,7 @@ node widgets.mjs        # ebenso: e2e, startseite, checklisten, einheiten,
                         # einheitenansicht, noten, notenansicht
 node nachladen.mjs      # prüft das zweistufige Laden (Kern / Rest)
 node hinweise.mjs       # prüft, dass Hinweise sich schließen lassen
+node aussetzer.mjs      # prüft das Verhalten bei Aussetzern der Tabelle
 node datenschutz.mjs    # prüft, dass kein Klarname das Gerät verlässt
 ```
 
