@@ -22,7 +22,7 @@ import {
 } from '../layout.js';
 import { starteZug, starteGroessenzug, messeAlle, gleite } from '../ziehen.js';
 import { klassenlehrkraftEintrag } from '../zuordnung.js';
-import { sende, leereDaten, ladeDaten } from '../server.js';
+import { sende, ladeDaten } from '../server.js';
 import {
   SPUREN, jahresplan, einheitInWoche, fortschrittEinheit, fortschrittKlasse, schulwoche
 } from '../einheiten.js';
@@ -33,6 +33,46 @@ import {
 import {
   eintraegeFuerTyp, istUeberfaellig, fuegeLokalHinzu, entferneLokal, setzeErledigtLokal
 } from '../merkliste.js';
+
+/** Pause vor dem zweiten Anlauf eines Schreibvorgangs. */
+const NACHFASS_PAUSE_MS = 800;
+
+/**
+ * Ein Schreibvorgang mit einem zweiten Anlauf.
+ *
+ * Die Tabelle setzt gelegentlich kurz aus: Google nimmt dann eine Weile
+ * keine Aenderungen an, waehrend das Lesen weiterlaeuft. Ein einzelner
+ * misslungener Versuch ist deshalb noch kein Grund, dem Menschen seine
+ * Eingabe wieder wegzunehmen — ein zurueckspringender Schalter samt
+ * Fehlermeldung waere dann eine Falschmeldung, die schlimmer wirkt als der
+ * Aussetzer selbst. Also: einmal Luft holen, einmal nachfassen.
+ *
+ * Erlaubt ist das nur, wo ein zweiter Versuch nicht doppelt wirken kann.
+ * `meta` und `wochenstatus` erfuellen das: beide schreiben oder loeschen
+ * ueber einen Schluessel (schreibeNachSchluessel_ bzw.
+ * loescheNachSchluessel_). Zweimal dasselbe zu senden ergibt denselben
+ * Zustand wie einmal. Fuer Aufrufe, die anhaengen statt zu ersetzen, waere
+ * das falsch — sie gehoeren hier nicht hinein.
+ */
+async function sendeMitNachfassen(aktion, nutzlast) {
+  try {
+    return await sende(aktion, nutzlast);
+  } catch (ersterFehler) {
+    await new Promise((fertig) => setTimeout(fertig, NACHFASS_PAUSE_MS));
+    return sende(aktion, nutzlast);
+  }
+}
+
+/**
+ * Der Text zu einem gescheiterten Schreibvorgang. Dass bereits zweimal
+ * versucht wurde, gehoert dazu: sonst tippt man sofort noch einmal und
+ * wundert sich, dass es wieder nicht geht.
+ */
+function schreibfehlerText(fehler) {
+  return fehler.message +
+    '\n\nEs wurde bereits ein zweites Mal versucht. Setzt die Tabelle gerade aus, ' +
+    'hilft nur etwas Abstand — in ein paar Minuten noch einmal probieren.';
+}
 
 /** Ab dieser Stunde zeigt der Tagesplan schon den naechsten Schultag. */
 const TAGESPLAN_VORSCHAU_AB_STUNDE = 17;
@@ -260,26 +300,14 @@ export function zeichneStart(ziel, { daten, verbergen, neuZeichnen }) {
 
     const zeile = schreibeLayout(layout);
     daten.meta[metaSchluessel('start')] = zeile;
-    const schreiben = () => sende('meta', { werte: { [metaSchluessel('start')]: zeile } });
 
     try {
-      await schreiben();
-    } catch (ersterFehler) {
-      // Ein einzelner misslungener Versuch ist noch kein Grund, dem Menschen
-      // seine gerade gebaute Anordnung wieder wegzunehmen. Die Tabelle setzt
-      // gelegentlich kurz aus — am ehesten direkt nach einer neuen
-      // Bereitstellung —, und ein zurueckspringendes Widget samt
-      // Fehlermeldung waere dann eine Falschmeldung, die schlimmer wirkt als
-      // der Aussetzer selbst. Also: einmal Luft holen, einmal nachfassen.
-      try {
-        await new Promise((fertig) => setTimeout(fertig, 800));
-        await schreiben();
-      } catch (zweiterFehler) {
-        layout = vorher;
-        daten.meta[metaSchluessel('start')] = schreibeLayout(vorher);
-        platziere(layout, true);
-        window.alert('Die Anordnung konnte nicht gespeichert werden: ' + zweiterFehler.message);
-      }
+      await sendeMitNachfassen('meta', { werte: { [metaSchluessel('start')]: zeile } });
+    } catch (fehler) {
+      layout = vorher;
+      daten.meta[metaSchluessel('start')] = schreibeLayout(vorher);
+      platziere(layout, true);
+      window.alert('Die Anordnung konnte nicht gespeichert werden.\n\n' + schreibfehlerText(fehler));
     }
   }
 
@@ -703,8 +731,12 @@ function wochenkachel(aufgabe, daten, kw, tag, ferien, neuZeichnen) {
   knopf.addEventListener('click', async () => {
     knopf.disabled = true;
     try {
-      await sende('wochenstatus', { kw, aufgabe, erledigt: !erledigt });
-      leereDaten();
+      await sendeMitNachfassen('wochenstatus', { kw, aufgabe, erledigt: !erledigt });
+      // Kein leereDaten() davor: ladeDaten({neu:true}) umgeht den Zwischen-
+      // speicher ohnehin. Es zu leeren schuf nur ein Zeitfenster, in dem gar
+      // keine Daten da waren — scheiterte das Laden (und genau das passiert
+      // bei einem Aussetzer), blieb die App ohne Daten zurueck und die
+      // naechste Neuzeichnung ergab eine leere Startseite.
       await ladeDaten({ neu: true });
       setzeMeldung(hinweis({
         art: 'gut', zeichen: '✓',
@@ -715,7 +747,7 @@ function wochenkachel(aufgabe, daten, kw, tag, ferien, neuZeichnen) {
       neuZeichnen();
     } catch (fehler) {
       knopf.disabled = false;
-      bereich.appendChild(hinweis({ art: 'schlecht', zeichen: '×', text: fehler.message }));
+      bereich.appendChild(hinweis({ art: 'schlecht', zeichen: '!', text: schreibfehlerText(fehler) }));
     }
   });
 
@@ -792,10 +824,10 @@ function seesawKachel(daten, kw, tag, ferien) {
   function umschalten(klasse, erledigt) {
     merkeLokal(klasse, erledigt);
     zeichne();
-    sende('wochenstatus', { kw, aufgabe: 'SEESAW', klasse, erledigt }).catch((fehler) => {
+    sendeMitNachfassen('wochenstatus', { kw, aufgabe: 'SEESAW', klasse, erledigt }).catch((fehler) => {
       merkeLokal(klasse, !erledigt);
       zeichne();
-      window.alert('Änderung konnte nicht gespeichert werden: ' + fehler.message);
+      window.alert('Änderung konnte nicht gespeichert werden.\n\n' + schreibfehlerText(fehler));
     });
   }
 
@@ -880,8 +912,8 @@ function ferienschalter(ferien, neuZeichnen) {
   knopf.addEventListener('click', async () => {
     knopf.disabled = true;
     try {
-      await sende('meta', { werte: { ferienmodus: ferien ? 'FALSE' : 'TRUE' } });
-      leereDaten();
+      await sendeMitNachfassen('meta', { werte: { ferienmodus: ferien ? 'FALSE' : 'TRUE' } });
+      // Kein leereDaten() — siehe wochenkachel().
       await ladeDaten({ neu: true });
       setzeMeldung(hinweis({
         art: 'gut', zeichen: '✓',
@@ -892,7 +924,7 @@ function ferienschalter(ferien, neuZeichnen) {
       neuZeichnen();
     } catch (fehler) {
       knopf.disabled = false;
-      alert(fehler.message);
+      window.alert(schreibfehlerText(fehler));
     }
   });
 
@@ -1068,6 +1100,9 @@ function merklisteWidget(daten, typ, tag) {
     formular.hidden = true;
     zeichneListe();
 
+    // Bewusst ohne sendeMitNachfassen: dieser Aufruf haengt eine Zeile an
+    // (haengeAn_ in Merkliste.gs). Kam die erste Anfrage durch und ging nur
+    // die Antwort verloren, erzeugte ein zweiter Versuch einen Doppeleintrag.
     sende('merklisteHinzufuegen', { id, typ, text, datum, uhrzeit }).catch((fehler) => {
       entferneLokal(daten, id);
       zeichneListe();
@@ -1078,10 +1113,10 @@ function merklisteWidget(daten, typ, tag) {
   function umschalten(eintrag, checked) {
     const vorher = setzeErledigtLokal(daten, eintrag.id, checked);
     zeichneListe();
-    sende('merklisteErledigt', { id: eintrag.id, erledigt: checked }).catch((fehler) => {
+    sendeMitNachfassen('merklisteErledigt', { id: eintrag.id, erledigt: checked }).catch((fehler) => {
       setzeErledigtLokal(daten, eintrag.id, vorher);
       zeichneListe();
-      window.alert('Änderung konnte nicht gespeichert werden: ' + fehler.message);
+      window.alert('Änderung konnte nicht gespeichert werden.\n\n' + schreibfehlerText(fehler));
     });
   }
 

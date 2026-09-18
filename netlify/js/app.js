@@ -4,8 +4,8 @@
 
 import { e, leere, ladeanzeige, hinweis, holeMeldung } from './ui.js';
 import { lies, schreib, istVerfuegbar } from './speicher.js';
-import { registriere, starte, gehe, pfadEintraege } from './router.js';
-import { istEingerichtet, ladeDaten, holeDaten } from './server.js';
+import { registriere, starte, gehe, pfadEintraege, zeichneErneut } from './router.js';
+import { istEingerichtet, ladeDaten, ladeRest, istVollstaendig, holeDaten } from './server.js';
 import * as zuordnung from './zuordnung.js';
 import { zeichneStart, raeumeStartAuf } from './ansichten/start.js';
 import { zeichneKlasse } from './ansichten/klasse.js';
@@ -95,10 +95,16 @@ function banner() {
 
   if (ladeFehler) {
     teile.push(hinweis({
-      art: 'schlecht', zeichen: '×', titel: 'Daten konnten nicht geladen werden',
+      art: 'schlecht', zeichen: '!', titel: 'Daten konnten nicht geladen werden',
       text: ladeFehler,
+      beimSchliessen: () => { ladeFehler = null; },
       knoepfe: [
-        e('button', { text: 'Erneut versuchen', auf: { click: () => { ladeFehler = null; lade(); } } }),
+        e('button', { text: 'Erneut versuchen', auf: { click: () => {
+          ladeFehler = null;
+          // Auch die Ansicht neu aufbauen: scheiterte die zweite Runde,
+          // steht hier gerade gar keine.
+          lade().then(zeichneErneut);
+        } } }),
         e('button', { klasse: 'leise', text: 'Einstellungen', auf: { click: () => gehe('/einstellungen') } })
       ]
     }));
@@ -109,21 +115,21 @@ function banner() {
 
   // Warnungen aus der Konfigurationspruefung des Servers.
   if (daten.warnungen && daten.warnungen.length && !geschlossen.has('konfig')) {
-    teile.push(schliessbar('konfig', hinweis({
+    teile.push(schliessbar('konfig', {
       art: 'warn', zeichen: '!', titel: 'Hinweise zur Konfiguration',
       text: daten.warnungen.join('\n')
-    })));
+    }));
   }
 
   // Erstlauf: noch keine Zuordnung auf diesem Geraet.
   if (!zuordnung.istGeladen() && !geschlossen.has('erstlauf')) {
-    teile.push(schliessbar('erstlauf', hinweis({
+    teile.push(schliessbar('erstlauf', {
       art: 'warn', zeichen: '→', titel: 'Zuordnungsdatei laden',
       text: 'Auf diesem Gerät ist noch keine Zuordnung geladen. Die App ist voll bedienbar — ' +
             'es erscheinen überall Kürzel statt Namen.',
       knoepfe: [e('button', { klasse: 'wichtig', text: 'Zuordnungsliste öffnen',
                               auf: { click: () => gehe('/zuordnung') } })]
-    })));
+    }));
   } else if (zuordnung.istGeladen()) {
     // Abgleich der Kuerzelmengen — laeuft ausschliesslich ueber Kuerzel.
     const a = zuordnung.gleicheAb(daten.schueler.filter((s) => s.aktiv), daten.meta.zuordnung_version);
@@ -132,27 +138,31 @@ function banner() {
       if (a.fehlend.length) zeilen.push(`${a.fehlend.length} Kürzel ohne Zuordnung: ${a.fehlend.slice(0, 8).join(', ')}${a.fehlend.length > 8 ? ' …' : ''}`);
       if (a.ueberzaehlig.length) zeilen.push(`${a.ueberzaehlig.length} überzähliger Eintrag: ${a.ueberzaehlig.slice(0, 8).join(', ')}${a.ueberzaehlig.length > 8 ? ' …' : ''}`);
       if (a.veraltet) zeilen.push('Ein anderes Gerät hat die Zuordnung später gespeichert als dieses.');
-      teile.push(schliessbar('abgleich', hinweis({
+      teile.push(schliessbar('abgleich', {
         art: 'warn', zeichen: '!', titel: 'Zuordnung weicht ab', text: zeilen.join('\n'),
         knoepfe: [e('button', { text: 'Zuordnungsliste öffnen', auf: { click: () => gehe('/zuordnung') } })]
-      })));
+      }));
     }
   }
 
   return teile;
 }
 
-function schliessbar(kennung, element) {
-  const zu = e('button', {
-    klasse: 'klein leise', text: 'Schließen', 'aria-label': 'Hinweis schließen',
-    auf: { click: () => {
+/**
+ * Ein Banner, das sich wegklicken laesst und dann weggeklickt bleibt.
+ *
+ * Das Schliessen zeichnet die Seite nicht neu: hinweis() nimmt das Feld
+ * selbst heraus. Ein Neuzeichnen waere hier auch schaedlich — es setzte
+ * mitten im Blaettern die Startseite zurueck.
+ */
+function schliessbar(kennung, optionen) {
+  return hinweis({
+    ...optionen,
+    beimSchliessen: () => {
       geschlossen.add(kennung);
       schreib('bannerGeschlossen', [...geschlossen]);
-      zeichneAlles();
-    } }
+    }
   });
-  element.querySelector('.text').appendChild(e('div', { klasse: 'leiste', style: 'margin:12px 0 0' }, [zu]));
-  return element;
 }
 
 // --- Zeichnen --------------------------------------------------------------
@@ -168,8 +178,39 @@ function zeichneAlles() {
   if (aktuelleAnsicht) aktuelleAnsicht();
 }
 
-function ansicht(zeichner) {
+/**
+ * Zaehlt die Aufrufe, damit eine Ansicht, die auf Daten wartet, nicht
+ * nachtraeglich eine laengst verlassene Seite zeichnet.
+ */
+let ansichtZaehler = 0;
+
+/**
+ * `rest: true` fuer Ansichten, die die grossen Tabellen brauchen (Noten,
+ * Checklisten). Sie warten, falls die Hintergrundrunde noch laeuft —
+ * meist ist sie laengst durch, dann kostet das nichts.
+ */
+function ansicht(zeichner, { rest = false } = {}) {
   return async (werte) => {
+    const meine = ++ansichtZaehler;
+
+    if (rest && istEingerichtet() && !ladeFehler && !istVollstaendig()) {
+      aktuelleAnsicht = () => inhalt.appendChild(ladeanzeige('Daten werden geladen …'));
+      zeichneAlles();
+      try {
+        await ladeRest();
+      } catch (fehler) {
+        if (meine !== ansichtZaehler) return;
+        // Die Ladeanzeige stehen zu lassen waere falsch, den Zeichner
+        // aufzurufen unmoeglich — ihm fehlten genau die Daten. Also nur
+        // das Banner mit dem Fehler.
+        ladeFehler = fehler.message;
+        aktuelleAnsicht = null;
+        zeichneAlles();
+        return;
+      }
+      if (meine !== ansichtZaehler) return;
+    }
+
     // holeDaten() wird bei jedem Zeichnen neu gelesen, nicht hier gebunden —
     // sonst zeigte die Ansicht nach einem Neuladen noch den alten Stand.
     aktuelleAnsicht = () => zeichner(inhalt, {
@@ -228,7 +269,7 @@ registriere('/checklisten', ansicht((ziel, k) => {
 registriere('/checklisten/:klasse', ansicht((ziel, k) => {
   if (!k.daten) return;
   zeichneChecklisten(ziel, k);
-}));
+}, { rest: true }));
 
 registriere('/noten', ansicht((ziel, k) => {
   if (!k.daten) return;
@@ -245,7 +286,7 @@ registriere('/noten', ansicht((ziel, k) => {
 registriere('/noten/:klasse', ansicht((ziel, k) => {
   if (!k.daten) return;
   zeichneNoten(ziel, k);
-}));
+}, { rest: true }));
 
 registriere('/einheiten', ansicht((ziel, k) => {
   if (!k.daten) return;

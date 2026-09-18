@@ -152,8 +152,11 @@ await p.goto(B + '#/'); await p.waitForTimeout(600);
 const banner = await p.locator('.hinweis').allInnerTexts();
 pruefe('Abgleich meldet fehlende Zuordnungen', banner.some(t => t.includes('Zuordnung weicht ab') && t.includes('ohne Zuordnung')));
 
-// Banner schliessen und Persistenz pruefen
-await knopf('Schließen').click(); await p.waitForTimeout(400);
+// Banner schliessen und Persistenz pruefen. Geschlossen wird ueber das
+// Kreuz oben rechts im Feld — siehe hinweise.mjs.
+await p.locator('.hinweis', { hasText: 'Zuordnung weicht ab' })
+  .locator('.hinweis-zu').click();
+await p.waitForTimeout(400);
 await p.reload(); await p.waitForTimeout(700);
 const nachher = await p.locator('.hinweis').allInnerTexts();
 pruefe('geschlossenes Banner bleibt geschlossen', !nachher.some(t => t.includes('Zuordnung weicht ab')));

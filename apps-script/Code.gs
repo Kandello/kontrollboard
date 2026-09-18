@@ -85,7 +85,10 @@ function doGet(e) {
 
     switch (p.aktion) {
       case 'laden':
-        return antwort_({ ok: true, daten: ladeAlles() });
+        // `teil` teilt den Ladevorgang: 'kern' fuer die Startseite, 'rest'
+        // fuer die grossen Tabellen. Ohne Angabe wird wie bisher alles
+        // gelesen — eine aeltere Oberflaeche bekommt also weiterhin alles.
+        return antwort_({ ok: true, daten: ladeAlles(p.teil) });
       case 'ping':
         return antwort_({ ok: true, stand: new Date().toISOString() });
       default:

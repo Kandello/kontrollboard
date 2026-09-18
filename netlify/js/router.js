@@ -88,6 +88,15 @@ export function starte() {
   return zeichne();
 }
 
+/**
+ * Dieselbe Route noch einmal aufbauen. Ein Sprung auf die eigene Adresse
+ * loest kein hashchange aus, waere hier also wirkungslos. Gebraucht nach
+ * einem gescheiterten Nachladen: die Ansicht muss dann neu entstehen.
+ */
+export function zeichneErneut() {
+  return zeichne();
+}
+
 /** Erzeugt die Brotkrumen fuer die Kopfleiste. */
 export function pfadEintraege(daten) {
   const t = aktuell.teile;

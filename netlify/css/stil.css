@@ -185,6 +185,23 @@ button.klein { min-height: 34px; padding: var(--s1) var(--s3); font-size: var(--
 .hinweis .zeichen { font-size: var(--t-gross); line-height: 1.2; }
 .hinweis h3 { margin-bottom: var(--s1); }
 
+/*
+ * Der Schliessen-Knopf sitzt oben rechts — dort sucht ihn jeder. Er ragt
+ * bewusst in die Polsterung des Feldes hinein (negative Raender), damit die
+ * Trefferflaeche die vollen 44 px hat, ohne das Feld hoeher zu machen: auf
+ * dem iPad ist alles darunter Gluecksache.
+ */
+.hinweis-zu {
+  flex: none; align-self: flex-start;
+  width: 44px; height: 44px;
+  margin: calc(var(--s3) * -1) calc(var(--s4) * -1) calc(var(--s3) * -1) 0;
+  padding: 0; border: 0; background: none;
+  color: var(--text-leise); font-size: var(--t-gross); line-height: 1;
+  cursor: pointer; border-radius: var(--radius);
+}
+.hinweis-zu:hover { color: var(--text); background: rgba(0, 0, 0, 0.06); }
+.hinweis-zu:focus-visible { outline: 2px solid var(--akzent); outline-offset: -2px; }
+
 /* --- Formularfelder ------------------------------------------------------- */
 label { display: block; font-size: var(--t-klein); color: var(--text-leise); margin-bottom: var(--s1); }
 input[type="text"], input[type="url"], input[type="password"], select, textarea {

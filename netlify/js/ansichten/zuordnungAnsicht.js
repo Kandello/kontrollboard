@@ -41,7 +41,7 @@ export function zeichneZuordnung(ziel, { daten, neuZeichnen }) {
           if (!datei) return;
           const ergebnis = zuordnung.leseCsv(datei.text);
           if (!ergebnis.gelesen) {
-            zeigeStand(stand, hinweis({ art: 'schlecht', zeichen: '×', titel: 'Nichts übernommen',
+            zeigeStand(stand, hinweis({ art: 'schlecht', zeichen: '!', titel: 'Nichts übernommen',
               text: ergebnis.fehler.join('\n') || 'Die Datei enthielt keine verwertbaren Zeilen.' }));
             return;
           }

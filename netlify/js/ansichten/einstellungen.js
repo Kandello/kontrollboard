@@ -57,7 +57,7 @@ export function zeichneEinstellungen(ziel, { daten, neuZeichnen }) {
             }));
             neuZeichnen();
           } catch (fehler) {
-            zeigeStand(stand, hinweis({ art: 'schlecht', zeichen: '×', titel: 'Verbindung fehlgeschlagen', text: fehler.message }));
+            zeigeStand(stand, hinweis({ art: 'schlecht', zeichen: '!', titel: 'Verbindung fehlgeschlagen', text: fehler.message }));
           }
         } }
       }),
@@ -71,7 +71,7 @@ export function zeichneEinstellungen(ziel, { daten, neuZeichnen }) {
               text: `Stand ${zeitpunktDeutsch(frisch.stand)} · ${frisch.schueler.length} Kürzel.` }));
             neuZeichnen();
           } catch (fehler) {
-            zeigeStand(stand, hinweis({ art: 'schlecht', zeichen: '×', text: fehler.message }));
+            zeigeStand(stand, hinweis({ art: 'schlecht', zeichen: '!', text: fehler.message }));
           }
         } }
       })
@@ -117,7 +117,7 @@ export function zeichneEinstellungen(ziel, { daten, neuZeichnen }) {
             setzeMeldung(hinweis({ art: 'gut', zeichen: '✓', text: 'Gespeichert.' }));
             neuZeichnen();
           } catch (fehler) {
-            zeigeStand(metaStand, hinweis({ art: 'schlecht', zeichen: '×', text: fehler.message }));
+            zeigeStand(metaStand, hinweis({ art: 'schlecht', zeichen: '!', text: fehler.message }));
           }
         } }
       })
@@ -144,7 +144,7 @@ export function zeichneEinstellungen(ziel, { daten, neuZeichnen }) {
             await ladeDaten({ neu: true });
             neuZeichnen();
           } catch (fehler) {
-            zeigeStand(einrichtStand, hinweis({ art: 'schlecht', zeichen: '×', text: fehler.message }));
+            zeigeStand(einrichtStand, hinweis({ art: 'schlecht', zeichen: '!', text: fehler.message }));
           }
         } }
       }),
@@ -157,7 +157,7 @@ export function zeichneEinstellungen(ziel, { daten, neuZeichnen }) {
           // Die Datei enthaelt ausschliesslich Kuerzel. Vor dem Senden pruefen.
           const verdacht = pruefeAufNamen(datei.text);
           if (verdacht) {
-            zeigeStand(einrichtStand, hinweis({ art: 'schlecht', zeichen: '×',
+            zeigeStand(einrichtStand, hinweis({ art: 'schlecht', zeichen: '!',
               titel: 'Nicht gesendet', text: verdacht }));
             return;
           }
@@ -169,7 +169,7 @@ export function zeichneEinstellungen(ziel, { daten, neuZeichnen }) {
             await ladeDaten({ neu: true });
             neuZeichnen();
           } catch (fehler) {
-            zeigeStand(einrichtStand, hinweis({ art: 'schlecht', zeichen: '×', text: fehler.message }));
+            zeigeStand(einrichtStand, hinweis({ art: 'schlecht', zeichen: '!', text: fehler.message }));
           }
         } }
       })

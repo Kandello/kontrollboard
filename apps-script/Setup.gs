@@ -289,11 +289,16 @@ function importSchuelerAusText(csvText) {
 /**
  * Prueft die Konfiguration und meldet, was die Berechnung verfaelschen wuerde.
  * Wird bei jedem Laden mitgeliefert und in der Oberflaeche angezeigt.
+ *
+ * Die drei Blaetter koennen uebergeben werden, wenn der Aufrufer sie ohnehin
+ * schon gelesen hat (ladeAlles tut das). Jeder gesparte Blattzugriff zaehlt:
+ * er ist der teuerste Teil des Ladens. Ohne Uebergabe — etwa aus dem Menue —
+ * liest die Funktion selbst.
  */
-function pruefeKonfiguration() {
+function pruefeKonfiguration(rohSchluessel, rohGewichte, rohKategorien) {
   var warnungen = [];
 
-  var schluessel = liesBlatt_('Notenschluessel')
+  var schluessel = (rohSchluessel || liesBlatt_('Notenschluessel'))
     .filter(function (z) { return z.note !== '' && z.note !== null; })
     .map(function (z) { return { note: Number(z.note), min: Number(z.min_prozent) }; })
     .sort(function (a, b) { return b.min - a.min; });
@@ -315,7 +320,8 @@ function pruefeKonfiguration() {
     }
   }
 
-  var gewichte = liesBlatt_('Gruppengewichte').filter(function (z) { return z.fach === FACH; });
+  var gewichte = (rohGewichte || liesBlatt_('Gruppengewichte'))
+    .filter(function (z) { return z.fach === FACH; });
   var summe = gewichte.reduce(function (s, z) { return s + Number(z.gewicht || 0); }, 0);
   if (gewichte.length && Math.abs(summe - 1) > 0.0001) {
     warnungen.push('Die Gruppengewichte ergeben ' + summe.toFixed(3) + ' statt 1,0.');
@@ -324,7 +330,8 @@ function pruefeKonfiguration() {
     warnungen.push('Es sind keine Gruppengewichte hinterlegt.');
   }
 
-  var kategorien = liesBlatt_('Kategorien').filter(function (z) { return istWahr_(z.aktiv); });
+  var kategorien = (rohKategorien || liesBlatt_('Kategorien'))
+    .filter(function (z) { return istWahr_(z.aktiv); });
   var gruppenMitGewicht = gewichte.map(function (z) { return z.gruppe; });
   kategorien.forEach(function (k) {
     if (gruppenMitGewicht.indexOf(k.gruppe) === -1) {
